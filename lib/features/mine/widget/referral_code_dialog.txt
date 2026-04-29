@@ -1,0 +1,128 @@
+// ignore_for_file: use_build_context_synchronously
+
+import 'package:flutter/material.dart';
+import 'package:flutter_ad_ecommerce/constants/colors.dart';
+import 'package:flutter_ad_ecommerce/provider/dio_provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+class ReferralCodeDialog extends ConsumerStatefulWidget {
+  const ReferralCodeDialog({super.key, required this.onSuccess});
+
+  final Function(String) onSuccess;
+
+  @override
+  ConsumerState<ReferralCodeDialog> createState() => _ReferralCodeDialogState();
+}
+
+
+
+// class _ReferralCodeDialogState extends ConsumerState<ReferralCodeDialog> {
+//   String _referralCode = "";
+//   String _validationErrorMsg = "";
+//   bool _isValidating = false;
+
+//   final TextEditingController _controller = TextEditingController();
+
+//   @override
+//   void dispose() {
+//     super.dispose();
+//     _controller.dispose();
+//   }
+
+//   @override
+//   Widget build(BuildContext context) {
+//     return GestureDetector(
+//       onTap: () {
+//         // Dismiss the keyboard when the user taps outside the text field.
+//         FocusScope.of(context).unfocus();
+//       },
+//       child: AlertDialog(
+//         title: const Text('輸入推薦碼'),
+//         content: SingleChildScrollView(
+//           child: Column(
+//             mainAxisSize: MainAxisSize.min,
+//             children: [
+//               TextField(
+//                 controller: _controller,
+//                 onChanged: (value) => setState(() {
+//                   _referralCode = value;
+//                 }),
+//                 // Prevents the keyboard from automatically capitalizing letters.
+//                 autocorrect: false,
+//                 textCapitalization: TextCapitalization.none,
+//                 decoration: const InputDecoration(
+//                   labelText: '推薦碼',
+//                   border: OutlineInputBorder(),
+//                 ),
+//               ),
+//               if (_validationErrorMsg.isNotEmpty)
+//                 Text(
+//                   _validationErrorMsg,
+//                   style: TextStyle(color: AppColors.dangerButtonColor),
+//                 ),
+//             ],
+//           ),
+//         ),
+//         actions: [
+//           TextButton(
+//             onPressed: () {
+//               setState(() {
+//                 _referralCode = "";
+//                 _validationErrorMsg = "";
+//               });
+//               Navigator.of(context).pop();
+//             },
+//             child: const Text('取消'),
+//           ),
+//           ElevatedButton(
+//             style: ElevatedButton.styleFrom(
+//               backgroundColor: AppColors.navbarIndicatorColor,
+//               foregroundColor: AppColors.primaryTextColor,
+//             ),
+//             onPressed: (_referralCode.isEmpty || _isValidating)
+//                 ? null
+//                 : () {
+//                     setState(() {
+//                       _isValidating = true;
+//                     });
+//                     ref
+//                         .read(dioProvider)
+//                         .get("/api/referral/validate/$_referralCode")
+//                         .then((response) {
+//                           if (response.statusCode != 200 ||
+//                               response.data['success'] != true) {
+//                             throw Exception("Request failed");
+//                           }
+//                           final data = response.data;
+//                           final success = data['data']['valid'] == true;
+//                           if (!success) {
+//                             return setState(() {
+//                               _validationErrorMsg = data['message'];
+//                             });
+//                           }
+//                           widget.onSuccess(_referralCode);
+//                           setState(() {
+//                             _referralCode = "";
+//                             _validationErrorMsg = "";
+//                           });
+//                           Navigator.of(context).pop();
+//                         })
+//                         .catchError(
+//                           (e) => setState(() {
+//                             _validationErrorMsg = 'Error: $e';
+//                           }),
+//                         )
+//                         .whenComplete(() {
+//                           setState(() {
+//                             _isValidating = false;
+//                           });
+//                         });
+//                   },
+
+//             child: const Text('提交'),
+//           ),
+//         ],
+//       ),
+//     );
+//   }
+// }

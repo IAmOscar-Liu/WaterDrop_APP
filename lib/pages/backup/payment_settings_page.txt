@@ -1,0 +1,727 @@
+// ignore_for_file: constant_identifier_names
+
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_ad_ecommerce/constants/app_constants.dart';
+import 'package:flutter_ad_ecommerce/constants/colors.dart';
+import 'package:flutter_ad_ecommerce/features/ecpay/widget/checkout_delivery_section.dart';
+import 'package:flutter_ad_ecommerce/features/ecpay/widget/checkout_webview.dart';
+import 'package:flutter_ad_ecommerce/models/logistics_info.dart';
+import 'package:flutter_ad_ecommerce/models/product.dart';
+import 'package:flutter_ad_ecommerce/provider/account_provider.dart';
+import 'package:flutter_ad_ecommerce/provider/order_provider.dart';
+import 'package:flutter_ad_ecommerce/provider/payment_settings_provider.dart';
+import 'package:flutter_ad_ecommerce/provider/system_provider.dart';
+import 'package:flutter_ad_ecommerce/router/routes.dart';
+import 'package:flutter_ad_ecommerce/utils/number_formatter_extension.dart';
+import 'package:flutter_ad_ecommerce/utils/parse_utils.dart';
+import 'package:flutter_ad_ecommerce/widgets/page_status.dart';
+import 'package:flutter_ad_ecommerce/widgets/simple_app_bar.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+
+enum CheckoutStat { validating, settingMap, choosingMap, processingPayment }
+
+class PaymentSettingsPage extends ConsumerStatefulWidget {
+  final dynamic extra;
+  const PaymentSettingsPage({super.key, required this.extra});
+
+  @override
+  ConsumerState<PaymentSettingsPage> createState() =>
+      _PaymentSettingsPageState();
+}
+
+class _PaymentSettingsPageState extends ConsumerState<PaymentSettingsPage> {
+  CheckoutStat _checkoutStat = CheckoutStat.validating;
+  LogisticsSubType _logisticsSubType = AppConstants.logisticsSubType == "B2C"
+      ? LogisticsSubType.FAMI
+      : LogisticsSubType.FAMIC2C;
+
+  // New state variables for grouped delivery
+  DeliveryMethod? _refrigerationMethod;
+  LogisticsMapInfo? _refrigerationStore;
+
+  DeliveryMethod? _normalMethod;
+  LogisticsSubType? _normalCvsType;
+  LogisticsMapInfo? _normalStore;
+
+  String? _selectingStoreFor; // 'refrigeration' or 'normal'
+  // final Set<String> _manualPickupItemIds = {};
+
+  @override
+  void initState() {
+    super.initState();
+
+    if (widget.extra is! Map ||
+        // widget.extra['totalAmount'] == null ||
+        widget.extra['discountCoin'] == null ||
+        widget.extra['cartItems'] == null) {
+      // If data is missing, pop immediately
+      WidgetsBinding.instance.addPostFrameCallback((_) => context.pop());
+      return;
+    }
+
+    Future.delayed(Duration.zero, () {
+      ref.read(paymentSettingsNotifierProvider.notifier).loadPaymentSettings();
+    });
+  }
+
+  Widget _buildLayout({required Widget child, bool allowPop = true}) {
+    return PopScope(
+      canPop: allowPop,
+      child: Scaffold(
+        backgroundColor: AppColors.scaffoldBgColor,
+        appBar: SimpleAppBar(
+          title: '結帳設定',
+          // Hide the back button if popping is not allowed
+          automaticallyImplyLeading: allowPop,
+          leading: allowPop ? null : const SizedBox.shrink(),
+        ),
+        resizeToAvoidBottomInset: true,
+        body: child,
+      ),
+    );
+  }
+
+  Widget _buildReceiverInfo() {
+    final accountInfo = ref.watch(accountNotifierProvider);
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16.0),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.containerBgColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.borderColor, width: 1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            "收件人資訊",
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 18,
+              color: AppColors.primaryTextColor,
+            ),
+          ),
+          const Divider(color: AppColors.dividerColor),
+          Text(
+            "姓名：${accountInfo.name.isEmpty ? "尚未填寫" : accountInfo.name}",
+            style: const TextStyle(color: AppColors.secondaryTextColor),
+          ),
+          Text(
+            "地址：${(accountInfo.address == null || accountInfo.address!.isEmpty) ? "尚未填寫" : accountInfo.address}",
+            style: const TextStyle(color: AppColors.secondaryTextColor),
+          ),
+          Text(
+            "手機號碼：${(accountInfo.phone == null || accountInfo.phone!.isEmpty) ? "尚未填寫" : accountInfo.phone}",
+            style: const TextStyle(color: AppColors.secondaryTextColor),
+          ),
+          // Text(
+          //   "Email：${accountInfo.email.isEmpty ? "尚未填寫" : accountInfo.email}",
+          //   style: const TextStyle(color: AppColors.secondaryTextColor),
+          // ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSummaryRow(String label, String value, {Color? valueColor}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              color: AppColors.secondaryTextColor,
+              fontSize: 16,
+            ),
+          ),
+          Text(
+            value,
+            style: TextStyle(
+              color: valueColor ?? AppColors.primaryTextColor,
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOrderSummary({
+    double subtotal = 0.0,
+    double shippingCost = 0.0,
+    double transactionFee = 0.0,
+    int discountAmount = 0,
+    double totalAmount = 0.0,
+    double transactionFeeRate = 0.0,
+  }) {
+    // final double finalAmount = widget.extra['totalAmount'];
+    // final int discountCoin = widget.extra['discountCoin'];
+    // final int discountAmount = (discountCoin / 10).floor();
+    // final double subtotal = widget.extra['subTotal'];
+    // final double totalAmount =
+    //     subtotal - discountAmount + shippingCost + transactionFee;
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16.0),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.containerBgColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.borderColor, width: 1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            "訂單摘要",
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 18,
+              color: AppColors.primaryTextColor,
+            ),
+          ),
+          const Divider(color: AppColors.dividerColor),
+          _buildSummaryRow('商品總金額', subtotal.toDollarsString(prefix: "NT")),
+          _buildSummaryRow(
+            '金幣折抵',
+            '- ${discountAmount.toDollarsString(prefix: "NT")}',
+            valueColor: AppColors.greenColor,
+          ),
+          _buildSummaryRow('總運費', shippingCost.toDollarsString(prefix: "NT")),
+          if (!kReleaseMode)
+            _buildSummaryRow(
+              '手續費${transactionFeeRate == 0 ? "" : "(${transactionFeeRate * 100}%)"}',
+              transactionFee.floor().toDollarsString(prefix: "NT"),
+            ),
+          const Divider(color: AppColors.dividerColor),
+          _buildSummaryRow(
+            "最終需支付現金",
+            totalAmount.floor().toDollarsString(prefix: "NT"),
+            valueColor: AppColors.goldColor,
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final paymentSettings = ref.watch(paymentSettingsNotifierProvider);
+    final accountInfo = ref.watch(accountNotifierProvider);
+    final currentOrder = ref.watch(systemNotifierProvider).currentOrder;
+    final List<CartItem> cartItems = widget.extra['cartItems'];
+
+    final virtualItems = cartItems
+        .where((i) => i.product.type == 'virtual')
+        .toList();
+    final refrigerationItems = cartItems
+        .where((i) => i.product.type == 'refrigeration')
+        .toList();
+    final normalItems = cartItems
+        .where((i) => i.product.type == 'normal')
+        .toList();
+
+    final bool refrigHasHome = refrigerationItems.any(
+      (i) => i.product.allowHomeDelivery,
+    );
+
+    final bool normalHasHome = normalItems.any(
+      (i) => i.product.allowHomeDelivery,
+    );
+
+    // Calculate split lists for validation
+    List<CartItem> refrigHomeItems = [];
+    List<CartItem> refrigPickupItems = [];
+    if (_refrigerationMethod == DeliveryMethod.home) {
+      for (var item in refrigerationItems) {
+        if (item.product.allowHomeDelivery
+        // && !_manualPickupItemIds.contains(item.productId)
+        ) {
+          refrigHomeItems.add(item);
+        } else {
+          refrigPickupItems.add(item);
+        }
+      }
+    } else {
+      refrigPickupItems = refrigerationItems;
+    }
+
+    List<CartItem> normalHomeItems = [];
+    List<CartItem> normalPickupItems = [];
+    if (_normalMethod == DeliveryMethod.home) {
+      for (var item in normalItems) {
+        if (item.product.allowHomeDelivery
+        // && !_manualPickupItemIds.contains(item.productId)
+        ) {
+          normalHomeItems.add(item);
+        } else {
+          normalPickupItems.add(item);
+        }
+      }
+    } else {
+      normalPickupItems = normalItems;
+    }
+
+    bool isRefrigerationValid = true;
+    if (refrigerationItems.isNotEmpty) {
+      if (!refrigHasHome) {
+        // Force CVS check
+        if (_refrigerationStore == null) isRefrigerationValid = false;
+      } else {
+        if (_refrigerationMethod == null) isRefrigerationValid = false;
+        if (refrigPickupItems.isNotEmpty) {
+          if (_refrigerationStore == null) {
+            isRefrigerationValid = false;
+          }
+        }
+      }
+    }
+
+    bool isNormalValid = true;
+    if (normalItems.isNotEmpty) {
+      if (!normalHasHome) {
+        // Force CVS check
+        if (_normalCvsType == null) isNormalValid = false;
+        if (_normalStore == null) isNormalValid = false;
+      } else {
+        if (_normalMethod == null) isNormalValid = false;
+        if (normalPickupItems.isNotEmpty) {
+          if (_normalCvsType == null) isNormalValid = false;
+          if (_normalStore == null) isNormalValid = false;
+        }
+      }
+    }
+
+    List<Map<String, dynamic>> generateGroup() {
+      // Generate Groups
+      List<Map<String, dynamic>> groups = [];
+
+      Map<String, List<CartItem>> groupItemsBySeller(List<CartItem> items) {
+        final Map<String, List<CartItem>> grouped = {};
+        for (var item in items) {
+          final sellerId = item.product.sellerId;
+          if (!grouped.containsKey(sellerId)) {
+            grouped[sellerId] = [];
+          }
+          grouped[sellerId]!.add(item);
+        }
+        return grouped;
+      }
+
+      double? getPickupFee(LogisticsSubType type) {
+        switch (type) {
+          case LogisticsSubType.FAMI:
+            return paymentSettings.data?.FAMI;
+          case LogisticsSubType.UNIMART:
+            return paymentSettings.data?.UNIMART;
+          case LogisticsSubType.FAMIC2C:
+            return paymentSettings.data?.FAMIC2C;
+          case LogisticsSubType.UNIMARTC2C:
+            return paymentSettings.data?.UNIMARTC2C;
+          case LogisticsSubType.HILIFEC2C:
+            return paymentSettings.data?.HILIFEC2C;
+          case LogisticsSubType.OKMARTC2C:
+            return paymentSettings.data?.OKMARTC2C;
+          case LogisticsSubType.OKMART_LOW_TMP_C2C:
+            return paymentSettings.data?.OKMART_LOW_TMP_C2C;
+        }
+      }
+
+      if (virtualItems.isNotEmpty) {
+        final grouped = groupItemsBySeller(virtualItems);
+        grouped.forEach((sellerId, items) {
+          groups.add({"name": "虛擬商品(免運)", "items": items});
+        });
+      }
+      if (refrigerationItems.isNotEmpty) {
+        // Use calculated lists
+        if (refrigHomeItems.isNotEmpty) {
+          final grouped = groupItemsBySeller(refrigHomeItems);
+          grouped.forEach((sellerId, items) {
+            groups.add({
+              "name": "冷藏(宅配到府)",
+              "items": items,
+              "method": DeliveryMethod.home,
+              "fee": paymentSettings.data?.homeDeliveryRefrig,
+            });
+          });
+        }
+        if (refrigPickupItems.isNotEmpty) {
+          final grouped = groupItemsBySeller(refrigPickupItems);
+          grouped.forEach((sellerId, items) {
+            groups.add({
+              "name": "冷藏(店到店)",
+              "items": items,
+              "store": _refrigerationStore,
+              "method": DeliveryMethod.cvs,
+              "cvsType": LogisticsSubType.OKMART_LOW_TMP_C2C,
+              "fee": paymentSettings.data?.OKMART_LOW_TMP_C2C,
+            });
+          });
+        }
+      }
+      if (normalItems.isNotEmpty) {
+        // Use calculated lists
+        if (normalHomeItems.isNotEmpty) {
+          final grouped = groupItemsBySeller(normalHomeItems);
+          grouped.forEach((sellerId, items) {
+            groups.add({
+              "name": "一般(宅配到府)",
+              "items": items,
+              "method": DeliveryMethod.home,
+              "fee": paymentSettings.data?.homeDelivery,
+            });
+          });
+        }
+        if (normalPickupItems.isNotEmpty) {
+          final grouped = groupItemsBySeller(normalPickupItems);
+          grouped.forEach((sellerId, items) {
+            groups.add({
+              "name": "一般(店到店)",
+              "items": items,
+              "store": _normalStore,
+              "method": DeliveryMethod.cvs,
+              "cvsType": _normalCvsType,
+              "fee": _normalCvsType != null
+                  ? getPickupFee(_normalCvsType!)
+                  : null,
+            });
+          });
+        }
+      }
+      return groups;
+    }
+
+    Map<String, double> getOrderSummary() {
+      final mGroups = generateGroup();
+      double mSubTotal = widget.extra["subTotal"] ?? 0;
+      int mDiscountAmount = ((widget.extra['discountCoin'] ?? 0) / 10).floor();
+      double mShippingCost = mGroups.fold(
+        0,
+        (sum, item) => sum + (item['fee'] ?? 0),
+      );
+      double mTransactionFee =
+          (mSubTotal - mDiscountAmount) *
+          (paymentSettings.data?.transactionFeeRate ?? 0);
+      final mTotalAmount =
+          mSubTotal - mDiscountAmount + mShippingCost + mTransactionFee;
+
+      return {
+        "subTotal": mSubTotal,
+        "discountAmount": ParseUtils.parseDouble(mDiscountAmount) ?? 0.0,
+        "shippingCost": mShippingCost,
+        "transactionFee": mTransactionFee,
+        "totalAmount": mTotalAmount,
+      };
+    }
+
+    if (_checkoutStat == CheckoutStat.validating) {
+      return _buildLayout(
+        child: ValidationWebview(
+          accountInfo: accountInfo,
+          onSuccess: () {
+            setState(() {
+              _checkoutStat = CheckoutStat.settingMap;
+            });
+          },
+        ),
+      );
+    } else if (_checkoutStat == CheckoutStat.settingMap) {
+      return _buildLayout(
+        child: SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.only(top: 24, bottom: 36),
+            child: Column(
+              children: [
+                _buildReceiverInfo(),
+                const SizedBox(height: 12),
+                // _buildOrderSummary(),
+                // const SizedBox(height: 12),
+                CheckoutDeliverySection(
+                  cartItems: cartItems,
+                  refrigerationMethod: _refrigerationMethod,
+                  refrigerationStore: _refrigerationStore,
+                  normalMethod: _normalMethod,
+                  normalCvsType: _normalCvsType,
+                  normalStore: _normalStore,
+                  // manualPickupItemIds: _manualPickupItemIds,
+                  onRefrigerationMethodChanged: (val) =>
+                      setState(() => _refrigerationMethod = val),
+                  onNormalMethodChanged: (val) =>
+                      setState(() => _normalMethod = val),
+                  onNormalCvsTypeChanged: (val) => setState(() {
+                    _normalCvsType = val;
+                    _normalStore = null;
+                  }),
+                  onSelectStore: (type, subType) {
+                    setState(() {
+                      _selectingStoreFor = type;
+                      _logisticsSubType = subType;
+                      _checkoutStat = CheckoutStat.choosingMap;
+                    });
+                  },
+                  // onManualPickupItemToggle: (productId) {
+                  //   if (_manualPickupItemIds.contains(productId))
+                  //     _manualPickupItemIds.remove(productId);
+                  //   else
+                  //     _manualPickupItemIds.add(productId);
+                  //   setState(() {});
+                  // },
+                ),
+                Builder(
+                  builder: (context) {
+                    final result = getOrderSummary();
+
+                    return _buildOrderSummary(
+                      subtotal: result["subTotal"]!,
+                      discountAmount: result['discountAmount']!.toInt(),
+                      shippingCost: result['shippingCost']!,
+                      transactionFee: result['transactionFee']!,
+                      totalAmount: result['totalAmount']!,
+                      transactionFeeRate:
+                          paymentSettings.data?.transactionFeeRate ?? 0,
+                    );
+                  },
+                ),
+                const SizedBox(height: 24),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed:
+                          (!paymentSettings.isDone ||
+                              !isRefrigerationValid ||
+                              !isNormalValid)
+                          ? null
+                          : () {
+                              // Generate Groups
+                              bool splitOccurred = false;
+
+                              if (refrigerationItems.isNotEmpty) {
+                                if (refrigPickupItems.isNotEmpty) {
+                                  if (_refrigerationMethod ==
+                                      DeliveryMethod.home) {
+                                    splitOccurred = true;
+                                  }
+                                }
+                              }
+                              if (normalItems.isNotEmpty) {
+                                if (normalPickupItems.isNotEmpty) {
+                                  if (_normalMethod == DeliveryMethod.home) {
+                                    splitOccurred = true;
+                                  }
+                                }
+                              }
+
+                              if (splitOccurred) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text("部分商品不支援宅配，已自動拆分為店到店訂單"),
+                                    duration: Duration(seconds: 2),
+                                  ),
+                                );
+                              }
+
+                              final result = getOrderSummary();
+                              setState(() {
+                                _checkoutStat = CheckoutStat.processingPayment;
+                              });
+                              context
+                                  .push(
+                                    Routes.ecPayPage,
+                                    extra: {
+                                      "subTotal": widget.extra["subTotal"],
+                                      "totalAmount": result['totalAmount'],
+                                      "discountCoin":
+                                          widget.extra['discountCoin'],
+                                      "shippingCost": result["shippingCost"],
+                                      "transactionFee":
+                                          result["transactionFee"],
+                                      "cartItems": widget.extra['cartItems'],
+                                      "transactionFeeRateAtSale":
+                                          paymentSettings
+                                              .data
+                                              ?.transactionFeeRate,
+                                      "userLevelAtSale":
+                                          widget.extra['userLevelAtSale'],
+                                      "userMaxDiscountAtSale":
+                                          widget.extra['userMaxDiscountAtSale'],
+                                    },
+                                  )
+                                  // If currentOrder's status is pending, refetch currentOrder
+                                  .then((value) async {
+                                    final resultOrder = ref
+                                        .read(systemNotifierProvider)
+                                        .currentOrder;
+                                    if (resultOrder != null &&
+                                        resultOrder.orderStatus == "pending") {
+                                      final result = await ref
+                                          .read(orderNotifierProvider.notifier)
+                                          .getOrder(orderId: resultOrder.id);
+                                      if (result.isSuccess) {
+                                        ref
+                                            .read(
+                                              systemNotifierProvider.notifier,
+                                            )
+                                            .setCurrentOrder(result.data);
+                                      }
+                                    }
+                                  })
+                                  // If currentOrder's status is still pending, cancel it
+                                  .then((value) async {
+                                    final resultOrder = ref
+                                        .read(systemNotifierProvider)
+                                        .currentOrder;
+                                    if (resultOrder != null &&
+                                        resultOrder.orderStatus == "pending") {
+                                      final result = await ref
+                                          .read(orderNotifierProvider.notifier)
+                                          .updateOrder(
+                                            orderId: resultOrder.id,
+                                            status: "canceled",
+                                          );
+                                      if (result.isSuccess) {
+                                        ref
+                                            .read(
+                                              systemNotifierProvider.notifier,
+                                            )
+                                            .setCurrentOrder(result.data);
+                                      }
+                                    }
+                                  })
+                                  // If currentOrder is null -> no order created -> pop
+                                  .then((value) {
+                                    final resultOrder = ref
+                                        .read(systemNotifierProvider)
+                                        .currentOrder;
+                                    if (resultOrder == null) {
+                                      // ignore: use_build_context_synchronously
+                                      return context.pop();
+                                    }
+                                    final orderStatus = resultOrder.orderStatus;
+                                    if (orderStatus != "paid") {
+                                      showDialog(
+                                        // ignore: use_build_context_synchronously
+                                        context: context,
+                                        builder: (context) {
+                                          return AlertDialog(
+                                            backgroundColor: const Color(
+                                              0xFF262A33,
+                                            ),
+                                            title: Text(
+                                              orderStatus == "canceled"
+                                                  ? "交易取消"
+                                                  : orderStatus == "expired"
+                                                  ? "交易逾期"
+                                                  : "交易失敗",
+                                              style: const TextStyle(
+                                                color: Colors.white,
+                                              ),
+                                            ),
+                                            actions: [
+                                              TextButton(
+                                                onPressed: () => Navigator.of(
+                                                  context,
+                                                ).pop(true),
+                                                child: const Text(
+                                                  '確定',
+                                                  style: TextStyle(
+                                                    color: Colors.white,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          );
+                                        },
+                                      ).then((value) {
+                                        setState(() {
+                                          _checkoutStat =
+                                              CheckoutStat.settingMap;
+                                        });
+                                      });
+                                    }
+                                  });
+                            },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primaryButtonColor,
+                        foregroundColor: AppColors.primaryTextColor,
+                        disabledBackgroundColor: AppColors.mutedTextColor,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                      ),
+                      child: const Text(
+                        "下一步，前往付款",
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    } else if (_checkoutStat == CheckoutStat.choosingMap) {
+      return _buildLayout(
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            LogisticsMapWebview(
+              logisticsSubType: _logisticsSubType.name,
+              onSuccess: (response) {
+                setState(() {
+                  final info = LogisticsMapInfo.fromApiResponseMap(response);
+                  if (_selectingStoreFor == 'refrigeration') {
+                    _refrigerationStore = info;
+                  } else if (_selectingStoreFor == 'normal') {
+                    _normalStore = info;
+                  }
+                  _checkoutStat = CheckoutStat.settingMap;
+                });
+              },
+            ),
+          ],
+        ),
+      );
+    } else if (_checkoutStat == CheckoutStat.processingPayment &&
+        currentOrder?.orderStatus == "paid") {
+      return _buildLayout(
+        child: CreateGroupExpressWebview(
+          order: currentOrder!,
+          groups: generateGroup(),
+          onSuccess: (response) {
+            context.pop();
+          },
+          onFailure: (error) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text("部分商品無法建立運單，請至「我的」>「我的訂單」查看"),
+                backgroundColor: AppColors.dangerButtonColor,
+                duration: const Duration(seconds: 2),
+              ),
+            );
+            context.pop();
+          },
+        ),
+        allowPop: false,
+      );
+    } else {
+      return _buildLayout(
+        child: PageLoading('運單確認中，請稍後......'),
+        allowPop: false,
+      );
+    }
+  }
+}

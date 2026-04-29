@@ -1,0 +1,782 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_ad_ecommerce/constants/colors.dart';
+import 'package:flutter_ad_ecommerce/models/logistics_info.dart';
+import 'package:flutter_ad_ecommerce/models/payment_settings.dart';
+import 'package:flutter_ad_ecommerce/models/product.dart';
+import 'package:flutter_ad_ecommerce/utils/number_formatter_extension.dart';
+import 'package:flutter_ad_ecommerce/widgets/initial_image.dart';
+
+enum LogisticsSubType {
+  // B2C
+  FAMI,
+  UNIMART,
+  // C2C
+  FAMIC2C,
+  UNIMARTC2C,
+  HILIFEC2C,
+  OKMARTC2C,
+  OKMART_LOW_TMP_C2C,
+}
+
+enum DeliveryMethod { home, cvs }
+
+class CheckoutDeliverySection extends StatelessWidget {
+  final Map<String, PaymentSettings> shippingFee;
+  final List<CartItem> cartItems;
+
+  // Changed to Maps to support multiple sellers
+  final Map<String, DeliveryMethod?> refrigerationMethods;
+  final Map<String, LogisticsMapInfo?> refrigerationStores;
+
+  final Map<String, DeliveryMethod?> normalMethods;
+  final Map<String, LogisticsSubType?> normalCvsTypes;
+  final Map<String, LogisticsMapInfo?> normalStores;
+
+  // Callbacks now include sellerId
+  final Function(String sellerId, DeliveryMethod? value)
+  onRefrigerationMethodChanged;
+  final Function(String sellerId, DeliveryMethod? value) onNormalMethodChanged;
+  final Function(String sellerId, LogisticsSubType? value)
+  onNormalCvsTypeChanged;
+  final Function(String type, LogisticsSubType subType, String sellerId)
+  onSelectStore;
+
+  const CheckoutDeliverySection({
+    super.key,
+    // required this.paymentSettings,
+    required this.shippingFee,
+    required this.cartItems,
+    required this.refrigerationMethods,
+    required this.refrigerationStores,
+    required this.normalMethods,
+    required this.normalCvsTypes,
+    required this.normalStores,
+    required this.onRefrigerationMethodChanged,
+    required this.onNormalMethodChanged,
+    required this.onNormalCvsTypeChanged,
+    required this.onSelectStore,
+  });
+
+  double? _getCvsFee(String sellerId, LogisticsSubType type) {
+    final paymentSettings = shippingFee[sellerId];
+    switch (type) {
+      case LogisticsSubType.FAMIC2C:
+        return paymentSettings?.FAMIC2C ?? shippingFee['default']?.FAMIC2C;
+      case LogisticsSubType.UNIMARTC2C:
+        return paymentSettings?.UNIMARTC2C ??
+            shippingFee['default']?.UNIMARTC2C;
+      case LogisticsSubType.HILIFEC2C:
+        return paymentSettings?.HILIFEC2C ?? shippingFee['default']?.HILIFEC2C;
+      case LogisticsSubType.OKMARTC2C:
+        return paymentSettings?.OKMARTC2C ?? shippingFee['default']?.OKMARTC2C;
+      case LogisticsSubType.OKMART_LOW_TMP_C2C:
+        return paymentSettings?.OKMART_LOW_TMP_C2C ??
+            shippingFee['default']?.OKMART_LOW_TMP_C2C;
+      default:
+        return 0.0;
+    }
+  }
+
+  Widget _buildFeeRow(double fee) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          const Text(
+            "運費：",
+            style: TextStyle(
+              color: AppColors.primaryTextColor,
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          Text(
+            fee.toDollarsString(prefix: "NT"),
+            style: const TextStyle(
+              color: AppColors.primaryTextColor,
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Map<String, List<CartItem>> _groupItemsBySeller(List<CartItem> items) {
+    final Map<String, List<CartItem>> grouped = {};
+    for (var item in items) {
+      final sellerId = item.product.sellerId;
+      if (!grouped.containsKey(sellerId)) {
+        grouped[sellerId] = [];
+      }
+      grouped[sellerId]!.add(item);
+    }
+    return grouped;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final virtualItems = cartItems
+        .where((i) => i.product.type == 'virtual')
+        .toList();
+    final refrigerationItems = cartItems
+        .where((i) => i.product.type == 'refrigeration')
+        .toList();
+    final normalItems = cartItems
+        .where((i) => i.product.type == 'normal')
+        .toList();
+
+    // Group by seller
+    final refrigBySeller = _groupItemsBySeller(refrigerationItems);
+    final normalBySeller = _groupItemsBySeller(normalItems);
+
+    final List<Widget> sections = [];
+
+    if (virtualItems.isNotEmpty) {
+      sections.add(
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              child: const Text(
+                "虛擬商品 (免運)",
+                style: TextStyle(
+                  color: AppColors.primaryTextColor,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              child: _buildItemsList(virtualItems),
+            ),
+          ],
+        ),
+      );
+    }
+
+    for (var entry in refrigBySeller.entries) {
+      final sellerId = entry.key;
+      final items = entry.value;
+      final sellerName = items.first.product.seller?.name ?? "未知賣家";
+
+      sections.add(
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              child: const Text(
+                "冷藏商品",
+                style: TextStyle(
+                  color: AppColors.primaryTextColor,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            _buildRefrigerationSellerSection(
+              context,
+              sellerId,
+              sellerName,
+              items,
+            ),
+          ],
+        ),
+      );
+    }
+
+    for (var entry in normalBySeller.entries) {
+      final sellerId = entry.key;
+      final items = entry.value;
+      final sellerName = items.first.product.seller?.name ?? "未知賣家";
+
+      sections.add(
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              child: const Text(
+                "常溫商品",
+                style: TextStyle(
+                  color: AppColors.primaryTextColor,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            _buildNormalSellerSection(context, sellerId, sellerName, items),
+          ],
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (int i = 0; i < sections.length; i++) ...[
+          sections[i],
+          if (i < sections.length - 1)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
+              child: Divider(color: AppColors.dividerColor),
+            )
+          else
+            const SizedBox(height: 16),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildRefrigerationSellerSection(
+    BuildContext context,
+    String sellerId,
+    String sellerName,
+    List<CartItem> items,
+  ) {
+    final paymentSettings = shippingFee[sellerId];
+    final method = refrigerationMethods[sellerId];
+    final store = refrigerationStores[sellerId];
+
+    final bool hasHome = items.any((i) => i.product.allowHomeDelivery);
+    final bool hasNonHome = items.any((i) => !i.product.allowHomeDelivery);
+
+    List<CartItem> homeItems = [];
+    List<CartItem> pickupItems = [];
+
+    if (method == DeliveryMethod.home) {
+      for (var item in items) {
+        if (item.product.allowHomeDelivery) {
+          homeItems.add(item);
+        } else {
+          pickupItems.add(item);
+        }
+      }
+    } else {
+      pickupItems = items;
+    }
+
+    double? homeFee;
+    double? pickupFee;
+
+    if (method == DeliveryMethod.home) {
+      homeFee =
+          paymentSettings?.homeDeliveryRefrig ??
+          shippingFee['default']?.homeDeliveryRefrig;
+      if (pickupItems.isNotEmpty && store != null) {
+        pickupFee =
+            paymentSettings?.OKMART_LOW_TMP_C2C ??
+            shippingFee['default']?.OKMART_LOW_TMP_C2C;
+      }
+    } else if (method == DeliveryMethod.cvs) {
+      if (store != null) {
+        pickupFee =
+            paymentSettings?.OKMART_LOW_TMP_C2C ??
+            shippingFee['default']?.OKMART_LOW_TMP_C2C;
+      }
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+          child: Text(
+            "賣家: $sellerName",
+            style: const TextStyle(
+              color: AppColors.secondaryTextColor,
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+        _buildDeliveryOption(
+          title: "配送方式",
+          groupValue: method,
+          onChanged: (val) {
+            onRefrigerationMethodChanged(sellerId, val);
+            if (val == DeliveryMethod.home && hasNonHome) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text("部分商品不支援宅配，已自動分為店取"),
+                  backgroundColor: Colors.redAccent,
+                  duration: Duration(seconds: 2),
+                ),
+              );
+            }
+          },
+          options: [
+            DropdownMenuItem(value: DeliveryMethod.cvs, child: Text("OK低溫店到店")),
+            if (hasHome)
+              DropdownMenuItem(value: DeliveryMethod.home, child: Text("宅配到府")),
+          ],
+        ),
+        if (method == DeliveryMethod.home) ...[
+          if (homeItems.isNotEmpty) ...[
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              child: _buildItemsList(homeItems),
+            ),
+            if (homeFee != null) _buildFeeRow(homeFee),
+          ],
+          if (pickupItems.isNotEmpty) ...[
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              child: Row(
+                children: [
+                  const Text(
+                    "OK店到店",
+                    style: TextStyle(
+                      color: AppColors.primaryTextColor,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  if (hasNonHome) ...[
+                    SizedBox(width: 8),
+                    const Text(
+                      "以下商品不支援宅配到府",
+                      style: TextStyle(
+                        color: AppColors.warningColor,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              child: _buildItemsList(pickupItems),
+            ),
+            _buildStoreSelector(
+              storeInfo: store,
+              onSelect: () => onSelectStore(
+                'refrigeration',
+                LogisticsSubType.OKMARTC2C,
+                sellerId,
+              ),
+            ),
+            if (pickupFee != null) _buildFeeRow(pickupFee),
+          ],
+        ] else ...[
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            child: _buildItemsList(items),
+          ),
+          _buildStoreSelector(
+            storeInfo: store,
+            onSelect: () => onSelectStore(
+              'refrigeration',
+              LogisticsSubType.OKMARTC2C,
+              sellerId,
+            ),
+          ),
+          if (pickupFee != null) _buildFeeRow(pickupFee),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildNormalSellerSection(
+    BuildContext context,
+    String sellerId,
+    String sellerName,
+    List<CartItem> items,
+  ) {
+    final paymentSettings = shippingFee[sellerId];
+    final method = normalMethods[sellerId];
+    final cvsType = normalCvsTypes[sellerId];
+    final store = normalStores[sellerId];
+
+    final bool hasHome = items.any((i) => i.product.allowHomeDelivery);
+    final bool hasNonHome = items.any((i) => !i.product.allowHomeDelivery);
+
+    List<CartItem> homeItems = [];
+    List<CartItem> pickupItems = [];
+
+    if (method == DeliveryMethod.home) {
+      for (var item in items) {
+        if (item.product.allowHomeDelivery) {
+          homeItems.add(item);
+        } else {
+          pickupItems.add(item);
+        }
+      }
+    } else {
+      pickupItems = items;
+    }
+
+    double? homeFee;
+    double? pickupFee;
+
+    if (method == DeliveryMethod.home) {
+      homeFee =
+          paymentSettings?.homeDelivery ?? shippingFee['default']?.homeDelivery;
+      if (pickupItems.isNotEmpty && cvsType != null && store != null) {
+        pickupFee = _getCvsFee(sellerId, cvsType);
+      }
+    } else if (method == DeliveryMethod.cvs) {
+      if (cvsType != null && store != null) {
+        pickupFee = _getCvsFee(sellerId, cvsType);
+      }
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+          child: Text(
+            "賣家: $sellerName",
+            style: const TextStyle(
+              color: AppColors.secondaryTextColor,
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+        _buildDeliveryOption(
+          title: "配送方式",
+          groupValue: method,
+          onChanged: (val) {
+            onNormalMethodChanged(sellerId, val);
+            if (val == DeliveryMethod.home && hasNonHome) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text("部分商品不支援宅配，已自動分為店取"),
+                  backgroundColor: Colors.redAccent,
+                  duration: Duration(seconds: 2),
+                ),
+              );
+            }
+          },
+          options: [
+            DropdownMenuItem(value: DeliveryMethod.cvs, child: Text("超商取貨")),
+            if (hasHome)
+              DropdownMenuItem(value: DeliveryMethod.home, child: Text("宅配到府")),
+          ],
+        ),
+        if (method == DeliveryMethod.home) ...[
+          if (homeItems.isNotEmpty) ...[
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              child: _buildItemsList(homeItems),
+            ),
+            if (homeFee != null) _buildFeeRow(homeFee),
+          ],
+          if (pickupItems.isNotEmpty) ...[
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              child: Row(
+                children: [
+                  const Text(
+                    "超商取貨",
+                    style: TextStyle(
+                      color: AppColors.primaryTextColor,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  if (hasNonHome) ...[
+                    SizedBox(width: 8),
+                    const Text(
+                      "以下商品不支援宅配到府",
+                      style: TextStyle(
+                        color: AppColors.warningColor,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              child: _buildItemsList(pickupItems),
+            ),
+            _buildDeliveryOption(
+              title: "選擇超商",
+              groupValue: cvsType,
+              onChanged: (val) => onNormalCvsTypeChanged(sellerId, val),
+              options: [
+                DropdownMenuItem(
+                  value: LogisticsSubType.UNIMARTC2C,
+                  child: Text("7-ELEVEN"),
+                ),
+                DropdownMenuItem(
+                  value: LogisticsSubType.FAMIC2C,
+                  child: Text("全家"),
+                ),
+                DropdownMenuItem(
+                  value: LogisticsSubType.HILIFEC2C,
+                  child: Text("萊爾富"),
+                ),
+                DropdownMenuItem(
+                  value: LogisticsSubType.OKMARTC2C,
+                  child: Text("OK"),
+                ),
+              ],
+            ),
+            if (cvsType != null)
+              _buildStoreSelector(
+                storeInfo: store,
+                onSelect: () => onSelectStore('normal', cvsType, sellerId),
+              ),
+            if (pickupFee != null) _buildFeeRow(pickupFee),
+          ],
+        ] else ...[
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            child: _buildItemsList(items),
+          ),
+          _buildDeliveryOption(
+            title: "選擇超商",
+            groupValue: cvsType,
+            onChanged: (val) => onNormalCvsTypeChanged(sellerId, val),
+            options: [
+              DropdownMenuItem(
+                value: LogisticsSubType.UNIMARTC2C,
+                child: Text("7-ELEVEN"),
+              ),
+              DropdownMenuItem(
+                value: LogisticsSubType.FAMIC2C,
+                child: Text("全家"),
+              ),
+              DropdownMenuItem(
+                value: LogisticsSubType.HILIFEC2C,
+                child: Text("萊爾富"),
+              ),
+              DropdownMenuItem(
+                value: LogisticsSubType.OKMARTC2C,
+                child: Text("OK"),
+              ),
+            ],
+          ),
+          if (cvsType != null)
+            _buildStoreSelector(
+              storeInfo: store,
+              onSelect: () => onSelectStore('normal', cvsType, sellerId),
+            ),
+          if (pickupFee != null) _buildFeeRow(pickupFee),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildItemsList(
+    List<CartItem> items, {
+    Widget Function(CartItem)? actionBuilder,
+  }) {
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 8.0),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.containerBgColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.borderColor, width: 1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: items.length,
+            itemBuilder: (context, index) {
+              final item = items[index];
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8.0),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Product Image
+                    Container(
+                      width: 60,
+                      height: 60,
+                      clipBehavior: Clip.antiAlias,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(4.0),
+                      ),
+                      child:
+                          item.product.images != null &&
+                              item.product.images!.isNotEmpty
+                          ? FadeInImage.assetNetwork(
+                              placeholder: "assets/images/photo_loading.gif",
+                              image: item.product.images![0],
+                              fit: BoxFit.cover,
+                              imageErrorBuilder: (context, error, stackTrace) {
+                                return Image.asset(
+                                  "assets/images/photo_not_found.jpg",
+                                  fit: BoxFit.cover,
+                                );
+                              },
+                            )
+                          : InitialImage(name: item.product.name),
+                    ),
+                    const SizedBox(width: 12.0),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  item.product.name,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: AppColors.primaryTextColor,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                item.product.price.toDollarsString(
+                                  prefix: "NT",
+                                ),
+                                style: const TextStyle(
+                                  color: AppColors.primaryTextColor,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8.0),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                '數量: ${item.quantity}',
+                                style: const TextStyle(
+                                  color: AppColors.secondaryTextColor,
+                                  fontSize: 14,
+                                ),
+                              ),
+                              if (actionBuilder != null) actionBuilder(item),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+            separatorBuilder: (context, index) =>
+                const Divider(color: AppColors.dividerColor, height: 1),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDeliveryOption<T>({
+    required String title,
+    required T? groupValue,
+    required ValueChanged<T?> onChanged,
+    required List<DropdownMenuItem<T>> options,
+  }) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: AppColors.containerBgColor,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.borderColor),
+      ),
+      child: Row(
+        children: [
+          Text(
+            "$title：",
+            style: const TextStyle(
+              color: AppColors.primaryTextColor,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Wrap(
+              spacing: 8.0,
+              children: options.map((option) {
+                final isSelected = groupValue == option.value;
+                return ChoiceChip(
+                  label: option.child,
+                  selected: isSelected,
+                  onSelected: (selected) {
+                    if (selected) onChanged(option.value);
+                  },
+                  selectedColor: AppColors.primaryButtonColor,
+                  backgroundColor: AppColors.cardBgColor,
+                  labelStyle: TextStyle(
+                    color: isSelected
+                        ? AppColors.primaryTextColor
+                        : AppColors.secondaryTextColor,
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStoreSelector({
+    required LogisticsMapInfo? storeInfo,
+    required VoidCallback onSelect,
+  }) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.containerBgColor,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.borderColor),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (storeInfo != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '門市名稱: ${storeInfo.CVSStoreName}',
+                    style: const TextStyle(color: AppColors.secondaryTextColor),
+                  ),
+                  Text(
+                    '門市地址: ${storeInfo.CVSAddress}',
+                    style: const TextStyle(color: AppColors.secondaryTextColor),
+                  ),
+                ],
+              ),
+            ),
+          OutlinedButton.icon(
+            onPressed: onSelect,
+            icon: const Icon(Icons.storefront),
+            label: Text(storeInfo == null ? "選擇門市" : "重新選擇門市"),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.primaryTextColor,
+              backgroundColor: AppColors.secondaryButtonColor,
+              side: const BorderSide(color: AppColors.borderColor),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

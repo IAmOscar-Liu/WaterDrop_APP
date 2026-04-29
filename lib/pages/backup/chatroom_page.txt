@@ -1,0 +1,241 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_ad_ecommerce/constants/colors.dart';
+import 'package:flutter_ad_ecommerce/models/chatroom.dart';
+import 'package:flutter_ad_ecommerce/provider/chat_message_provider.dart';
+import 'package:flutter_ad_ecommerce/utils/parse_utils.dart';
+import 'package:flutter_ad_ecommerce/widgets/keyboard_dismiss_on_tap.dart';
+import 'package:flutter_ad_ecommerce/widgets/page_status.dart';
+import 'package:flutter_ad_ecommerce/widgets/simple_app_bar.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+
+class ChatroomPage extends ConsumerStatefulWidget {
+  const ChatroomPage({super.key, required this.extra});
+  final dynamic extra;
+
+  @override
+  ConsumerState<ChatroomPage> createState() => _ChatroomPageState();
+}
+
+class _ChatroomPageState extends ConsumerState<ChatroomPage> {
+  String? _errorMsg;
+  Chatroom? _chatroom;
+  final TextEditingController _textController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+
+    if (widget.extra is! Map ||
+        widget.extra['userId'] == null ||
+        widget.extra['accountId'] == null) {
+      // If data is missing, pop immediately
+      WidgetsBinding.instance.addPostFrameCallback((_) => context.pop());
+      return;
+    }
+    _loadChatMessages(
+      userId: widget.extra['userId'],
+      accountId: widget.extra['accountId'],
+      productId: widget.extra['productId'],
+    );
+  }
+
+  Future<void> _loadChatMessages({
+    required String userId,
+    required String accountId,
+    String? productId,
+  }) async {
+    Future.delayed(Duration.zero, () async {
+      final result = await ref
+          .read(chatMessageNotifierProvider.notifier)
+          .initChatroom(
+            userId: userId,
+            accountId: accountId,
+            productId: productId,
+          );
+      if (result.isFailure) {
+        setState(() {
+          _errorMsg = result.error;
+        });
+        return;
+      }
+      setState(() {
+        _chatroom = result.data;
+      });
+      ref
+          .read(chatMessageNotifierProvider.notifier)
+          .loadMessages(chatRoomId: result.data!.id);
+    });
+  }
+
+  Widget _buildLayout({required Widget child}) {
+    return Scaffold(
+      backgroundColor: AppColors.scaffoldBgColor,
+      resizeToAvoidBottomInset: true,
+      appBar: SimpleAppBar(
+        title: ParseUtils.parseString(widget.extra['title']) ?? '聊天室',
+      ),
+      body: KeyboardDismissOnTap(child: child),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final chatMessageProvider = ref.watch(chatMessageNotifierProvider);
+
+    if (_chatroom == null ||
+        chatMessageProvider.isInitial ||
+        chatMessageProvider.isLoading) {
+      return _buildLayout(child: PageLoading('載入訊息中......'));
+    }
+
+    if (_errorMsg != null || chatMessageProvider.hasError) {
+      return _buildLayout(
+        child: PageError('${_errorMsg ?? chatMessageProvider.error}'),
+      );
+    }
+
+    final List<ChatMessage> chatMessages =
+        chatMessageProvider.data?.chatMessages ?? [];
+
+    return _buildLayout(
+      child: SafeArea(
+        child: Column(
+          children: [
+            Expanded(
+              child: ListView.builder(
+                padding: EdgeInsets.only(top: 16),
+                reverse: true,
+                itemCount: chatMessages.length,
+                itemBuilder: (context, index) {
+                  final message = chatMessages[index];
+                  return Align(
+                    alignment:
+                        (message.senderType == 'admin' ||
+                            message.senderType == 'seller')
+                        ? Alignment.centerLeft
+                        : Alignment.centerRight,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 4,
+                        horizontal: 12,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            constraints: BoxConstraints(
+                              maxWidth:
+                                  MediaQuery.of(context).size.width * 0.85,
+                            ),
+                            decoration: BoxDecoration(
+                              color:
+                                  (message.senderType == 'admin' ||
+                                      message.senderType == 'seller')
+                                  ? AppColors.mutedTextColor
+                                  : AppColors.infoColor,
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: Text(
+                              message.content,
+                              style: const TextStyle(
+                                color: AppColors.primaryTextColor,
+                              ),
+                            ),
+                          ),
+                          if (message.senderType != "admin" &&
+                              message.senderType != "seller" &&
+                              (message.id == "pending" || message.isRead))
+                            Padding(
+                              padding: EdgeInsetsGeometry.only(
+                                top: 4,
+                                right: 8,
+                              ),
+                              child: Text(
+                                message.id == "pending" ? "發送中" : "已讀",
+                                style: TextStyle(
+                                  color: AppColors.mutedTextColor,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(
+                left: 8,
+                right: 8,
+                bottom: 8,
+                top: 12,
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _textController,
+                      style: const TextStyle(color: AppColors.primaryTextColor),
+                      minLines: 1,
+                      maxLines: 6,
+                      decoration: InputDecoration(
+                        hintText: '輸入訊息...',
+                        hintStyle: const TextStyle(
+                          color: AppColors.mutedTextColor,
+                        ),
+                        filled: true,
+                        fillColor: AppColors.fieldInputColor,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(20),
+                          borderSide: BorderSide.none,
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 12,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  FloatingActionButton(
+                    // onPressed: null,
+                    onPressed:
+                        (chatMessageProvider.isProcessing ||
+                            chatMessageProvider.isFetching)
+                        ? null
+                        : () {
+                            if (_textController.text.isNotEmpty) {
+                              ref
+                                  .read(chatMessageNotifierProvider.notifier)
+                                  .sendMessage(
+                                    chatRoomId: _chatroom!.id,
+                                    senderType: "user",
+                                    content: _textController.text,
+                                  );
+                              _textController.clear();
+                              FocusScope.of(context).unfocus();
+                            }
+                          },
+                    backgroundColor:
+                        (chatMessageProvider.isProcessing ||
+                            chatMessageProvider.isFetching)
+                        ? AppColors.mutedTextColor
+                        : AppColors.infoColor,
+                    child: const Icon(
+                      Icons.send,
+                      color: AppColors.primaryTextColor,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

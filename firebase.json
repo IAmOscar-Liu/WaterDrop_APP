@@ -1,0 +1,48 @@
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "dev": {
+          "projectId": "flutter-ad-ecommerce-dev-5d9da",
+          "appId": "1:363735341916:android:116e9a923d31dc9f537f99",
+          "fileOutput": "android/app/src/dev/google-services.json"
+        },
+        "stg": {
+          "projectId": "traveladvisor-323109",
+          "appId": "1:781854534587:android:21478a78ffbf6ab57cb29e",
+          "fileOutput": "android/app/src/stg/google-services.json"
+        }
+      },
+      "ios": {
+        "dev": {
+          "projectId": "flutter-ad-ecommerce-dev-5d9da",
+          "appId": "1:363735341916:ios:9cdb5b736b5b8dda537f99",
+          "uploadDebugSymbols": false,
+          "fileOutput": "ios/Runner/Firebase/dev/GoogleService-Info.plist"
+        },
+        "stg": {
+          "projectId": "traveladvisor-323109",
+          "appId": "1:781854534587:ios:21abfafedd6477657cb29e",
+          "uploadDebugSymbols": false,
+          "fileOutput": "ios/Runner/Firebase/stg/GoogleService-Info.plist"
+        }
+      },
+      "dart": {
+        "lib/firebase_options_dev.dart": {
+          "projectId": "flutter-ad-ecommerce-dev-5d9da",
+          "configurations": {
+            "android": "1:363735341916:android:116e9a923d31dc9f537f99",
+            "ios": "1:363735341916:ios:9cdb5b736b5b8dda537f99"
+          }
+        },
+        "lib/firebase_options_stg.dart": {
+          "projectId": "traveladvisor-323109",
+          "configurations": {
+            "android": "1:781854534587:android:21478a78ffbf6ab57cb29e",
+            "ios": "1:781854534587:ios:21abfafedd6477657cb29e"
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,184 @@
+import 'dart:developer';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_ad_ecommerce/constants/colors.dart';
+import 'package:flutter_ad_ecommerce/models/product.dart';
+import 'package:flutter_ad_ecommerce/provider/cart_provider.dart';
+import 'package:flutter_ad_ecommerce/router/routes.dart';
+import 'package:flutter_ad_ecommerce/utils/formatter.dart';
+import 'package:flutter_ad_ecommerce/utils/number_formatter_extension.dart';
+import 'package:flutter_ad_ecommerce/widgets/initial_mage.dart';
+import 'package:flutter_ad_ecommerce/widgets/simple_app_bar.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+
+class SingleProductDetails extends ConsumerStatefulWidget {
+  const SingleProductDetails({super.key, required this.product});
+
+  final Product product;
+
+  @override
+  ConsumerState<SingleProductDetails> createState() =>
+      _SingleProductDetailsState();
+}
+
+class _SingleProductDetailsState extends ConsumerState<SingleProductDetails> {
+   
+
+
+  @override
+  Widget build(BuildContext context) {
+    final safeAreaPadding = MediaQuery.of(context).padding;
+
+    return Scaffold(
+      backgroundColor: AppColors.primaryColor,
+      appBar: SimpleAppBar(title: '商品介紹'),
+      body: SingleChildScrollView(
+        padding: EdgeInsets.only(bottom: safeAreaPadding.bottom + 24),
+        child: Column(
+          children: [
+            (widget.product.images != null && widget.product.images!.isNotEmpty)
+                ? GestureDetector(
+                    onTap: () => context.push(
+                      Routes.photoView,
+                      extra: widget.product.images,
+                    ),
+                    child: FadeInImage.assetNetwork(
+                      placeholder: "assets/images/photo_loading.gif",
+                      image: widget.product.images![0],
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                      imageErrorBuilder: (context, error, stackTrace) {
+                        return Image.asset(
+                          "assets/images/photo_not_found.jpg",
+                          width: double.infinity,
+                          fit: BoxFit.cover,
+                        );
+                      },
+                    ),
+                  )
+                : SizedBox(
+                    width: double.infinity,
+                    height: MediaQuery.of(context).size.width,
+                    child: InitialImage(name: widget.product.name),
+                  ),
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Name
+                  Text(
+                    widget.product.name,
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  // Price
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        widget.product.price.toDollarsString(prefix: "NT"),
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.red,
+                            ),
+                      ),
+                      if (widget.product.createdAt != null)
+                        Text(
+                          // "上架日期：${widget.product.createdAt!.toLocal().toString().split(' ').first}",
+                          "上架日期：${Formatter.formatDateOnly(widget.product.createdAt!)}",
+                          style: TextStyle(color: AppColors.warningColor),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  // Description
+                  if (widget.product.description.isNotEmpty)
+                    Text(
+                      widget.product.description,
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodyMedium?.copyWith(color: Colors.white),
+                    ),
+                  const SizedBox(height: 12),
+                  // Meta chips
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      Chip(
+                        label: Text("分類：${widget.product.category}"),
+                        backgroundColor: AppColors.primaryButtonColor,
+                      ),
+                      Chip(
+                        label: Text("狀態：${widget.product.status}"),
+                        backgroundColor: AppColors.secondaryButtonColor,
+                      ),
+                      Chip(
+                        label: Text("庫存：${widget.product.stock}"),
+                        backgroundColor: AppColors.dangerButtonColor,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: 40, vertical: 12),
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    ref
+                        .read(cartProvider.notifier)
+                        .addCartItem(
+                          widget.product.id,
+                          productName: widget.product.name,
+                        )
+                        .then((result) {
+                          if (!mounted) return;
+                          final message = result.isSuccess
+                              ? result.data
+                              : result.error;
+                          if (message == null) return;
+                          // ignore: use_build_context_synchronously
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(message),
+                              backgroundColor: Colors.green,
+                              duration: const Duration(seconds: 2),
+                            ),
+                          );
+                        });
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red,
+                    foregroundColor: AppColors.primaryTextColor,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    elevation: 2,
+                    side: BorderSide.none,
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.shopping_cart),
+                      SizedBox(width: 12),
+                      Text("加入購物車"),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

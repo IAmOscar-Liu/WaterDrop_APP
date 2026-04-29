@@ -1,0 +1,39 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Flutter Dev",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main_dev.dart",
+      "toolArgs": ["--flavor", "dev"]
+    },
+    {
+      "name": "Flutter Stg",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main_stg.dart",
+      "toolArgs": ["--flavor", "stg"]
+    },
+    {
+      "name": "Flutter Dev Local API",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main_dev.dart",
+      "toolArgs": [
+        "--flavor",
+        "dev",
+        "--dart-define",
+        "API_BASE_URL=${input:apiBaseUrl}"
+      ]
+    }
+  ],
+  "inputs": [
+    {
+      "id": "apiBaseUrl",
+      "type": "promptString",
+      "description": "Local or ngrok API base URL. Keep the trailing /.",
+      "default": "https://your-ngrok-url.ngrok-free.app/"
+    }
+  ]
+}

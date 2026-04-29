@@ -1,0 +1,320 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_ad_ecommerce/models/product.dart';
+import 'package:flutter_ad_ecommerce/constants/colors.dart';
+import 'package:flutter_ad_ecommerce/utils/number_formatter_extension.dart';
+import 'package:flutter_ad_ecommerce/widgets/initial_mage.dart'; // Assuming you have a colors.dart
+
+class CartItemCard extends StatefulWidget {
+  final Product product;
+  final int quantity;
+  final void Function()? onQuantityChange;
+  final void Function()? onDelete;
+
+  const CartItemCard({
+    super.key,
+    required this.product,
+    required this.quantity,
+    required this.onQuantityChange,
+    required this.onDelete,
+  });
+
+  @override
+  State<CartItemCard> createState() => _CartItemCardState();
+}
+
+class _CartItemCardState extends State<CartItemCard> {
+  bool _isDetailsExpanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      color: AppColors.containerBgColor, // Dark background for the card
+      margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8.0)),
+      child: Padding(
+        padding: const EdgeInsets.all(12.0),
+        child: Column(
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Item Image Placeholder
+                // Container(
+                //   width: 80,
+                //   height: 80,
+                //   decoration: BoxDecoration(
+                //     color: AppColors.infoColor,
+                //     borderRadius: BorderRadius.circular(4.0),
+                //   ),
+                //   alignment: Alignment.center,
+                //   child: Text(
+                //     widget.product.name[0], // Placeholder text for image
+                //     overflow: TextOverflow.ellipsis,
+                //     style: const TextStyle(
+                //       color: Colors.white,
+                //       fontSize: 14,
+                //       fontWeight: FontWeight.bold,
+                //     ),
+                //   ),
+                // ),
+                Container(
+                  width: 80,
+                  height: 80,
+                  clipBehavior: Clip.antiAlias,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(4.0),
+                  ),
+                  child:
+                      widget.product.images != null &&
+                          widget.product.images!.isNotEmpty
+                      ? FadeInImage.assetNetwork(
+                          placeholder: "assets/images/photo_not_found.jpg",
+                          image: widget.product.images![0],
+                          fit: BoxFit.cover,
+                          imageErrorBuilder: (context, error, stackTrace) {
+                            // This builder is used if the network image fails to load.
+                            return Image.asset(
+                              "assets/images/photo_not_found.jpg",
+                              width: double.infinity,
+                              fit: BoxFit.cover,
+                            );
+                          },
+                        )
+                      : InitialImage(name: widget.product.name),
+                ),
+                const SizedBox(width: 12.0),
+                // Item Name and Type
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        widget.product.name,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 8.0),
+                      // Quantity Controls
+                      Row(
+                        children: [
+                          const Text(
+                            '數量:', // Quantity label
+                            style: TextStyle(
+                              color: Colors.white70,
+                              fontSize: 14,
+                            ),
+                          ),
+                          const SizedBox(width: 12.0),
+                          Text(
+                            widget.quantity.toString(),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(width: 8.0),
+                          // Row(
+                          //   children: [
+                          //     InkWell(
+                          //       onTap: widget.onQuantityMinus,
+                          //       borderRadius: BorderRadius.circular(4.0),
+                          //       child: Container(
+                          //         padding: const EdgeInsets.symmetric(
+                          //           horizontal: 8.0,
+                          //           vertical: 2.0,
+                          //         ),
+                          //         decoration: BoxDecoration(
+                          //           border: Border.all(
+                          //             color: Colors.white54,
+                          //             width: 1.0,
+                          //           ),
+                          //           borderRadius: BorderRadius.circular(4.0),
+                          //         ),
+                          //         child: const Text(
+                          //           '-',
+                          //           style: TextStyle(
+                          //             color: Colors.white,
+                          //             fontSize: 18,
+                          //           ),
+                          //         ),
+                          //       ),
+                          //     ),
+                          //     Padding(
+                          //       padding: const EdgeInsets.symmetric(
+                          //         horizontal: 12.0,
+                          //         vertical: 4.0,
+                          //       ),
+                          //       child: Text(
+                          //         widget.quantity.toString(),
+                          //         style: const TextStyle(
+                          //           color: Colors.white,
+                          //           fontSize: 16,
+                          //           fontWeight: FontWeight.bold,
+                          //         ),
+                          //       ),
+                          //     ),
+                          //     InkWell(
+                          //       onTap: widget.onQuantityPlus,
+                          //       borderRadius: BorderRadius.circular(4.0),
+                          //       child: Container(
+                          //         padding: const EdgeInsets.symmetric(
+                          //           horizontal: 8.0,
+                          //           vertical: 2.0,
+                          //         ),
+                          //         decoration: BoxDecoration(
+                          //           border: Border.all(
+                          //             color: Colors.white54,
+                          //             width: 1.0,
+                          //           ),
+                          //           borderRadius: BorderRadius.circular(4.0),
+                          //         ),
+                          //         child: const Text(
+                          //           '+',
+                          //           style: TextStyle(
+                          //             color: Colors.white,
+                          //             fontSize: 18,
+                          //           ),
+                          //         ),
+                          //       ),
+                          //     ),
+                          //   ],
+                          // ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                // Price
+                const SizedBox(width: 8),
+                Text(
+                  'NT\$ ${widget.product.price.formatWithCommas()}',
+                  style: const TextStyle(
+                    color: AppColors.goldColor, // Gold for price
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            if (_isDetailsExpanded) ...[
+              const SizedBox(height: 12.0),
+              Divider(color: AppColors.dividerColor, height: 1),
+              const SizedBox(height: 12.0),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  widget.product.description.isNotEmpty
+                      ? widget.product.description
+                      : "Description not provided",
+                  style: const TextStyle(
+                    color: AppColors.primaryTextColor,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8.0),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      '更多細節:',
+                      style: TextStyle(
+                        color: AppColors.secondaryTextColor,
+                        fontSize: 14,
+                      ),
+                    ),
+                    const SizedBox(height: 4.0),
+                    Text(
+                      "- 分類: ${widget.product.category.isNotEmpty ? widget.product.category : "N/A"}",
+                      style: const TextStyle(
+                        color: AppColors.secondaryTextColor,
+                        fontSize: 14,
+                      ),
+                    ),
+                    Text(
+                      "- 狀態: ${widget.product.status}",
+                      style: const TextStyle(
+                        color: AppColors.secondaryTextColor,
+                        fontSize: 14,
+                      ),
+                    ),
+                    Text(
+                      "- 庫存: ${widget.product.stock}",
+                      style: const TextStyle(
+                        color: AppColors.secondaryTextColor,
+                        fontSize: 14,
+                      ),
+                    ),
+                    // ...widget.product.metadata!.entries.map(
+                    //   (entry) => Text(
+                    //     '- ${entry.key}: ${entry.value}',
+                    //     style: const TextStyle(
+                    //       color: AppColors.secondaryTextColor,
+                    //       fontSize: 14,
+                    //     ),
+                    //   ),
+                    // ),
+                  ],
+                ),
+              ),
+            ],
+            const SizedBox(height: 12.0),
+            // Action Buttons
+            Row(
+              // mainAxisAlignment: MainAxisAlignment.end,
+              mainAxisSize: MainAxisSize.max,
+              children: [
+                TextButton(
+                  onPressed: () {
+                    setState(() {
+                      _isDetailsExpanded = !_isDetailsExpanded;
+                    });
+                  },
+                  style: TextButton.styleFrom(
+                    foregroundColor: AppColors.navbarIndicatorColor,
+                  ),
+                  child: Text(
+                    _isDetailsExpanded ? '收起詳情' : '看詳情',
+                    style: const TextStyle(fontSize: 14),
+                  ),
+                ),
+                const SizedBox(width: 8.0),
+                const Spacer(),
+                ElevatedButton(
+                  onPressed: widget.onQuantityChange,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.secondaryButtonColor,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(4.0),
+                    ),
+                  ),
+                  child: const Text('修改', style: TextStyle(fontSize: 14)),
+                ),
+                SizedBox(width: 8),
+                ElevatedButton(
+                  onPressed: widget.onDelete,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(4.0),
+                    ),
+                  ),
+                  child: const Text('移除', style: TextStyle(fontSize: 14)),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

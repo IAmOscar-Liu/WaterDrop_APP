@@ -1,0 +1,390 @@
+import 'dart:async';
+import 'dart:developer';
+
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_ad_ecommerce/constants/colors.dart';
+import 'package:flutter_ad_ecommerce/provider/cart_provider.dart';
+import 'package:flutter_ad_ecommerce/provider/advertisement_provider.dart';
+import 'package:flutter_ad_ecommerce/utils/formatter.dart';
+import 'package:flutter_ad_ecommerce/utils/list_utils.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:video_player/video_player.dart';
+
+class AdvertisementPlayerPage extends ConsumerStatefulWidget {
+  final dynamic extra;
+  const AdvertisementPlayerPage({super.key, required this.extra});
+
+  @override
+  ConsumerState<AdvertisementPlayerPage> createState() =>
+      _AdvertisementPlayerPageState();
+}
+
+class _AdvertisementPlayerPageState
+    extends ConsumerState<AdvertisementPlayerPage> {
+  VideoPlayerController? _controller;
+  Duration _currentVideoPosition = Duration.zero;
+  bool _isCompleted = false;
+
+  bool _isControllerVisible = false;
+  Timer? _hideTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    log('Video Player init');
+    if (widget.extra['advertisementId'] == null) return;
+
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
+    ]);
+
+    Future.delayed(Duration.zero, _initializeControllers);
+    // _initializeControllers();
+  }
+
+  void _initializeControllers() {
+    final advertisement = (ref.read(advertisementNotifierProvider).data ?? [])
+        .firstWhereOrNull((p) => p.id == widget.extra['advertisementId']);
+
+    if (advertisement == null) return;
+
+    final controller = VideoPlayerController.asset(advertisement.videoUrl);
+    controller.setLooping(true);
+    controller.initialize().then((_) {
+      if (mounted) {
+        setState(() {});
+        controller.addListener(() => _onVideoPositionChange());
+        controller.seekTo(
+          Duration(
+            milliseconds:
+                int.tryParse(
+                  widget.extra['totalWatchedMilliSeconds'].toString(),
+                ) ??
+                0,
+          ),
+        );
+        controller.play();
+      }
+    });
+    setState(() {
+      _currentVideoPosition = Duration(
+        milliseconds:
+            int.tryParse(widget.extra['totalWatchedMilliSeconds'].toString()) ??
+            0,
+      );
+      _controller = controller;
+    });
+  }
+
+  void _onVideoPositionChange() {
+    if (!mounted) return;
+    final advertisement = (ref.read(advertisementNotifierProvider).data ?? [])
+        .firstWhereOrNull((p) => p.id == widget.extra['advertisementId']);
+
+    if (advertisement == null) return;
+    final controller = _controller;
+    if (controller != null && controller.value.isInitialized) {
+      final position = controller.value.position;
+
+      setState(() {
+        _currentVideoPosition = position;
+      });
+
+      final totalWatchedMilliseconds = position.inMilliseconds;
+      final requiredDuration =
+          advertisement.duration ?? controller.value.duration;
+      if (advertisement.duration == null) {
+        ref
+            .read(advertisementNotifierProvider.notifier)
+            .setAdvertisementDuration(advertisement.id, requiredDuration);
+      }
+      if (totalWatchedMilliseconds >= (requiredDuration.inMilliseconds - 100)) {
+        setState(() {
+          _isCompleted = true;
+        });
+      }
+    }
+  }
+
+  void _showControllerTemporarily() {
+    setState(() => _isControllerVisible = true);
+    // Cancel existing timer if tapped again
+    _hideTimer?.cancel();
+    _hideTimer = Timer(const Duration(seconds: 3), () {
+      if (mounted) setState(() => _isControllerVisible = false);
+    });
+  }
+
+  void _keepControllerVisibleWhileInteracting(bool interacting) {
+    if (interacting) {
+      if (!_isControllerVisible) {
+        setState(() => _isControllerVisible = true);
+      }
+      _hideTimer?.cancel();
+    } else {
+      _hideTimer?.cancel();
+      _hideTimer = Timer(const Duration(seconds: 3), () {
+        if (mounted) setState(() => _isControllerVisible = false);
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    super.dispose();
+    _hideTimer?.cancel();
+    _controller?.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final advertisement = (ref.watch(advertisementNotifierProvider).data ?? [])
+        .firstWhereOrNull((p) => p.id == widget.extra['advertisementId']);
+    // final cartItem = ref.watch(cartProvider);
+
+    if (advertisement == null) {
+      return Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 16),
+              Text('Loading advertisements...'),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final safeAreaPadding = MediaQuery.of(context).padding;
+
+    return Scaffold(
+      body: _controller == null || !_controller!.value.isInitialized
+          ? Center(child: CircularProgressIndicator())
+          : Stack(
+              fit: StackFit.expand,
+              children: [
+                Container(color: Colors.black),
+                FittedBox(
+                  fit: BoxFit.contain,
+                  child: SizedBox(
+                    width: _controller!.value.size.width,
+                    height: _controller!.value.size.height,
+                    child: GestureDetector(
+                      onTap: _showControllerTemporarily,
+                      child: VideoPlayer(_controller!),
+                    ),
+                  ),
+                ),
+                if (_isControllerVisible) ...[
+                  Align(
+                    alignment: Alignment.center,
+                    child: IconButton(
+                      onPressed: () {
+                        _showControllerTemporarily();
+                        if (_controller!.value.isPlaying) {
+                          _controller!.pause();
+                        } else {
+                          _controller!.play();
+                        }
+                      },
+                      icon: Icon(
+                        _controller!.value.isPlaying
+                            ? Icons.pause
+                            : Icons.play_arrow,
+                        size: 48,
+                      ),
+                      style: IconButton.styleFrom(
+                        backgroundColor: AppColors.mutedTextColor,
+                        foregroundColor: Colors.white,
+                        shape: CircleBorder(),
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    top: 20,
+                    child: SizedBox(
+                      width: MediaQuery.of(context).size.width,
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          SizedBox(width: safeAreaPadding.left + 24),
+                          IconButton(
+                            onPressed: () {
+                              SystemChrome.setPreferredOrientations([
+                                DeviceOrientation.portraitUp,
+                                DeviceOrientation.portraitDown,
+                              ]);
+                              context.pop({
+                                "position": _currentVideoPosition,
+                                "isCompleted": _isCompleted,
+                              });
+                            },
+                            icon: const Icon(
+                              Icons.chevron_left,
+                              color: Colors.white,
+                              size: 36,
+                            ),
+                            style: IconButton.styleFrom(
+                              backgroundColor: Colors.transparent,
+                              foregroundColor: Colors.white,
+                            ),
+                          ),
+                          SizedBox(width: 8),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                SizedBox(height: 12),
+                                Text(
+                                  advertisement.title,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(color: Colors.white),
+                                ),
+                                const SizedBox(height: 6),
+                                Row(
+                                  children: [
+                                    if (advertisement.avatarUrl == null)
+                                      CircleAvatar(
+                                        backgroundColor: Colors.white,
+                                        radius: 14,
+                                        child: Text(
+                                          advertisement.name[0].toUpperCase(),
+                                          style: const TextStyle(
+                                            color: Colors.black,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                    if (advertisement.avatarUrl != null)
+                                      CircleAvatar(
+                                        radius: 14,
+                                        backgroundImage: NetworkImage(
+                                          advertisement.avatarUrl!,
+                                        ),
+                                      ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        advertisement.name,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    bottom: 46,
+                    left: safeAreaPadding.left + 24,
+                    child: Text.rich(
+                      TextSpan(
+                        children: [
+                          TextSpan(
+                            text: Formatter.formatDuration(
+                              (_currentVideoPosition.inMilliseconds / 1000)
+                                  .floor(),
+                            ),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontFeatures: [FontFeature.tabularFigures()],
+                            ),
+                          ),
+                          const TextSpan(
+                            text: " / ",
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontFeatures: [FontFeature.tabularFigures()],
+                            ),
+                          ),
+                          TextSpan(
+                            text: Formatter.formatDuration(
+                              advertisement.duration?.inSeconds ?? 30,
+                            ),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontFeatures: [FontFeature.tabularFigures()],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    bottom: 64,
+                    right: safeAreaPadding.right + 50,
+                    child: IconButton(
+                      onPressed: () {
+                        _showControllerTemporarily();
+                        ref
+                            .read(cartProvider.notifier)
+                            .addCartItem(advertisement.productId)
+                            .then((result) {
+                              if (!mounted) return;
+                              final message = result.isSuccess
+                                  ? result.data
+                                  : result.error;
+                              if (message == null) return;
+                              // ignore: use_build_context_synchronously
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(message),
+                                  backgroundColor: Colors.green,
+                                  duration: const Duration(seconds: 2),
+                                ),
+                              );
+                            });
+                      },
+                      icon: const Icon(Icons.shopping_cart),
+                      style: IconButton.styleFrom(
+                        backgroundColor: Colors.red,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    bottom: 30,
+                    left: safeAreaPadding.left + 24,
+                    right: safeAreaPadding.right + 24,
+                    child: Listener(
+                      onPointerDown: (_) =>
+                          _keepControllerVisibleWhileInteracting(true),
+                      onPointerMove: (_) =>
+                          _keepControllerVisibleWhileInteracting(true),
+                      onPointerUp: (_) =>
+                          _keepControllerVisibleWhileInteracting(false),
+                      onPointerCancel: (_) =>
+                          _keepControllerVisibleWhileInteracting(false),
+                      child: VideoProgressIndicator(
+                        _controller!,
+                        allowScrubbing: true,
+                        colors: const VideoProgressColors(
+                          playedColor: Colors.red,
+                          backgroundColor: Colors.grey,
+                          bufferedColor: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+    );
+  }
+}

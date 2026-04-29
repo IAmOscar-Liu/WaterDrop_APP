@@ -1,0 +1,366 @@
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_ad_ecommerce/constants/app_constants.dart';
+import 'package:flutter_ad_ecommerce/models/product.dart';
+import 'package:flutter_ad_ecommerce/provider/cart_provider.dart';
+import 'package:flutter_ad_ecommerce/provider/product_provider.dart';
+import 'package:flutter_ad_ecommerce/provider/system_provider.dart';
+import 'package:flutter_ad_ecommerce/router/routes.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:video_player/video_player.dart';
+
+class ExplorePage extends ConsumerStatefulWidget {
+  const ExplorePage({super.key});
+
+  @override
+  ConsumerState<ExplorePage> createState() => _ExplorePageState();
+}
+
+class _ExplorePageState extends ConsumerState<ExplorePage> {
+  late final PageController _pageController;
+  final List<VideoPlayerController?> _controllers = [];
+
+  int _currentIndex = 1; // Start at 1 (first real video)
+  Duration _currentVideoPosition = Duration.zero;
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController(initialPage: 1);
+    _pageController.addListener(_onScroll);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _loadProductsAndInitialize();
+  }
+
+  void _loadProductsAndInitialize() async {
+    // Load products from API if not already loaded
+    final products = ref.read(productNotifierProvider);
+    if (products.isEmpty) {
+      await ref.read(productNotifierProvider.notifier).loadProducts();
+    }
+
+    // Initialize controllers after products are loaded
+    _initializeControllers();
+  }
+
+  void _initializeControllers() {
+    // Clear existing controllers
+    for (var controller in _controllers) {
+      controller?.dispose();
+    }
+    _controllers.clear();
+
+    final productList = ref.read(productNotifierProvider);
+    if (productList.isEmpty) return;
+
+    final circularList = [productList.last, ...productList, productList.first];
+
+    // Create controllers for circular list
+    for (var i = 0; i < circularList.length; i++) {
+      final controller = VideoPlayerController.asset(circularList[i].videoPath);
+      controller.setLooping(true);
+      controller.initialize().then((_) {
+        if (mounted) {
+          setState(() {});
+          controller.addListener(() {
+            _onVideoPositionChange(circularList[i].id);
+          });
+          if (i == 1) {
+            controller
+                .play(); // Only play after the first real video is initialized
+          }
+        }
+      });
+      _controllers.add(controller);
+    }
+  }
+
+  // Helper to get the circular list for display
+  List<Product> get circularVideoPaths {
+    final productList = ref.watch(productNotifierProvider);
+    if (productList.isEmpty) return [];
+    return [productList.last, ...productList, productList.first];
+  }
+
+  void _onScroll() {
+    final page = _pageController.page;
+    if (page == null) return;
+    int newIndex = page.round();
+
+    // Circular scroll logic
+    final productList = ref.read(productNotifierProvider);
+    if (newIndex == 0) {
+      // Swiped before first real video, jump to last real video
+      Future.microtask(() {
+        _pageController.jumpToPage(productList.length);
+      });
+      newIndex = productList.length;
+    } else if (newIndex == circularVideoPaths.length - 1) {
+      // Swiped past last real video, jump to first real video
+      Future.microtask(() {
+        _pageController.jumpToPage(1);
+      });
+      newIndex = 1;
+    }
+
+    // Check if user is trying to swipe to next video
+    if (newIndex > _currentIndex && newIndex < circularVideoPaths.length - 1) {
+      final currentProduct = circularVideoPaths[_currentIndex];
+      if (!currentProduct.isCompleted) {
+        // This logic is now redundant because of `physics`, but kept for circular scroll jumps
+        return;
+      }
+    }
+
+    if (newIndex != _currentIndex) {
+      _controllers[_currentIndex]?.pause();
+      // Reset the new video to the beginning and then play
+      _controllers[newIndex]?.seekTo(Duration.zero);
+      _controllers[newIndex]?.play();
+      setState(() {
+        _currentIndex = newIndex;
+      });
+    }
+  }
+
+  void _onVideoPositionChange(String productId) {
+    final controller = _controllers[_currentIndex];
+    if (controller != null &&
+        controller.value.isInitialized &&
+        circularVideoPaths[_currentIndex].id == productId) {
+      final position = controller.value.position;
+
+      setState(() {
+        _currentVideoPosition = position;
+      });
+
+      final currentProduct = circularVideoPaths[_currentIndex];
+
+      final totalWatchedMilliseconds = position.inMilliseconds;
+      final requiredDuration =
+          currentProduct.duration ?? controller.value.duration;
+      if (currentProduct.duration == null) {
+        ref
+            .read(productNotifierProvider.notifier)
+            .setProductDuration(currentProduct.id, requiredDuration);
+      }
+
+      if (totalWatchedMilliseconds >= (requiredDuration.inMilliseconds - 100)) {
+        ref
+            .read(productNotifierProvider.notifier)
+            .markProductAsCompleted(currentProduct.id);
+
+        if (mounted &&
+            !currentProduct.isCompleted &&
+            GoRouter.of(context).state.matchedLocation == Routes.explorePage) {
+          final watchedVideoCount = ref
+              .read(systemNotifierProvider)
+              .watchedVideoCount;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                watchedVideoCount > AppConstants.dailyAvailableVideoCount
+                    ? "廣告觀看完成！"
+                    : watchedVideoCount %
+                              AppConstants.videoCountForClaimingTreasureBox ==
+                          0
+                    ? '您已看完${AppConstants.videoCountForClaimingTreasureBox}則廣告，可獲得1個寶箱'
+                    : '廣告觀看完成！再看${AppConstants.videoCountForClaimingTreasureBox - (watchedVideoCount % AppConstants.videoCountForClaimingTreasureBox)}則即可獲得寶箱',
+              ),
+              backgroundColor: Colors.green,
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    for (var controller in _controllers) {
+      controller?.dispose();
+    }
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final products = ref.watch(productNotifierProvider);
+    final cartItem = ref.watch(cartProvider);
+
+    if (products.isEmpty) {
+      return const Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 16),
+              Text('Loading products...'),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final currentProduct = circularVideoPaths[_currentIndex];
+
+    return PageView.builder(
+      controller: _pageController,
+      scrollDirection: Axis.vertical,
+      itemCount: circularVideoPaths.length,
+      // Use the physics property to conditionally enable/disable scrolling
+      physics: currentProduct.isCompleted
+          ? const AlwaysScrollableScrollPhysics()
+          : const NeverScrollableScrollPhysics(),
+      itemBuilder: (context, index) {
+        final controller = _controllers[index];
+        return controller != null && controller.value.isInitialized
+            ? Stack(
+                fit: StackFit.expand,
+                children: [
+                  FittedBox(
+                    fit: BoxFit.cover,
+                    child: SizedBox(
+                      width: controller.value.size.width,
+                      height: controller.value.size.height,
+                      child: VideoPlayer(controller),
+                    ),
+                  ),
+                  Positioned(
+                    top: 80,
+                    left: 0,
+                    right: 0,
+                    child: Align(
+                      alignment: Alignment.center,
+                      child: Builder(
+                        builder: (context) {
+                          if (currentProduct.isCompleted) {
+                            return const Text(
+                              '向上/下滑動切換廣告',
+                              style: TextStyle(color: Colors.white),
+                            );
+                          } else {
+                            final totalWatchedMilliSeconds =
+                                _currentVideoPosition.inMilliseconds;
+                            final requiredMilliSeconds =
+                                currentProduct.duration?.inMilliseconds ??
+                                (30 * 1000);
+                            final remainingSeconds =
+                                (requiredMilliSeconds -
+                                        totalWatchedMilliSeconds)
+                                    .clamp(0, requiredMilliSeconds);
+                            return Text(
+                              '廣告剩餘 ${(remainingSeconds / 1000).ceil()} 秒',
+                              style: const TextStyle(color: Colors.white),
+                            );
+                          }
+                        },
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    bottom: 80,
+                    right: 24,
+                    child: IconButton(
+                      onPressed: () {
+                        ref
+                            .read(cartProvider.notifier)
+                            .addCartItem(circularVideoPaths[index]);
+                        // show snackBar if product is not added to cart yet
+                        if (!cartItem.any(
+                          (item) =>
+                              item.product.id == circularVideoPaths[index].id,
+                        )) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                '「${circularVideoPaths[index].name}」已加入購物車!',
+                              ),
+                              backgroundColor: Colors.green,
+                              duration: const Duration(seconds: 2),
+                            ),
+                          );
+                        }
+                      },
+                      icon: const Icon(Icons.shopping_cart),
+                      style: IconButton.styleFrom(
+                        backgroundColor: Colors.red,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    bottom: 18,
+                    child: SizedBox(
+                      width: MediaQuery.of(context).size.width,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                CircleAvatar(
+                                  backgroundColor: Colors.white,
+                                  radius: 14,
+                                  child: Text(
+                                    circularVideoPaths[index].providerName[0]
+                                        .toUpperCase(),
+                                    style: TextStyle(
+                                      color: Colors.black,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    circularVideoPaths[index].name,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(color: Colors.white),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              circularVideoPaths[index].description,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(color: Colors.white),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  Align(
+                    alignment: Alignment.bottomCenter,
+                    child: VideoProgressIndicator(
+                      controller,
+                      allowScrubbing: true,
+                      colors: const VideoProgressColors(
+                        playedColor: Colors.red,
+                        backgroundColor: Colors.grey,
+                        bufferedColor: Colors.white,
+                      ),
+                    ),
+                  ),
+                ],
+              )
+            : const Center(child: CircularProgressIndicator());
+      },
+    );
+  }
+}

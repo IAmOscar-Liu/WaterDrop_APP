@@ -1,0 +1,550 @@
+import 'dart:async';
+import 'dart:developer';
+import 'dart:math' show min;
+
+import 'package:flutter/material.dart';
+import 'package:flutter_ad_ecommerce/constants/app_constants.dart';
+import 'package:flutter_ad_ecommerce/constants/colors.dart';
+import 'package:flutter_ad_ecommerce/models/Advertisement.dart';
+import 'package:flutter_ad_ecommerce/provider/advertisement_provider.dart';
+import 'package:flutter_ad_ecommerce/provider/cart_provider.dart';
+import 'package:flutter_ad_ecommerce/provider/system_provider.dart';
+import 'package:flutter_ad_ecommerce/router/routes.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:video_player/video_player.dart';
+
+class AdvertisementPageView extends ConsumerStatefulWidget {
+  const AdvertisementPageView({super.key, required this.onFinishPlayingVideos});
+
+  final void Function() onFinishPlayingVideos;
+
+  @override
+  ConsumerState<AdvertisementPageView> createState() =>
+      _AdvertisementPageViewState();
+}
+
+class _AdvertisementPageViewState extends ConsumerState<AdvertisementPageView> {
+  late final PageController _pageController;
+  final List<VideoPlayerController?> _controllers = [];
+
+  int _currentIndex = 1; // Start at 1 (first real video)
+  Duration _currentVideoPosition = Duration.zero;
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController(initialPage: 1);
+    // _pageController.addListener(_onScroll);
+
+    _loadAdvertisements();
+  }
+
+  @override
+  void dispose() {
+    super.dispose();
+    for (var controller in _controllers) {
+      controller?.dispose();
+    }
+    _pageController.dispose();
+  }
+
+  void _loadAdvertisements() {
+    Future.delayed(Duration.zero, () async {
+      if (ref.read(advertisementNotifierProvider).isInitial) {
+        final remainingVideoCount = ref
+            .read(systemNotifierProvider)
+            .remainingVideoCount;
+        log("remainingVideoCount: $remainingVideoCount");
+        await ref
+            .read(advertisementNotifierProvider.notifier)
+            .loadAdvertisements(limit: min(20, remainingVideoCount));
+        // .loadAdvertisements(limit: 20);
+      }
+      // Initialize controllers after Advertisements are loaded
+      _initializeControllers();
+    });
+  }
+
+  void _initializeControllers() {
+    // Clear existing controllers
+    for (var controller in _controllers) {
+      controller?.dispose();
+    }
+    _controllers.clear(); // Also dispose of the Chewie controller
+
+    final advertisementList =
+        ref.read(advertisementNotifierProvider).data ?? [];
+    if (advertisementList.isEmpty) return;
+
+    final circularList = [
+      advertisementList.last,
+      ...advertisementList,
+      advertisementList.first,
+    ];
+
+    // Create controllers for circular list
+    for (var i = 0; i < circularList.length; i++) {
+      // final controller = VideoPlayerController.asset(circularList[i].videoUrl);
+      final controller = VideoPlayerController.networkUrl(
+        Uri.parse(circularList[i].videoUrl),
+      );
+      controller.setLooping(true);
+      controller.initialize().then((_) {
+        if (mounted) {
+          if (circularList[i].isLandscape == null) {
+            // Check video dimensions and set the landscape status in the provider
+            final isLandscape =
+                controller.value.size.width > controller.value.size.height;
+            ref
+                .read(advertisementNotifierProvider.notifier)
+                .setAdvertisementIsLandscape(circularList[i].id, isLandscape);
+          }
+          setState(() {});
+          // This is the key change: we add a unique listener for each video
+          // This avoids issues where a single listener might not be
+          // properly re-added for the new controller instances
+          controller.addListener(() {
+            _onVideoPositionChange(circularList[i].id);
+          });
+          if (i == 1) {
+            controller
+                .play(); // Only play after the first real video is initialized
+          }
+        }
+      });
+      _controllers.add(controller);
+    }
+  }
+
+  // Helper to get the circular list for display
+  List<Advertisement> get circularVideoUrls {
+    final advertisementList =
+        ref.watch(advertisementNotifierProvider).data ?? [];
+    if (advertisementList.isEmpty) return [];
+    return [
+      advertisementList.last,
+      ...advertisementList,
+      advertisementList.first,
+    ];
+  }
+
+  // void _onScroll() {
+  //   final page = _pageController.page;
+  //   if (page == null) return;
+  //   int newIndex = page.round();
+
+  //   // Circular scroll logic
+  //   final advertisementList = ref.read(advertisementNotifierProvider).data ?? [];
+  //   if (newIndex == 0) {
+  //     // Swiped before first real video, jump to last real video
+  //     Future.microtask(() {
+  //       _pageController.jumpToPage(advertisementList.length);
+  //     });
+  //     newIndex = advertisementList.length;
+  //   } else if (newIndex == circularVideoUrls.length - 1) {
+  //     // Swiped past last real video, jump to first real video
+  //     Future.microtask(() {
+  //       _pageController.jumpToPage(1);
+  //     });
+  //     newIndex = 1;
+  //   }
+
+  //   // Check if user is trying to swipe to next video
+  //   if (newIndex > _currentIndex && newIndex < circularVideoUrls.length - 1) {
+  //     final currentProduct = circularVideoUrls[_currentIndex];
+  //     if (!currentProduct.isCompleted) {
+  //       // This logic is now redundant because of `physics`, but kept for circular scroll jumps
+  //       return;
+  //     }
+  //   }
+
+  //   if (newIndex != _currentIndex) {
+  //     _controllers[_currentIndex]?.pause();
+  //     // Reset the new video to the beginning and then play
+  //     _controllers[newIndex]?.seekTo(Duration.zero);
+  //     _controllers[newIndex]?.play();
+  //     setState(() {
+  //       _currentIndex = newIndex;
+  //     });
+  //   }
+  // }
+
+  void _onVideoPositionChange(String advertisementId) {
+    final controller = _controllers[_currentIndex];
+    if (controller != null &&
+        controller.value.isInitialized &&
+        circularVideoUrls[_currentIndex].id == advertisementId) {
+      final position = controller.value.position;
+
+      setState(() {
+        _currentVideoPosition = position;
+      });
+
+      final currentProduct = circularVideoUrls[_currentIndex];
+
+      final totalWatchedMilliseconds = position.inMilliseconds;
+      final requiredDuration =
+          currentProduct.duration ?? controller.value.duration;
+      if (currentProduct.duration == null) {
+        ref
+            .read(advertisementNotifierProvider.notifier)
+            .setAdvertisementDuration(currentProduct.id, requiredDuration);
+      }
+
+      if ((totalWatchedMilliseconds >=
+              (requiredDuration.inMilliseconds - 100)) &&
+          (GoRouter.of(context).state.matchedLocation == Routes.explorePage)) {
+        ref
+            .read(advertisementNotifierProvider.notifier)
+            .markAdvertisementAsCompleted(currentProduct.id)
+            .then((result) {
+              if (result.isSuccess &&
+                  result.data == true &&
+                  mounted &&
+                  !currentProduct.isCompleted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      '您已看完${AppConstants.videoCountForClaimingTreasureBox}則廣告，可獲得1個寶箱',
+                    ),
+                    backgroundColor: Colors.green,
+                    duration: const Duration(seconds: 2),
+                  ),
+                );
+              }
+            });
+
+        // if (mounted &&
+        //     !currentProduct.isCompleted &&
+        //     GoRouter.of(context).state.matchedLocation == Routes.AdvertisementPageView) {
+        //   final watchedVideoCount = ref
+        //       .read(systemNotifierProvider)
+        //       .watchedVideoCount;
+        //   ScaffoldMessenger.of(context).showSnackBar(
+        //     SnackBar(
+        //       content: Text(
+        //         watchedVideoCount > AppConstants.dailyAvailableVideoCount
+        //             ? "廣告觀看完成！"
+        //             : watchedVideoCount %
+        //                       AppConstants.videoCountForClaimingTreasureBox ==
+        //                   0
+        //             ? '您已看完${AppConstants.videoCountForClaimingTreasureBox}則廣告，可獲得1個寶箱'
+        //             : '廣告觀看完成！再看${AppConstants.videoCountForClaimingTreasureBox - (watchedVideoCount % AppConstants.videoCountForClaimingTreasureBox)}則即可獲得寶箱',
+        //       ),
+        //       backgroundColor: Colors.green,
+        //       duration: const Duration(seconds: 2),
+        //     ),
+        //   );
+        // }
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final productProvider = ref.watch(advertisementNotifierProvider);
+
+    if (!productProvider.isDone ||
+        (productProvider.hasData && productProvider.data!.isEmpty)) {
+      return Scaffold(
+        backgroundColor: AppColors.scaffoldBgColor,
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (productProvider.isInitial || productProvider.isLoading) ...[
+                CircularProgressIndicator(),
+                SizedBox(height: 16),
+              ],
+              Text(
+                (productProvider.isInitial || productProvider.isLoading)
+                    ? 'Loading advertisements...'
+                    : productProvider.hasError
+                    ? "Failed to load advertisements: ${productProvider.error}"
+                    : "Data not found",
+                style: TextStyle(color: Colors.white),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final currentProduct = circularVideoUrls[_currentIndex];
+
+    // Use the physics property to conditionally enable/disable scrolling
+    return PageView.builder(
+      controller: _pageController,
+      scrollDirection: Axis.vertical,
+      itemCount: circularVideoUrls.length,
+      // physics: currentProduct.isCompleted
+      //     ? const AlwaysScrollableScrollPhysics()
+      //     : const NeverScrollableScrollPhysics(),
+      physics: const NeverScrollableScrollPhysics(),
+      itemBuilder: (context, index) {
+        final controller = _controllers[index];
+        final product = circularVideoUrls[index];
+
+        if (controller == null || !controller.value.isInitialized) {
+          return Stack(
+            fit: StackFit.expand,
+            children: [
+              Container(color: Colors.black),
+              Align(
+                alignment: Alignment.center,
+                child: CircularProgressIndicator(),
+              ),
+            ],
+          );
+        }
+
+        // The original code for portrait videos
+        return Stack(
+          fit: StackFit.expand,
+          children: [
+            // A black Container to ensure the background is always black
+            Container(color: Colors.black),
+            FittedBox(
+              fit: product.isLandscape == true ? BoxFit.contain : BoxFit.cover,
+              child: SizedBox(
+                width: controller.value.size.width,
+                height: controller.value.size.height,
+                child: GestureDetector(
+                  onTap: () {
+                    if (controller.value.isPlaying) {
+                      controller.pause();
+                    } else {
+                      controller.play();
+                    }
+                  },
+                  child: VideoPlayer(controller),
+                ),
+              ),
+            ),
+            if (!controller.value.isPlaying)
+              Align(
+                alignment: Alignment.center,
+                child: IgnorePointer(
+                  child: Icon(
+                    Icons.play_arrow,
+                    size: 64,
+                    color: AppColors.mutedTextColor,
+                  ),
+                ),
+              ),
+            if (currentProduct.isCompleted)
+              Positioned(
+                top: 90,
+                left: MediaQuery.of(context).size.width / 2 - 90,
+                child: SizedBox(
+                  width: 180,
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      if (index >= circularVideoUrls.length - 2) {
+                        return widget.onFinishPlayingVideos();
+                      }
+                      Future.microtask(() {
+                        _pageController.animateToPage(
+                          index + 1,
+                          duration: Durations.medium1,
+                          curve: Curves.linear,
+                        );
+                      });
+                      controller.pause();
+                      // Reset the new video to the beginning and then play
+                      _controllers[index + 1]?.seekTo(Duration.zero);
+                      _controllers[index + 1]?.play();
+                      setState(() {
+                        _currentIndex = index + 1;
+                      });
+                    },
+                    icon: const Icon(Icons.campaign, color: Colors.white),
+                    label: Text(
+                      index >= (circularVideoUrls.length - 2)
+                          ? "廣告播放完畢"
+                          : '觀看下則廣告',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.transparent,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                        side: const BorderSide(color: Colors.white),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            // if (!currentProduct.isCompleted && currentProduct.duration != null)
+            //   Positioned(
+            //     top: 90,
+            //     left: 0,
+            //     right: 0,
+            //     child: Align(
+            //       alignment: Alignment.center,
+            //       child: Builder(
+            //         builder: (context) {
+            //           final totalWatchedMilliSeconds =
+            //               _currentVideoPosition.inMilliseconds;
+            //           final requiredMilliSeconds =
+            //               currentProduct.duration!.inMilliseconds;
+            //           final remainingMilliSeconds =
+            //               (requiredMilliSeconds - totalWatchedMilliSeconds)
+            //                   .clamp(0, requiredMilliSeconds);
+            //           return Text(
+            //             '廣告剩餘 ${(remainingMilliSeconds / 1000).ceil()} 秒',
+            //             style: const TextStyle(color: Colors.white),
+            //           );
+            //         },
+            //       ),
+            //     ),
+            //   ),
+            Positioned(
+              bottom: 80,
+              right: 24,
+              child: IconButton(
+                onPressed: () {
+                  ref
+                      .read(cartProvider.notifier)
+                      .addCartItem(circularVideoUrls[index].productId)
+                      .then((result) {
+                        if (!mounted) return;
+                        final message = result.isSuccess
+                            ? result.data
+                            : result.error;
+                        if (message == null) return;
+                        // ignore: use_build_context_synchronously
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(message),
+                            backgroundColor: Colors.green,
+                            duration: const Duration(seconds: 2),
+                          ),
+                        );
+                      });
+                },
+                icon: const Icon(Icons.shopping_cart),
+                style: IconButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                ),
+              ),
+            ),
+            if (product.isLandscape == true)
+              Positioned(
+                bottom: 120,
+                left: MediaQuery.of(context).size.width / 2 - 75,
+                child: SizedBox(
+                  width: 150,
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      context
+                          .push(
+                            Routes.advertisementVideoPlayer,
+                            extra: {
+                              "totalWatchedMilliSeconds":
+                                  _currentVideoPosition.inMilliseconds,
+                              "advertisementId": product.id,
+                            },
+                          )
+                          .then((value) {
+                            if (value is! Map) return;
+                            controller.seekTo(value['position'] as Duration);
+                            controller.play();
+                            if (value['isCompleted'] == true) {
+                              ref
+                                  .read(advertisementNotifierProvider.notifier)
+                                  .markAdvertisementAsCompleted(
+                                    currentProduct.id,
+                                  );
+                            }
+                          });
+                    },
+                    icon: const Icon(Icons.fullscreen, color: Colors.white),
+                    label: const Text(
+                      'Full screen',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.transparent,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                        side: const BorderSide(color: Colors.white),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            Positioned(
+              bottom: 18,
+              child: SizedBox(
+                width: MediaQuery.of(context).size.width,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          if (circularVideoUrls[index].avatarUrl == null)
+                            CircleAvatar(
+                              backgroundColor: Colors.white,
+                              radius: 14,
+                              child: Text(
+                                circularVideoUrls[index].name[0].toUpperCase(),
+                                style: const TextStyle(
+                                  color: Colors.black,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          if (circularVideoUrls[index].avatarUrl != null)
+                            CircleAvatar(
+                              radius: 14,
+                              backgroundImage: NetworkImage(
+                                circularVideoUrls[index].avatarUrl!,
+                              ),
+                            ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              circularVideoUrls[index].name,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(color: Colors.white),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        circularVideoUrls[index].title,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(color: Colors.white),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            Align(
+              alignment: Alignment.bottomCenter,
+              child: VideoProgressIndicator(
+                controller,
+                allowScrubbing: true,
+                colors: const VideoProgressColors(
+                  playedColor: Colors.red,
+                  backgroundColor: Colors.grey,
+                  bufferedColor: Colors.white,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}

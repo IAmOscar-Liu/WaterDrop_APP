@@ -1,0 +1,77 @@
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_ad_ecommerce/constants/colors.dart';
+import 'package:flutter_ad_ecommerce/features/explore/widget/explore_main.dart';
+import 'package:flutter_ad_ecommerce/router/routes.dart';
+import 'package:flutter_ad_ecommerce/utils/router_change_event.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+
+class ExplorePage extends ConsumerStatefulWidget {
+  const ExplorePage({super.key});
+
+  @override
+  ConsumerState<ExplorePage> createState() => _ExplorePageState();
+}
+
+class _ExplorePageState extends ConsumerState<ExplorePage> {
+  late StreamSubscription _routeChangeSubscription;
+  bool _isRebuilding = false;
+  // Key _mainKey = UniqueKey();
+
+  @override
+  void initState() {
+    super.initState();
+
+    _routeChangeSubscription = eventBus.on<RouterChangeEvent>().listen((event) {
+      if (event.currentLocation == Routes.explorePage) {
+        // print("RouterChangeEvent received: ${event.currentLocation}");
+
+        setState(() {
+          _isRebuilding = true;
+        });
+        Timer(const Duration(milliseconds: 250), () {
+          setState(() {
+            _isRebuilding = false;
+          });
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    super.dispose();
+    _routeChangeSubscription.cancel();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isRebuilding) {
+      return Scaffold(
+        backgroundColor: AppColors.scaffoldBgColor,
+        body: Center(
+          child: Column(
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 16),
+              Text(
+                'Loading products...',
+                style: TextStyle(color: Colors.white),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return ExploreMain(
+      handleFullScreen: (extra, cb) {
+        context
+            .push(Routes.videoPlayer, extra: extra)
+            .then((value) => cb(value));
+      },
+    );
+  }
+}

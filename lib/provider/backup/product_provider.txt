@@ -1,0 +1,203 @@
+// lib/provider/product_provider.dart
+import 'dart:developer';
+
+import 'package:flutter_ad_ecommerce/models/product.dart';
+import 'package:flutter_ad_ecommerce/provider/dio_provider.dart';
+import 'package:flutter_ad_ecommerce/provider/system_provider.dart';
+import 'package:flutter_ad_ecommerce/provider/treasure_box_provider.dart';
+import 'package:flutter_ad_ecommerce/utils/list_utils.dart';
+import 'package:flutter_ad_ecommerce/utils/parse_utils.dart';
+import 'package:flutter_ad_ecommerce/utils/result.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:uuid/uuid.dart';
+
+part 'product_provider.g.dart';
+
+@Riverpod()
+class ProductNotifier extends _$ProductNotifier {
+  bool _isMarkingProductAsCompleted = false;
+
+  @override
+  List<Product> build() {
+    // Start with an empty list - products will be loaded from API
+    return [];
+  }
+
+  /// Loads products from the API
+  Future<void> loadProducts() async {
+    try {
+      final response = await ref
+          .read(dioProvider)
+          .get("/api/ads/list", queryParameters: {"limit": 6});
+      if (response.statusCode != 200) throw Exception("Failed to loadProducts");
+      final data = response.data;
+      if (data['success'] != true || data['data']?['ads'] is! List) {
+        throw Exception("Failed to get response data");
+      }
+      final products = List.generate(data['data']['ads'].length, (index) {
+        final map = data['data']['ads'][index];
+        final uuid = Uuid();
+        return Product(
+          id: ParseUtils.parseString(map['id']) ?? uuid.v4(),
+          name: ParseUtils.parseString(map['product_name']) ?? "",
+          price: ParseUtils.parseDouble(map['product_price']) ?? 0,
+          // videoPath: ParseUtils.parseString(map['video_url']) ?? "",
+          videoPath: mockProducts[index].videoPath,
+          description: ParseUtils.parseString(map['title']) ?? "",
+          providerName:
+              ParseUtils.parseString(map['product_provider']) ??
+              mockProducts[index].providerName,
+          details:
+              ParseUtils.parseString(map['description']) ??
+              "", // Handle nullable details
+          metadata: map['metadata'] != null
+              ? map['metadata'] as Map<String, dynamic>
+              : mockProducts[index].metadata, // Handle nullable metadata
+        );
+      });
+
+      // Simulate API response - in real app, this would be an HTTP request
+      // final uuid = Uuid();
+      // Update state with loaded products
+      state = products;
+    } catch (e) {
+      // Handle error - in real app, you might want to show an error message
+      log('Error loading products: $e');
+      // You could set an error state here if needed
+    }
+  }
+
+  /// Adds a new product to the list
+  void addProduct(Product product) {
+    state = [...state, product];
+  }
+
+  /// Removes a product from the list by ID
+  void removeProduct(String productId) {
+    state = state.where((product) => product.id != productId).toList();
+  }
+
+  /// Updates a product in the list
+  void updateProduct(Product updatedProduct) {
+    state = [
+      for (final product in state)
+        if (product.id == updatedProduct.id) updatedProduct else product,
+    ];
+  }
+
+  void setProductDuration(String productId, Duration duration) {
+    state = [
+      for (final product in state)
+        if (product.id == productId)
+          product.copyWith(duration: duration)
+        else
+          product,
+    ];
+  }
+
+  void setProductIsLandscape(String productId, bool isLandscape) {
+    state = [
+      for (final product in state)
+        if (product.id == productId)
+          product.copyWith(isLandscape: isLandscape)
+        else
+          product,
+    ];
+  }
+
+  /// Marks a product as completed
+  // void markProductAsCompleted(String productId) {
+  //   state = state.map((product) {
+  //     if (product.id == productId && !product.isCompleted) {
+  //       ref.read(systemNotifierProvider.notifier).increaseWatchedVideoCount();
+  //       final watchedVideoCount = ref
+  //           .read(systemNotifierProvider)
+  //           .watchedVideoCount;
+  //       if (watchedVideoCount <= AppConstants.dailyAvailableVideoCount &&
+  //           watchedVideoCount % AppConstants.videoCountForClaimingTreasureBox ==
+  //               0) {
+  //         ref.read(treasureBoxNotifierProvider.notifier).claimBox();
+  //       }
+  //       return product.copyWith(isCompleted: true);
+  //     }
+  //     return product;
+  //   }).toList();
+  // }
+
+  Future<Result<bool>> markProductAsCompleted(String productId) async {
+    if (!ref.read(systemNotifierProvider).canWatchMoreVideo) {
+      return Result.failure("Cannot watch more video");
+    }
+    if (_isMarkingProductAsCompleted) return Result.failure('processing');
+
+    final target = state.firstWhereOrNull((p) => p.id == productId);
+    if (target == null || target.isCompleted) {
+      return Result.failure('target not available');
+    }
+    try {
+      _isMarkingProductAsCompleted = true;
+      state = state
+          .map(
+            (product) => product.id == productId
+                ? product.copyWith(isCompleted: true)
+                : product,
+          )
+          .toList();
+
+      final response = await ref
+          .read(dioProvider)
+          .post("/api/ads/view", data: {"ad_id": target.id});
+      if (response.statusCode != 200 || response.data['success'] != true) {
+        throw Exception('Request failed');
+      }
+
+      final systemNotifier = ref.read(systemNotifierProvider.notifier);
+      systemNotifier.setWatchedVideoCount(
+        ParseUtils.parseInt(
+              response.data['data']['dailyStats']['totalViews'],
+            ) ??
+            0,
+      );
+      systemNotifier.setCanWatchMoreVideo(
+        response.data['data']['dailyStats']['canWatchMore'] == true,
+      );
+      if (response.data['data']['treasureBoxEarned'] == true) {
+        ref.read(treasureBoxNotifierProvider.notifier).loadTreasureBoxes();
+      }
+      return Result.success(response.data['data']['treasureBoxEarned'] == true);
+    } catch (e) {
+      log('Failed to mark product as completed: $e');
+      // state = state
+      //     .map(
+      //       (product) => product.id == productId
+      //           ? product.copyWith(isCompleted: false)
+      //           : product,
+      //     )
+      //     .toList();
+      return Result.failure('$e');
+    } finally {
+      _isMarkingProductAsCompleted = false;
+    }
+  }
+}
+
+/// Computed provider that returns products filtered by completion status
+@riverpod
+List<Product> completedProducts(CompletedProductsRef ref) {
+  final products = ref.watch(productNotifierProvider);
+  return products.where((product) => product.isCompleted).toList();
+}
+
+/// Computed provider that returns products that are not completed
+@riverpod
+List<Product> pendingProducts(PendingProductsRef ref) {
+  final products = ref.watch(productNotifierProvider);
+  return products.where((product) => !product.isCompleted).toList();
+}
+
+/// Computed provider that calculates the total value of all products
+@riverpod
+double totalProductsValue(TotalProductsValueRef ref) {
+  final products = ref.watch(productNotifierProvider);
+  return products.fold(0.0, (sum, product) => sum + product.price);
+}

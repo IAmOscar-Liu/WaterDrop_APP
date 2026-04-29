@@ -1,0 +1,114 @@
+import 'package:flutter/material.dart';
+import 'package:video_player/video_player.dart';
+
+class ExplorePage extends StatefulWidget {
+  const ExplorePage({super.key});
+
+  @override
+  State<ExplorePage> createState() => _ExplorePageState();
+}
+
+class _ExplorePageState extends State<ExplorePage> {
+  final List<String> videoPaths = [
+    'assets/videos/istockphoto-1013711730-640_adpp_is.mp4',
+    'assets/videos/istockphoto-1413207061-640_adpp_is.mp4',
+    'assets/videos/istockphoto-2183504786-640_adpp_is.mp4',
+  ];
+
+  final PageController _pageController = PageController();
+  final List<VideoPlayerController?> _controllers = [];
+
+  int _currentIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    for (var i = 0; i < videoPaths.length; i++) {
+      final controller = VideoPlayerController.asset(videoPaths[i]);
+      controller.setLooping(true);
+      controller.initialize().then((_) {
+        setState(() {});
+        if (i == 0) {
+          controller.play(); // Only play after the first video is initialized
+        }
+      });
+      _controllers.add(controller);
+    }
+
+    // Autoplay the first video
+    // _controllers[0]?.play();
+
+    _pageController.addListener(_onScroll);
+  }
+
+  void _onScroll() {
+    final newIndex = _pageController.page?.round() ?? 0;
+    if (newIndex != _currentIndex) {
+      _controllers[_currentIndex]?.pause();
+      _controllers[newIndex]?.play();
+      setState(() {
+        _currentIndex = newIndex;
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    for (var controller in _controllers) {
+      controller?.dispose();
+    }
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return PageView.builder(
+      controller: _pageController,
+      scrollDirection: Axis.vertical,
+      itemCount: videoPaths.length,
+      itemBuilder: (context, index) {
+        final controller = _controllers[index];
+        return controller != null && controller.value.isInitialized
+            ? Stack(
+                fit: StackFit.expand,
+                children: [
+                  FittedBox(
+                    fit: BoxFit.cover,
+                    child: SizedBox(
+                      width: controller.value.size.width,
+                      height: controller.value.size.height,
+                      child: VideoPlayer(controller),
+                    ),
+                  ),
+                  const Positioned(
+                    bottom: 24,
+                    left: 0,
+                    right: 0,
+                    child: Align(
+                      alignment: Alignment.center,
+                      child: Text(
+                        'Swipe up/down',
+                        style: TextStyle(color: Colors.white),
+                      ),
+                    ),
+                  ),
+                  Align(
+                    alignment: Alignment.bottomCenter,
+                    child: VideoProgressIndicator(
+                      controller,
+                      allowScrubbing: true,
+                      colors: VideoProgressColors(
+                        playedColor: Colors.red,
+                        backgroundColor: Colors.grey,
+                        bufferedColor: Colors.white,
+                      ),
+                    ),
+                  ),
+                ],
+              )
+            : const Center(child: CircularProgressIndicator());
+      },
+    );
+  }
+}

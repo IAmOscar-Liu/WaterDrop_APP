@@ -1,0 +1,134 @@
+// lib/treasure_box_provider.dart
+import 'dart:developer';
+
+import 'package:flutter_ad_ecommerce/models/treasure_box.dart';
+import 'package:flutter_ad_ecommerce/provider/dio_provider.dart';
+import 'package:flutter_ad_ecommerce/provider/member_info_provider.dart';
+import 'package:flutter_ad_ecommerce/utils/list_utils.dart';
+import 'package:flutter_ad_ecommerce/utils/parse_utils.dart';
+import 'package:flutter_ad_ecommerce/utils/result.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
+
+part 'treasure_box_provider.g.dart';
+
+@Riverpod()
+class TreasureBoxNotifier extends _$TreasureBoxNotifier {
+  bool _isOpeningTreasureBox = false;
+
+  @override
+  List<TreasureBox> build() {
+    // This is the initial state of our boxes
+    return [];
+  }
+
+  void loadTreasureBoxes() async {
+    try {
+      final response = await ref
+          .read(dioProvider)
+          .get(
+            "/api/ads/treasure-boxes",
+            queryParameters: {"page": 1, "limit": 10},
+          );
+      if (response.statusCode != 200) {
+        throw Exception("Failed to treasureBoxes");
+      }
+      final data = response.data;
+      if (data['success'] != true || data['data']?['treasureBoxes'] is! List) {
+        throw Exception("Failed to get response data");
+      }
+      final treasureBoxes = List.generate(10, (index) {
+        if (index < data['data']['treasureBoxes'].length) {
+          return TreasureBox.fromMap(data['data']['treasureBoxes'][index]);
+        }
+        return TreasureBox.zero();
+      });
+
+      state = treasureBoxes;
+    } catch (e) {
+      log('Error loading treasureBoxes: $e');
+    }
+  }
+
+  /// Opens a treasure box if it's claimable.
+  /// This method is the "update" functionality for the state.
+  Future<Result<int>> openBox(String boxId) async {
+    if (_isOpeningTreasureBox) return Result.failure('processing');
+
+    final target = state.firstWhereOrNull((box) => box.id == boxId);
+    if (target == null || !target.isClaimable || target.isOpened) {
+      return Result.failure('target not available');
+    }
+    try {
+      _isOpeningTreasureBox = true;
+      state = state
+          .map((box) => box.id == boxId ? box.copyWith(isOpened: true) : box)
+          .toList();
+
+      final response = await ref
+          .read(dioProvider)
+          .post("/api/ads/treasure-boxes/$boxId/open");
+      if (response.statusCode != 200 || response.data['success'] != true) {
+        throw Exception('Request failed');
+      }
+
+      ref
+          .read(memberInfoNotifierProvider.notifier)
+          .increaseCurrentBalance(
+            ParseUtils.parseInt(response.data['data']['coinsAwarded']) ?? 0,
+          );
+
+      state = state
+          .map(
+            (box) => box.id == boxId
+                ? TreasureBox.fromMap(response.data['data']['treasureBox'])
+                : box,
+          )
+          .toList();
+      return Result.success(
+        ParseUtils.parseInt(response.data['data']['coinsAwarded']) ?? 0,
+      );
+    } catch (e) {
+      log('Failed to open treasure box: $e');
+      state = state
+          .map((box) => box.id == boxId ? box.copyWith(isOpened: false) : box)
+          .toList();
+      return Result.failure('$e');
+    } finally {
+      _isOpeningTreasureBox = false;
+    }
+
+    // // Use `state = ...` to create a new list, which triggers a rebuild
+    // state = [
+    //   for (final box in state)
+    //     if (box.id == boxId)
+    //       box.copyWith(isOpened: true, isClaimable: false)
+    //     else
+    //       box,
+    // ];
+    // state = state.map((box) {
+    //   if (box.id == boxId) {
+    //     ref
+    //         .read(memberInfoNotifierProvider.notifier)
+    //         .increaseCurrentBalance(box.amount);
+    //     return box.copyWith(isOpened: true, isClaimable: false);
+    //   }
+    //   return box;
+    // }).toList();
+  }
+}
+
+/// Computed provider that calculates the number of claimable treasure boxes
+@riverpod
+int claimableTreasureBoxCount(ClaimableTreasureBoxCountRef ref) {
+  final treasureBoxes = ref.watch(treasureBoxNotifierProvider);
+  return treasureBoxes.where((box) => box.isClaimable && !box.isOpened).length;
+}
+
+/// Computed provider that calculates the total amount of all opened treasure boxes
+@riverpod
+int totalOpenedBoxAmount(TotalOpenedBoxAmountRef ref) {
+  final treasureBoxes = ref.watch(treasureBoxNotifierProvider);
+  return treasureBoxes
+      .where((box) => box.isOpened)
+      .fold(0, (sum, box) => sum + (box.coinsAwarded ?? 0));
+}

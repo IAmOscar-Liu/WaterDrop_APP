@@ -1,0 +1,31 @@
+class Routes {
+  Routes._();
+  static const String signIn = '/sign-in';
+  static const String initialPage = '/home';
+  static const String homePage = '/home';
+  static const String explorePage = '/explore';
+  static const String productPage = '/product';
+  static const String cartPage = '/cart';
+  static const String paymentSettingsPage = '/payment-settings';
+  static const String ecPayPage = '/ecpay';
+  static const String messagePage = '/message';
+  static const String singleMessageDetails = '/single-message-details';
+  static const String minePage = '/mine';
+  static const String mineProfilePage = '/mine/profile';
+  static const String settingsPage = '/settings';
+  static const String detailsPage = '/details';
+  static const String accountDelivery = '/account-delivery';
+  static const String help = '/help';
+  static const String advertisementVideoPlayer = '/advertisement-video-player';
+  static const String singleProductDetails = '/single-product-details';
+  static const String textSearch = '/text-search';
+  static const String photoView = '/photo-view';
+  static const String chatroomListPage = '/chatroom-list';
+  static const String chatroomPage = '/chatroom';
+  static const String collectionPage = '/collection';
+  static const String orderPage = '/order';
+  static const String singleOrderDetails = '/single-order-details';
+  static const String tradeDocumentPage = '/trade-document';
+  static const String userConsentPage = '/user-consent';
+  static const String fullScreenVideoPlayerPage = '/fullscreen-video-player';
+}
