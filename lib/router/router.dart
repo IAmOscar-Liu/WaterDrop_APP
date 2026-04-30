@@ -28,6 +28,7 @@ import 'package:flutter_ad_ecommerce/pages/single_product_details.dart';
 import 'package:flutter_ad_ecommerce/pages/text_search_page.dart';
 import 'package:flutter_ad_ecommerce/pages/trade_document_page.dart';
 import 'package:flutter_ad_ecommerce/pages/user_consent_page.dart';
+import 'package:flutter_ad_ecommerce/router/deep_link_redirect.dart';
 import 'package:flutter_ad_ecommerce/router/routes.dart';
 import 'package:go_router/go_router.dart';
 
@@ -100,6 +101,14 @@ GoRouter getRouter({
   return GoRouter(
     navigatorKey: kReleaseMode ? _rootNavigatorKey : null,
     initialLocation: initialLocation ?? Routes.initialPage,
+    redirect: (context, state) {
+      final normalizedLocation = normalizeDeepLinkLocation(state.uri);
+      if (normalizedLocation != null &&
+          normalizedLocation != state.uri.toString()) {
+        return normalizedLocation;
+      }
+      return null;
+    },
     routes: [
       ShellRoute(
         redirect: (context, state) {

@@ -1,7 +1,7 @@
 name: flutter_ad_ecommerce
 description: "A new Flutter project."
 publish_to: "none"
-version: 0.1.1+44
+version: 0.1.1+2026043001
 
 environment:
   sdk: ^3.8.0
@@ -36,6 +36,7 @@ dependencies:
   chewie: ^1.13.0
   image_picker: ^1.2.1
   device_info_plus: ^12.4.0
+  package_info_plus: ^9.0.1
 
 dev_dependencies:
   flutter_test:

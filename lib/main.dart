@@ -29,6 +29,8 @@ import 'package:flutter_timezone/flutter_timezone.dart';
 Future<void> main() => bootstrap(AppFlavor.current);
 
 Future<void> bootstrap(AppFlavor flavor) async {
+  AppFlavor.configure(flavor);
+
   // WidgetsFlutterBinding.ensureInitialized();
   WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
   FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);

@@ -7,8 +7,16 @@ enum AppFlavor {
   stg;
 
   static const _name = String.fromEnvironment('FLAVOR', defaultValue: 'dev');
+  static AppFlavor? _current;
+
+  static void configure(AppFlavor flavor) {
+    _current = flavor;
+  }
 
   static AppFlavor get current {
+    final configuredFlavor = _current;
+    if (configuredFlavor != null) return configuredFlavor;
+
     switch (_name) {
       case 'stg':
         return AppFlavor.stg;
