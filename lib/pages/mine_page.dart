@@ -406,6 +406,7 @@ class _MinePageState extends ConsumerState<MinePage> {
                     Uri.parse(
                       "${AppConstants.apiBaseUrl}api/file/user-consent",
                     ),
+                    mode: LaunchMode.inAppBrowserView,
                   );
                 },
                 child: Text(

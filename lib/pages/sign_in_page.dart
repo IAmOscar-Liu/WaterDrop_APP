@@ -247,6 +247,7 @@ class _SignInPageState extends State<SignInPage> {
                           Uri.parse(
                             "${AppConstants.apiBaseUrl}api/file/user-consent",
                           ),
+                          mode: LaunchMode.inAppBrowserView,
                         );
                       },
                       child: Text(
