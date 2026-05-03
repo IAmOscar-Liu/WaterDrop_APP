@@ -4,10 +4,10 @@
 
 This project currently supports `dev` and `stg` flavors.
 
-| Environment | App ID                                     | API base URL                         | Deeplink host               |
-| ----------- | ------------------------------------------ | ------------------------------------ | --------------------------- |
-| `dev`       | `com.waterdropapp.adecommerce.development` | `https://dev-api.waterdropping.com/` | `api.waterdropping.com`     |
-| `stg`       | `com.waterdropapp.adecommerce.stg`         | `https://stg-api.waterdropping.com/` | `stg-api.waterdropping.com` |
+| Environment | App ID                                     | API base URL                         | Deeplink host                    |
+| ----------- | ------------------------------------------ | ------------------------------------ | -------------------------------- |
+| `dev`       | `com.waterdropapp.adecommerce.development` | `https://dev-api.waterdropping.com/` | `deeplink-dev.waterdropping.com` |
+| `stg`       | `com.waterdropapp.adecommerce.stg`         | `https://stg-api.waterdropping.com/` | `deeplink-stg.waterdropping.com` |
 
 Firebase files are environment-scoped:
 
