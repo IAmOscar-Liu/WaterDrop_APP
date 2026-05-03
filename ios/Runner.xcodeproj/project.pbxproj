@@ -482,7 +482,7 @@
 			buildSettings = {
 				APP_DISPLAY_NAME = "水滴APP(Stg)";
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSOCIATED_DOMAIN = "applinks:stg-api.waterdropping.com";
+				ASSOCIATED_DOMAIN = "applinks:deeplink-stg.waterdropping.com";
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
@@ -594,7 +594,7 @@
 			baseConfigurationReference = CA5AA166D02E3A1DC2103224 /* Pods-RunnerTests.profile-dev.xcconfig */;
 			buildSettings = {
 				APP_DISPLAY_NAME = "水滴APP(Dev)";
-				ASSOCIATED_DOMAIN = "applinks:api.waterdropping.com";
+				ASSOCIATED_DOMAIN = "applinks:deeplink-dev.waterdropping.com";
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
@@ -667,7 +667,7 @@
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				APP_DISPLAY_NAME = "水滴APP(Dev)";
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = AppIcon;
-				ASSOCIATED_DOMAIN = "applinks:api.waterdropping.com";
+				ASSOCIATED_DOMAIN = "applinks:deeplink-dev.waterdropping.com";
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
 				CLANG_CXX_LIBRARY = "libc++";
@@ -728,7 +728,7 @@
 			buildSettings = {
 				APP_DISPLAY_NAME = "水滴APP(Dev)";
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSOCIATED_DOMAIN = "applinks:api.waterdropping.com";
+				ASSOCIATED_DOMAIN = "applinks:deeplink-dev.waterdropping.com";
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
@@ -761,7 +761,7 @@
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				APP_DISPLAY_NAME = "水滴APP(Stg)";
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
-				ASSOCIATED_DOMAIN = "applinks:stg-api.waterdropping.com";
+				ASSOCIATED_DOMAIN = "applinks:deeplink-stg.waterdropping.com";
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
 				CLANG_CXX_LIBRARY = "libc++";
@@ -820,7 +820,7 @@
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				APP_DISPLAY_NAME = "水滴APP(Dev)";
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = AppIcon;
-				ASSOCIATED_DOMAIN = "applinks:api.waterdropping.com";
+				ASSOCIATED_DOMAIN = "applinks:deeplink-dev.waterdropping.com";
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
 				CLANG_CXX_LIBRARY = "libc++";
@@ -884,7 +884,7 @@
 			buildSettings = {
 				APP_DISPLAY_NAME = "水滴APP(Dev)";
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSOCIATED_DOMAIN = "applinks:api.waterdropping.com";
+				ASSOCIATED_DOMAIN = "applinks:deeplink-dev.waterdropping.com";
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
@@ -916,7 +916,7 @@
 			baseConfigurationReference = 0BE6DF49D99B94999E9580D0 /* Pods-RunnerTests.release-dev.xcconfig */;
 			buildSettings = {
 				APP_DISPLAY_NAME = "水滴APP(Dev)";
-				ASSOCIATED_DOMAIN = "applinks:api.waterdropping.com";
+				ASSOCIATED_DOMAIN = "applinks:deeplink-dev.waterdropping.com";
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
@@ -939,7 +939,7 @@
 			buildSettings = {
 				APP_DISPLAY_NAME = "水滴APP(Stg)";
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSOCIATED_DOMAIN = "applinks:stg-api.waterdropping.com";
+				ASSOCIATED_DOMAIN = "applinks:deeplink-stg.waterdropping.com";
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
@@ -971,7 +971,7 @@
 			baseConfigurationReference = 89AA70085D5ED2DAE4883730 /* Pods-RunnerTests.debug-stg.xcconfig */;
 			buildSettings = {
 				APP_DISPLAY_NAME = "水滴APP(Stg)";
-				ASSOCIATED_DOMAIN = "applinks:stg-api.waterdropping.com";
+				ASSOCIATED_DOMAIN = "applinks:deeplink-stg.waterdropping.com";
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
@@ -1161,7 +1161,7 @@
 			baseConfigurationReference = D5063E0CD431C5125AD6D8F3 /* Pods-RunnerTests.profile-stg.xcconfig */;
 			buildSettings = {
 				APP_DISPLAY_NAME = "水滴APP(Stg)";
-				ASSOCIATED_DOMAIN = "applinks:stg-api.waterdropping.com";
+				ASSOCIATED_DOMAIN = "applinks:deeplink-stg.waterdropping.com";
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
@@ -1183,7 +1183,7 @@
 			baseConfigurationReference = 3EA7D39820A156E4B5F9A2A9 /* Pods-RunnerTests.debug-dev.xcconfig */;
 			buildSettings = {
 				APP_DISPLAY_NAME = "水滴APP(Dev)";
-				ASSOCIATED_DOMAIN = "applinks:api.waterdropping.com";
+				ASSOCIATED_DOMAIN = "applinks:deeplink-dev.waterdropping.com";
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
@@ -1208,7 +1208,7 @@
 			buildSettings = {
 				APP_DISPLAY_NAME = "水滴APP(Stg)";
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSOCIATED_DOMAIN = "applinks:stg-api.waterdropping.com";
+				ASSOCIATED_DOMAIN = "applinks:deeplink-stg.waterdropping.com";
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
@@ -1241,7 +1241,7 @@
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				APP_DISPLAY_NAME = "水滴APP(Stg)";
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = AppIcon;
-				ASSOCIATED_DOMAIN = "applinks:stg-api.waterdropping.com";
+				ASSOCIATED_DOMAIN = "applinks:deeplink-stg.waterdropping.com";
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
 				CLANG_CXX_LIBRARY = "libc++";
@@ -1304,7 +1304,7 @@
 			baseConfigurationReference = 209D09DAA9495007BDE9F4E9 /* Pods-RunnerTests.release-stg.xcconfig */;
 			buildSettings = {
 				APP_DISPLAY_NAME = "水滴APP(Stg)";
-				ASSOCIATED_DOMAIN = "applinks:stg-api.waterdropping.com";
+				ASSOCIATED_DOMAIN = "applinks:deeplink-stg.waterdropping.com";
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
@@ -1327,7 +1327,7 @@
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				APP_DISPLAY_NAME = "水滴APP(Dev)";
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
-				ASSOCIATED_DOMAIN = "applinks:api.waterdropping.com";
+				ASSOCIATED_DOMAIN = "applinks:deeplink-dev.waterdropping.com";
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
 				CLANG_CXX_LIBRARY = "libc++";
@@ -1386,7 +1386,7 @@
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				APP_DISPLAY_NAME = "水滴APP(Stg)";
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = AppIcon;
-				ASSOCIATED_DOMAIN = "applinks:stg-api.waterdropping.com";
+				ASSOCIATED_DOMAIN = "applinks:deeplink-stg.waterdropping.com";
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
 				CLANG_CXX_LIBRARY = "libc++";
@@ -1447,7 +1447,7 @@
 			buildSettings = {
 				APP_DISPLAY_NAME = "水滴APP(Dev)";
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSOCIATED_DOMAIN = "applinks:api.waterdropping.com";
+				ASSOCIATED_DOMAIN = "applinks:deeplink-dev.waterdropping.com";
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";

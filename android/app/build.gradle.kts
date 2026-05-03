@@ -67,7 +67,7 @@ android {
             applicationId = "com.waterdropapp.adecommerce.development"
             manifestPlaceholders["appLabel"] = "水滴APP(Dev)"
             manifestPlaceholders["deepLinkScheme"] = "waterdrop-dev"
-            manifestPlaceholders["deepLinkHost"] = "api.waterdropping.com"
+            manifestPlaceholders["deepLinkHost"] = "deeplink-dev.waterdropping.com"
         }
 
         create("stg") {
@@ -75,7 +75,7 @@ android {
             applicationId = "com.waterdropapp.adecommerce.stg"
             manifestPlaceholders["appLabel"] = "水滴APP(Stg)"
             manifestPlaceholders["deepLinkScheme"] = "waterdrop-stg"
-            manifestPlaceholders["deepLinkHost"] = "stg-api.waterdropping.com"
+            manifestPlaceholders["deepLinkHost"] = "deeplink-stg.waterdropping.com"
         }
     }
 }

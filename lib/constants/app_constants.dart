@@ -11,7 +11,7 @@ class AppConstants {
 
     switch (AppFlavor.current) {
       case AppFlavor.dev:
-        return 'https://api.waterdropping.com/';
+        return 'https://dev-api.waterdropping.com/';
       case AppFlavor.stg:
         return 'https://stg-api.waterdropping.com/';
     }

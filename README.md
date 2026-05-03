@@ -4,10 +4,10 @@
 
 This project currently supports `dev` and `stg` flavors.
 
-| Environment | App ID | API base URL | Deeplink host |
-| --- | --- | --- | --- |
-| `dev` | `com.waterdropapp.adecommerce.development` | `https://api.waterdropping.com/` | `api.waterdropping.com` |
-| `stg` | `com.waterdropapp.adecommerce.stg` | `https://stg-api.waterdropping.com/` | `stg-api.waterdropping.com` |
+| Environment | App ID                                     | API base URL                         | Deeplink host               |
+| ----------- | ------------------------------------------ | ------------------------------------ | --------------------------- |
+| `dev`       | `com.waterdropapp.adecommerce.development` | `https://dev-api.waterdropping.com/` | `api.waterdropping.com`     |
+| `stg`       | `com.waterdropapp.adecommerce.stg`         | `https://stg-api.waterdropping.com/` | `stg-api.waterdropping.com` |
 
 Firebase files are environment-scoped:
 
@@ -127,10 +127,10 @@ Recommended Xcode flow:
 
 The schemes are configured like this:
 
-| Scheme | Archive build configuration | Bundle ID | Firebase plist |
-| --- | --- | --- | --- |
-| `dev` | `Release-dev` | `com.waterdropapp.adecommerce.development` | `ios/Runner/Firebase/dev/GoogleService-Info.plist` |
-| `stg` | `Release-stg` | `com.waterdropapp.adecommerce.stg` | `ios/Runner/Firebase/stg/GoogleService-Info.plist` |
+| Scheme | Archive build configuration | Bundle ID                                  | Firebase plist                                     |
+| ------ | --------------------------- | ------------------------------------------ | -------------------------------------------------- |
+| `dev`  | `Release-dev`               | `com.waterdropapp.adecommerce.development` | `ios/Runner/Firebase/dev/GoogleService-Info.plist` |
+| `stg`  | `Release-stg`               | `com.waterdropapp.adecommerce.stg`         | `ios/Runner/Firebase/stg/GoogleService-Info.plist` |
 
 If you are editing the generic `Runner` scheme manually, open `Edit Scheme > Archive` and choose the matching build configuration:
 

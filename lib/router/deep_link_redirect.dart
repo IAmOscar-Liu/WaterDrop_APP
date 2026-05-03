@@ -25,9 +25,9 @@ bool _isAppLinkHost(Uri uri) {
 
   switch (AppFlavor.current) {
     case AppFlavor.dev:
-      return uri.host == 'api.waterdropping.com';
+      return uri.host == 'deeplink-dev.waterdropping.com';
     case AppFlavor.stg:
-      return uri.host == 'stg-api.waterdropping.com';
+      return uri.host == 'deeplink-stg.waterdropping.com';
   }
 }
 
