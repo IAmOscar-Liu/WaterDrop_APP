@@ -113,6 +113,54 @@ Build iOS staging without code signing:
 fvm flutter build ios --flavor stg -t lib/main_stg.dart --no-codesign
 ```
 
+## Launcher Icons
+
+Production launcher icons are configured in `pubspec.yaml` and currently use:
+
+```text
+assets/icons/playstore.png
+assets/icons/appstore.png
+```
+
+Dev and staging icons are configured separately:
+
+```text
+flutter_launcher_icons-dev.yaml
+flutter_launcher_icons-stg.yaml
+assets/icons/playstore-dev.png
+assets/icons/playstore-stg.png
+assets/icons/appstore-dev.png
+assets/icons/appstore-stg.png
+```
+
+Regenerate all configured flavor icons:
+
+```sh
+fvm dart run flutter_launcher_icons
+```
+
+Generated Android flavor icons live under:
+
+```text
+android/app/src/dev/res/
+android/app/src/stg/res/
+```
+
+Generated iOS flavor icons live under:
+
+```text
+ios/Runner/Assets.xcassets/AppIcon-dev.appiconset
+ios/Runner/Assets.xcassets/AppIcon-stg.appiconset
+```
+
+The iOS `Runner` target uses:
+
+| Build configurations | App icon set |
+| --- | --- |
+| `Debug-dev`, `Release-dev`, `Profile-dev` | `AppIcon-dev` |
+| `Debug-stg`, `Release-stg`, `Profile-stg` | `AppIcon-stg` |
+| Unflavored configs | `AppIcon` |
+
 ## Xcode Archive and TestFlight
 
 To upload a flavored iOS build to TestFlight, archive the matching release configuration.
