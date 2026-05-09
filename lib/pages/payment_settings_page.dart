@@ -648,6 +648,7 @@ class _PaymentSettingsPageState extends ConsumerState<PaymentSettingsPage> {
                                           widget.extra['userLevelAtSale'],
                                       "userMaxDiscountAtSale":
                                           widget.extra['userMaxDiscountAtSale'],
+                                      "groups": generateGroup(),
                                     },
                                   )
                                   // If currentOrder's status is pending, refetch currentOrder
@@ -796,22 +797,53 @@ class _PaymentSettingsPageState extends ConsumerState<PaymentSettingsPage> {
     } else if (_checkoutStat == CheckoutStat.processingPayment &&
         currentOrder?.orderStatus == "paid") {
       return _buildLayout(
-        child: CreateGroupExpressWebview(
-          order: currentOrder!,
-          groups: generateGroup(),
-          onSuccess: (response) {
-            _sendOrderCompletedNotification(currentOrder);
-            context.pop();
-          },
-          onFailure: (error) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text("部分商品無法建立運單，請至「我的」>「我的訂單」查看"),
-                backgroundColor: AppColors.dangerButtonColor,
-                duration: const Duration(seconds: 2),
-              ),
-            );
-            context.pop();
+        child: Builder(
+          builder: (context) {
+            Future.delayed(Durations.medium2, () async {
+              void handleOrderFailure() {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text("部分商品無法建立運單，請至「我的」>「我的訂單」查看"),
+                    backgroundColor: AppColors.dangerButtonColor,
+                    duration: const Duration(seconds: 2),
+                  ),
+                );
+              }
+
+              if (currentOrder == null) {
+                handleOrderFailure();
+                // ignore: use_build_context_synchronously
+                context.pop();
+                return;
+              }
+
+              int groupLength = generateGroup().length;
+              Order retryOrder = currentOrder;
+              final totalRetry = 10;
+              int retry = 1;
+              do {
+                await Future.delayed(const Duration(milliseconds: 2500));
+                final result = await ref
+                    .read(orderNotifierProvider.notifier)
+                    .getOrder(orderId: retryOrder.id);
+                if (result.isSuccess) {
+                  retryOrder = result.data!;
+                } else {
+                  retry++;
+                  if (retry > totalRetry) {
+                    handleOrderFailure();
+                    // ignore: use_build_context_synchronously
+                    context.pop();
+                    return;
+                  }
+                }
+              } while (retryOrder.deliveries.length != groupLength);
+
+              _sendOrderCompletedNotification(retryOrder);
+              // ignore: use_build_context_synchronously
+              context.pop();
+            });
+            return PageLoading('運單確認中，請稍後......');
           },
         ),
         allowPop: false,

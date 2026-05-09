@@ -128,6 +128,7 @@ class OrderNotifier extends _$OrderNotifier {
     String? userLevelAtSale,
     int? userMaxDiscountAtSale,
     required List<CartItem> cartItems,
+    required Map<String, dynamic> shippingInfo,
   }) async {
     try {
       final response = await ref
@@ -152,6 +153,7 @@ class OrderNotifier extends _$OrderNotifier {
                   'productNameAtSale': item.product.name,
                 };
               }).toList(),
+              "shippingInfo": shippingInfo,
             },
           );
 

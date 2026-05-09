@@ -19,6 +19,7 @@ class Order {
   final Map<String, dynamic>? metadata;
   final List<OrderItem> items;
   final List<Delivery> deliveries;
+  final dynamic shippingInfo;
 
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -42,6 +43,7 @@ class Order {
     this.metadata,
     required this.items,
     required this.deliveries,
+    this.shippingInfo,
     required this.createdAt,
     required this.updatedAt,
     this.completedAt,
@@ -85,6 +87,7 @@ class Order {
       createdAt: ParseUtils.parseDateTime(map['createdAt']) ?? DateTime.now(),
       updatedAt: ParseUtils.parseDateTime(map['updatedAt']) ?? DateTime.now(),
       completedAt: ParseUtils.parseDateTime(map['completedAt']),
+      shippingInfo: map['shippingInfo'] is Map ? map['shippingInfo'] : null,
     );
   }
 
@@ -105,6 +108,7 @@ class Order {
     Map<String, dynamic>? metadata,
     List<OrderItem>? items,
     List<Delivery>? deliveries,
+    dynamic shippingInfo,
     DateTime? createdAt,
     DateTime? updatedAt,
     DateTime? completedAt,
@@ -128,6 +132,7 @@ class Order {
       metadata: metadata ?? this.metadata,
       items: items ?? this.items,
       deliveries: deliveries ?? this.deliveries,
+      shippingInfo: shippingInfo ?? this.shippingInfo,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       completedAt: completedAt ?? this.completedAt,

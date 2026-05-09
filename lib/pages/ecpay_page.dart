@@ -5,8 +5,12 @@ import 'dart:developer';
 import 'package:flutter/material.dart';
 import 'package:flutter_ad_ecommerce/constants/app_constants.dart';
 import 'package:flutter_ad_ecommerce/constants/colors.dart';
+import 'package:flutter_ad_ecommerce/features/ecpay/widget/checkout_delivery_section.dart';
+import 'package:flutter_ad_ecommerce/models/account_info.dart';
+import 'package:flutter_ad_ecommerce/models/logistics_info.dart';
 import 'package:flutter_ad_ecommerce/models/order.dart';
 import 'package:flutter_ad_ecommerce/models/product.dart';
+import 'package:flutter_ad_ecommerce/provider/account_provider.dart';
 import 'package:flutter_ad_ecommerce/provider/order_provider.dart';
 import 'package:flutter_ad_ecommerce/provider/system_provider.dart';
 import 'package:flutter_ad_ecommerce/utils/uri_utils.dart';
@@ -44,11 +48,13 @@ class _ECPayPageState extends ConsumerState<ECPayPage>
         widget.extra['shippingCost'] == null ||
         widget.extra['shippingCostDeduction'] == null ||
         widget.extra['transactionFee'] == null ||
-        widget.extra['cartItems'] == null) {
+        widget.extra['cartItems'] == null ||
+        widget.extra['groups'] == null) {
       // If data is missing, pop immediately
       WidgetsBinding.instance.addPostFrameCallback((_) => context.pop());
       return;
     }
+
     _createOrder(
       subTotal: widget.extra['subTotal'],
       totalAmount: widget.extra['totalAmount'],
@@ -60,6 +66,7 @@ class _ECPayPageState extends ConsumerState<ECPayPage>
       transactionFeeRateAtSale: widget.extra['transactionFeeRateAtSale'],
       userLevelAtSale: widget.extra['userLevelAtSale'],
       userMaxDiscountAtSale: widget.extra['userMaxDiscountAtSale'],
+      groups: widget.extra['groups'],
     );
   }
 
@@ -81,8 +88,94 @@ class _ECPayPageState extends ConsumerState<ECPayPage>
     double? transactionFeeRateAtSale,
     String? userLevelAtSale,
     int? userMaxDiscountAtSale,
+    required List<Map<String, dynamic>> groups,
   }) async {
     Future.delayed(Duration.zero, () async {
+      final AccountInfo accountInfo = ref.watch(accountNotifierProvider);
+      final List cvsPickupGroup = [];
+      final List nonCvsPickupGroup = [];
+
+      for (var group in groups) {
+        if (group['name'] == "一般(店到店)") {
+          List<CartItem> normalPickupItems = group["items"];
+          LogisticsMapInfo store = group["store"];
+          LogisticsSubType cvsType = group["cvsType"];
+          double goodsAmount = normalPickupItems.fold(
+            0,
+            (sum, item) => sum + item.product.price * item.quantity,
+          );
+          cvsPickupGroup.add({
+            "type": AppConstants.logisticsSubType,
+            "productIds": normalPickupItems.map((e) => e.productId).toList(),
+            "LogisticsSubType": cvsType.name,
+            "GoodsName": normalPickupItems[0].product.name,
+            "GoodsAmount": goodsAmount,
+            "ReceiverName": accountInfo.name,
+            "ReceiverCellPhone": accountInfo.phone,
+            "ReceiverEmail": accountInfo.email,
+            "ReceiverStoreID": store.CVSStoreID,
+            "ReceiverStoreAddress": store.CVSAddress,
+            "ReceiverStoreName": store.CVSStoreName,
+            "ReceiverStoreTelephone": store.CVSTelephone,
+            "SenderName": normalPickupItems[0].product.seller?.realName,
+            "SenderCellPhone": normalPickupItems[0].product.seller?.phone,
+            "shippingCost": group["fee"],
+            "shippingCostDeduction": group["feeDeduction"],
+          });
+        } else {
+          List<CartItem> items = group["items"];
+          LogisticsSubType? cvsType = group["cvsType"];
+          double goodsAmount = items.fold(
+            0.0,
+            (sum, item) => sum + item.product.price * item.quantity,
+          );
+
+          Map<String, String>? getCvsStoreInfo(LogisticsMapInfo? storeInfo) {
+            if (storeInfo == null) return null;
+            final Map<String, String> store = {
+              "storeID": storeInfo.CVSStoreID,
+              "storeName": storeInfo.CVSStoreName,
+              "storeAddress": storeInfo.CVSAddress,
+            };
+            if (storeInfo.CVSTelephone != null) {
+              store["storeTelephone"] = storeInfo.CVSTelephone!;
+            }
+            return store;
+          }
+
+          final logisticsTypeValue = group["name"] == "虛擬商品(免運)"
+              ? "virtual"
+              : group["name"] == "冷藏(店到店)"
+              ? "CVS"
+              : "home_delivery";
+
+          nonCvsPickupGroup.add({
+            "LogisticsType": logisticsTypeValue,
+            "LogisticsSubType": cvsType?.name,
+            "GoodsAmount": goodsAmount,
+            "productIds": items.map((e) => e.productId).toList(),
+            "RtnCode": "300",
+            "RtnMsg": "訂單處理中(賣家已收到訂單資料)",
+            "fee": group["fee"],
+            "feeDeduction": group["feeDeduction"],
+            "cvsStoreInfo": getCvsStoreInfo(group["store"]),
+            "homeDeliveryData": {
+              "name": accountInfo.name,
+              "phone": accountInfo.phone,
+              "address": accountInfo.address,
+              "email": accountInfo.email,
+            },
+            "metadata": {
+              "LogisticsType": logisticsTypeValue,
+              "LogisticsSubType": cvsType?.name,
+              "GoodsAmount": goodsAmount,
+              "RtnCode": "300",
+              "RtnMsg": "訂單處理中(賣家已收到訂單資料)",
+            },
+          });
+        }
+      }
+
       final result = await ref
           .read(orderNotifierProvider.notifier)
           .createOrder(
@@ -96,6 +189,10 @@ class _ECPayPageState extends ConsumerState<ECPayPage>
             userLevelAtSale: userLevelAtSale,
             userMaxDiscountAtSale: userMaxDiscountAtSale,
             cartItems: cartItems,
+            shippingInfo: {
+              "cvsPickupGroup": cvsPickupGroup,
+              "nonCvsPickupGroup": nonCvsPickupGroup,
+            },
           );
       if (result.isFailure) {
         setState(() {
