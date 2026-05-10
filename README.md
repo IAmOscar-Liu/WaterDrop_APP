@@ -155,11 +155,11 @@ ios/Runner/Assets.xcassets/AppIcon-stg.appiconset
 
 The iOS `Runner` target uses:
 
-| Build configurations | App icon set |
-| --- | --- |
+| Build configurations                      | App icon set  |
+| ----------------------------------------- | ------------- |
 | `Debug-dev`, `Release-dev`, `Profile-dev` | `AppIcon-dev` |
 | `Debug-stg`, `Release-stg`, `Profile-stg` | `AppIcon-stg` |
-| Unflavored configs | `AppIcon` |
+| Unflavored configs                        | `AppIcon`     |
 
 ## Xcode Archive and TestFlight
 

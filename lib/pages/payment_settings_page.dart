@@ -821,7 +821,7 @@ class _PaymentSettingsPageState extends ConsumerState<PaymentSettingsPage> {
               Order retryOrder = currentOrder;
               final totalRetry = 10;
               int retry = 1;
-              do {
+              while (retryOrder.deliveries.length != groupLength) {
                 await Future.delayed(const Duration(milliseconds: 2500));
                 final result = await ref
                     .read(orderNotifierProvider.notifier)
@@ -837,7 +837,7 @@ class _PaymentSettingsPageState extends ConsumerState<PaymentSettingsPage> {
                     return;
                   }
                 }
-              } while (retryOrder.deliveries.length != groupLength);
+              }
 
               _sendOrderCompletedNotification(retryOrder);
               // ignore: use_build_context_synchronously
