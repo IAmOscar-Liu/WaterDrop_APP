@@ -13,6 +13,7 @@ class Order {
   final double totalAmount;
   final int discountCoin;
   final String orderStatus;
+  final String orderPayment;
   final double? transactionFeeRateAtSale;
   final String? userLevelAtSale;
   final int? userMaxDiscountAtSale;
@@ -20,6 +21,7 @@ class Order {
   final List<OrderItem> items;
   final List<Delivery> deliveries;
   final dynamic shippingInfo;
+  final dynamic paymentInfo;
 
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -37,6 +39,7 @@ class Order {
     required this.totalAmount,
     required this.discountCoin,
     required this.orderStatus,
+    required this.orderPayment,
     this.transactionFeeRateAtSale,
     this.userLevelAtSale,
     this.userMaxDiscountAtSale,
@@ -44,6 +47,7 @@ class Order {
     required this.items,
     required this.deliveries,
     this.shippingInfo,
+    this.paymentInfo,
     required this.createdAt,
     required this.updatedAt,
     this.completedAt,
@@ -76,6 +80,7 @@ class Order {
       totalAmount: ParseUtils.parseDouble(map['totalAmount']) ?? 0,
       discountCoin: ParseUtils.parseInt(map['discountCoin']) ?? 0,
       orderStatus: ParseUtils.parseString(map['orderStatus']) ?? "pending",
+      orderPayment: ParseUtils.parseString(map['orderPayment']) ?? "Credit",
       transactionFeeRateAtSale: ParseUtils.parseDouble(
         map['transactionFeeRateAtSale'],
       ),
@@ -88,6 +93,7 @@ class Order {
       updatedAt: ParseUtils.parseDateTime(map['updatedAt']) ?? DateTime.now(),
       completedAt: ParseUtils.parseDateTime(map['completedAt']),
       shippingInfo: map['shippingInfo'] is Map ? map['shippingInfo'] : null,
+      paymentInfo: map['paymentInfo'] is Map ? map['paymentInfo'] : null,
     );
   }
 
@@ -103,12 +109,14 @@ class Order {
     double? totalAmount,
     int? discountCoin,
     String? orderStatus,
+    String? orderPayment,
     String? userLevelAtSale,
     int? userMaxDiscountAtSale,
     Map<String, dynamic>? metadata,
     List<OrderItem>? items,
     List<Delivery>? deliveries,
     dynamic shippingInfo,
+    dynamic paymentInfo,
     DateTime? createdAt,
     DateTime? updatedAt,
     DateTime? completedAt,
@@ -126,6 +134,7 @@ class Order {
       totalAmount: totalAmount ?? this.totalAmount,
       discountCoin: discountCoin ?? this.discountCoin,
       orderStatus: orderStatus ?? this.orderStatus,
+      orderPayment: orderPayment ?? this.orderPayment,
       userLevelAtSale: userLevelAtSale ?? this.userLevelAtSale,
       userMaxDiscountAtSale:
           userMaxDiscountAtSale ?? this.userMaxDiscountAtSale,
@@ -133,6 +142,7 @@ class Order {
       items: items ?? this.items,
       deliveries: deliveries ?? this.deliveries,
       shippingInfo: shippingInfo ?? this.shippingInfo,
+      paymentInfo: paymentInfo ?? this.paymentInfo,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       completedAt: completedAt ?? this.completedAt,

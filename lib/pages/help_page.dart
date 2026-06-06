@@ -1,10 +1,18 @@
 // help_page.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_ad_ecommerce/constants/colors.dart';
+import 'package:flutter_ad_ecommerce/provider/account_provider.dart';
+import 'package:flutter_ad_ecommerce/router/routes.dart';
 import 'package:flutter_ad_ecommerce/widgets/simple_app_bar.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
-class HelpPage extends StatelessWidget {
+class HelpPage extends ConsumerWidget {
   const HelpPage({super.key});
+
+  Widget _buildFAQText(String text) {
+    return Text(text, style: const TextStyle(color: Colors.white, height: 1.6));
+  }
 
   Widget _buildFAQExpansionTile(
     BuildContext context, {
@@ -53,10 +61,24 @@ class HelpPage extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
       backgroundColor: AppColors.scaffoldBgColor,
       appBar: const SimpleAppBar(title: '客服/幫助中心'),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () {
+          final userId = ref.read(accountNotifierProvider).id;
+          context.push(
+            Routes.chatroomPage,
+            extra: {"title": "水滴客服", "userId": userId},
+          );
+        },
+        backgroundColor: AppColors.infoColor,
+        foregroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        icon: const Icon(Icons.support_agent),
+        label: const Text('聯絡客服'),
+      ),
       body: SafeArea(
         child: SingleChildScrollView(
           child: Padding(
@@ -68,75 +90,50 @@ class HelpPage extends StatelessWidget {
               children: [
                 _buildFAQExpansionTile(
                   context,
-                  title: '如何獲得金幣?',
-                  content: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        '主要方式:',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      RichText(
-                        text: const TextSpan(
-                          style: TextStyle(color: Colors.white),
-                          children: [
-                            TextSpan(
-                              text:
-                                  '1. 看完兩則廣告的完整內容 (即達到廣告指定時長) 後, 即可獲得一個「寶箱」. 在「寶箱」頁面開啟寶箱可獲得大量金幣.',
-                              style: TextStyle(color: Colors.white),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
+                  title: 'Q1：如何獲得金幣？',
+                  content: _buildFAQText(
+                    '透過參與平台廣告影片任務、每日簽到或完成指定生態活動，即可領取水滴金幣。水滴金幣是您在水滴生態中最重要的價值媒介。',
                   ),
                 ),
                 _buildFAQExpansionTile(
                   context,
-                  title: '等級 (A0, A1...) 有什麼用?',
-                  content: const Text(
-                    '等級越高, 在兌換商品時可使用的金幣抵扣百分比就越高, 能讓您省下更多現金. 等級由您的團隊人數決定.',
-                    style: TextStyle(color: Colors.white),
+                  title: 'Q2：等級（A0, A1...）具體有什麼好處？',
+                  content: _buildFAQText(
+                    '等級代表您在生態系統中的貢獻權重。\n\n'
+                    '權益加成：等級越高，兌換商品時可使用的「金幣抵扣比例」上限就越高。\n\n'
+                    '極致省錢：高等級成員能用更少的現金結合金幣，換取高價值的商品，實現資產價值最大化。\n\n'
+                    '晉升機制：您的等級是由您推動的「生態團隊人數」所決定。',
                   ),
                 ),
                 _buildFAQExpansionTile(
                   context,
-                  title: '如何增加團隊人數來提升等級?',
-                  content: const Text(
-                    '您可以將您的專屬「推薦碼」(在「我的」頁面查看) 分享給朋友, 當他們註冊時填寫您的推薦碼, 他們就會成為您的團隊成員. 目前APP中的「增加團隊人數」按鈕為測試功能, 方便您體驗不同等級的效果.',
-                    style: TextStyle(color: Colors.white),
+                  title: 'Q3：如何透過「生態共建」快速提升等級？',
+                  content: _buildFAQText(
+                    '水滴生態強調連結與共贏。您可以透過以下方式壯大您的團隊：\n\n'
+                    '獲取專屬碼：進入「我的」頁面，複製您的個人推薦碼。\n\n'
+                    '連結夥伴：將推薦碼分享給親友，當他們註冊並填寫您的代碼後，即正式成為您的生態團隊成員。\n\n'
+                    '共享增益：隨著團隊成員增加，您的等級會自動晉升，解鎖更高的抵扣權限。',
                   ),
                 ),
                 _buildFAQExpansionTile(
                   context,
-                  title: '如何修改收件資料?',
-                  content: const Text(
-                    '請在「我的」頁面找到「帳號設定與支援」區塊, 展開後即可看到「寄件資料」區塊, 填寫或修改您的姓名、地址和電話, 然後點擊「儲存寄貨資料」按鈕即可.',
-                    style: TextStyle(color: Colors.white),
+                  title: 'Q4：如何修改收件資料？',
+                  content: _buildFAQText(
+                    '若需更改配送資訊，請至「我的」→「帳號設定與支援」→「寄貨資料」進行編輯。為確保商品準確送達，請在發貨前確認資訊無誤。',
                   ),
                 ),
                 _buildFAQExpansionTile(
                   context,
-                  title: '如果還有其他問題怎麼辦?',
-                  content: RichText(
-                    text: TextSpan(
-                      style: const TextStyle(color: Colors.white),
-                      children: [
-                        const TextSpan(text: '若您的問題不在此列表中, 歡迎寄送電子郵件至我們的客服信箱'),
-                        // TextSpan(
-                        //   text: 'support@example.com',
-                        //   style: const TextStyle(
-                        //     color: Colors.white,
-                        //     decoration: TextDecoration.underline,
-                        //   ),
-                        // ),
-                        const TextSpan(text: ', 我們將盡快為您解答.'),
-                      ],
-                    ),
+                  title: 'Q5：如何一鍵複製ATM轉帳的帳號？',
+                  content: _buildFAQText(
+                    '我的 → 訂單記錄 → 查看詳情 → 轉帳記錄 → [複製帳號] 銀行帳戶數字',
+                  ),
+                ),
+                _buildFAQExpansionTile(
+                  context,
+                  title: 'Q6：如果還有其他問題怎麼辦？',
+                  content: _buildFAQText(
+                    '您可以點擊下方的「聯絡客服」按鈕，我們的生態服務專員將在第一時間為您提供協助。',
                   ),
                 ),
               ],

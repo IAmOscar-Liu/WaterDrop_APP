@@ -43,9 +43,7 @@ class _ChatroomPageState extends ConsumerState<ChatroomPage> {
       });
     } else if (widget.extra['chatRoomId'] != null) {
       _initChatRoomByChatRoomId(widget.extra['chatRoomId']);
-    } else if (widget.extra is! Map ||
-        widget.extra['userId'] == null ||
-        widget.extra['accountId'] == null) {
+    } else if (widget.extra is! Map || widget.extra['userId'] == null) {
       // If data is missing, pop immediately
       WidgetsBinding.instance.addPostFrameCallback((_) => context.pop());
     } else {
@@ -60,7 +58,7 @@ class _ChatroomPageState extends ConsumerState<ChatroomPage> {
 
   Future<void> _initChatRoom({
     required String userId,
-    required String accountId,
+    String? accountId,
     String? productId,
     String? orderId,
   }) async {

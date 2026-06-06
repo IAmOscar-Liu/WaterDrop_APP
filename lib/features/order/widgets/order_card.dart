@@ -56,6 +56,15 @@ class _OrderCardState extends State<OrderCard> {
     final transactionFee = widget.order.transactionFee;
     final transactionFeeRateAtSale =
         widget.order.transactionFeeRateAtSale ?? 0.0;
+    final orderStatus = widget.order.orderStatus;
+    final orderStatusText = orderStatus == "paid"
+        ? "交易成功"
+        : orderStatus == "payment-processing"
+        ? "待付款"
+        : orderStatus.toUpperCase();
+    final orderStatusColor = orderStatus == "payment-processing"
+        ? AppColors.warningColor
+        : AppColors.paidStatusColor;
 
     return Card(
       color: AppColors.containerBgColor,
@@ -78,10 +87,9 @@ class _OrderCardState extends State<OrderCard> {
                   ),
                 ),
                 Text(
-                  widget.order.orderStatus.toUpperCase(),
-                  style: const TextStyle(
-                    color:
-                        AppColors.paidStatusColor, // Using the new status color
+                  orderStatusText,
+                  style: TextStyle(
+                    color: orderStatusColor,
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
                   ),

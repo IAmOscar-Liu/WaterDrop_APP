@@ -10,12 +10,6 @@ import 'package:flutter_ad_ecommerce/constants/app_constants.dart';
 import 'package:flutter_ad_ecommerce/constants/colors.dart';
 import 'package:flutter_ad_ecommerce/features/ecpay/widget/checkout_delivery_section.dart';
 import 'package:flutter_ad_ecommerce/models/account_info.dart';
-import 'package:flutter_ad_ecommerce/models/logistics_info.dart';
-import 'package:flutter_ad_ecommerce/models/order.dart';
-import 'package:flutter_ad_ecommerce/models/product.dart';
-import 'package:flutter_ad_ecommerce/provider/account_provider.dart';
-import 'package:flutter_ad_ecommerce/provider/dio_provider.dart';
-import 'package:flutter_ad_ecommerce/provider/system_provider.dart';
 import 'package:flutter_ad_ecommerce/utils/uri_utils.dart';
 import 'package:flutter_ad_ecommerce/widgets/page_status.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
@@ -106,7 +100,7 @@ class _ValidationWebviewState extends ConsumerState<ValidationWebview> {
 }
 
 class LogisticsMapWebview extends StatelessWidget {
-  final String logisticsSubType;
+  final LogisticsSubType logisticsSubType;
   final Function(dynamic) onSuccess;
   const LogisticsMapWebview({
     super.key,
@@ -127,7 +121,12 @@ class LogisticsMapWebview extends StatelessWidget {
         onWebViewCreated: (controller) async {
           final urlWithAddedParams = UriUtils.addQueryParamsToUrl(
             baseUrl: "${AppConstants.apiBaseUrl}api/ecpay/logistics/map",
-            queryParams: {'logisticsSubType': logisticsSubType},
+            queryParams: {
+              'logisticsSubType':
+                  logisticsSubType == LogisticsSubType.OKMART_LOW_TMP_C2C
+                  ? "OKMARTC2C"
+                  : logisticsSubType.name,
+            },
           );
           log(urlWithAddedParams.toString());
           await controller.loadUrl(

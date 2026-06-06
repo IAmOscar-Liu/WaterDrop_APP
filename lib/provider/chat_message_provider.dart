@@ -231,7 +231,7 @@ class ChatMessageNotifier extends _$ChatMessageNotifier {
 
   Future<Result<Chatroom>> initChatroom({
     required String userId,
-    required String accountId,
+    String? accountId,
     String? productId,
     String? orderId,
   }) async {

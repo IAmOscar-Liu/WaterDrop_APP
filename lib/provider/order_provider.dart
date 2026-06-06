@@ -118,6 +118,7 @@ class OrderNotifier extends _$OrderNotifier {
   }
 
   Future<Result<Order>> createOrder({
+    required String idempotencyKey,
     required double subTotal,
     required double totalAmount,
     required int discountCoin,
@@ -129,6 +130,7 @@ class OrderNotifier extends _$OrderNotifier {
     int? userMaxDiscountAtSale,
     required List<CartItem> cartItems,
     required Map<String, dynamic> shippingInfo,
+    String? orderPayment,
   }) async {
     try {
       final response = await ref
@@ -136,6 +138,7 @@ class OrderNotifier extends _$OrderNotifier {
           .post(
             "/api/order",
             data: {
+              "idempotencyKey": idempotencyKey,
               "subTotal": subTotal,
               "totalAmount": totalAmount,
               "discountCoin": discountCoin,
@@ -154,6 +157,7 @@ class OrderNotifier extends _$OrderNotifier {
                 };
               }).toList(),
               "shippingInfo": shippingInfo,
+              "orderPayment": orderPayment,
             },
           );
 

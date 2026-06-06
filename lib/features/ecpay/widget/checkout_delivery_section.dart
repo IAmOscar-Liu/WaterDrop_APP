@@ -402,7 +402,7 @@ class CheckoutDeliverySection extends StatelessWidget {
               storeInfo: store,
               onSelect: () => onSelectStore(
                 'refrigeration',
-                LogisticsSubType.OKMARTC2C,
+                LogisticsSubType.OKMART_LOW_TMP_C2C,
                 sellerId,
               ),
             ),
@@ -418,7 +418,7 @@ class CheckoutDeliverySection extends StatelessWidget {
             storeInfo: store,
             onSelect: () => onSelectStore(
               'refrigeration',
-              LogisticsSubType.OKMARTC2C,
+              LogisticsSubType.OKMART_LOW_TMP_C2C,
               sellerId,
             ),
           ),

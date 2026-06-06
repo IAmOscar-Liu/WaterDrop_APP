@@ -5,7 +5,7 @@ import 'package:flutter_ad_ecommerce/utils/parse_utils.dart';
 class Chatroom {
   final String id;
   final String userId;
-  final String accountId;
+  final String? accountId;
   final String? productId;
 
   final Product? product;
@@ -19,7 +19,7 @@ class Chatroom {
   Chatroom({
     required this.id,
     required this.userId,
-    required this.accountId,
+    this.accountId,
     this.productId,
     this.product,
     this.totalUnread,
@@ -70,7 +70,7 @@ class Chatroom {
     return Chatroom(
       id: ParseUtils.parseString(map['id']) ?? "",
       userId: ParseUtils.parseString(map['userId']) ?? "",
-      accountId: ParseUtils.parseString(map['accountId']) ?? "",
+      accountId: ParseUtils.parseString(map['accountId']),
       productId: ParseUtils.parseString(map['productId']),
       product: map['product'] is Map
           ? Product.fromApiResponseMap(map['product'])

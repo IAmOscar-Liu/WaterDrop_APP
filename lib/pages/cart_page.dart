@@ -602,7 +602,8 @@ class _CartPageState extends ConsumerState<CartPage> {
                                       final orderStatus = value is Order
                                           ? value.orderStatus
                                           : null;
-                                      if (orderStatus == "paid") {
+                                      if (orderStatus == "paid" ||
+                                          orderStatus == "payment-processing") {
                                         return showDialog(
                                           // ignore: use_build_context_synchronously
                                           context: context,
@@ -612,7 +613,9 @@ class _CartPageState extends ConsumerState<CartPage> {
                                                 0xFF262A33,
                                               ),
                                               title: Text(
-                                                "交易成功",
+                                                orderStatus == "paid"
+                                                    ? "交易成功"
+                                                    : "訂單已送出，請於指定期限內完成付款(如已付款，請於訂單紀錄確認付款狀態)",
                                                 style: TextStyle(
                                                   color: Colors.white,
                                                 ),

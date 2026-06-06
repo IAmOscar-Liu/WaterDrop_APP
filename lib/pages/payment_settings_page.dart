@@ -17,6 +17,7 @@ import 'package:flutter_ad_ecommerce/provider/system_provider.dart';
 import 'package:flutter_ad_ecommerce/router/routes.dart';
 import 'package:flutter_ad_ecommerce/utils/number_formatter_extension.dart';
 import 'package:flutter_ad_ecommerce/utils/parse_utils.dart';
+import 'package:flutter_ad_ecommerce/utils/payment_saved_store_utils.dart';
 import 'package:flutter_ad_ecommerce/widgets/page_status.dart';
 import 'package:flutter_ad_ecommerce/widgets/simple_app_bar.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -46,6 +47,8 @@ class _PaymentSettingsPageState extends ConsumerState<PaymentSettingsPage> {
   final Map<String, DeliveryMethod?> _normalMethods = {};
   final Map<String, LogisticsSubType?> _normalCvsTypes = {};
   final Map<String, LogisticsMapInfo?> _normalStores = {};
+  final Map<LogisticsSubType, LogisticsMapInfo> _savedStoresBySubType = {};
+  String _orderPayment = "Credit";
 
   String? _selectingStoreFor; // 'refrigeration' or 'normal'
   String? _selectingStoreForSellerId; // Track which seller we are selecting for
@@ -54,6 +57,7 @@ class _PaymentSettingsPageState extends ConsumerState<PaymentSettingsPage> {
   @override
   void initState() {
     super.initState();
+    _loadSavedStores();
 
     if (widget.extra is! Map ||
         widget.extra['shippingFee'] == null ||
@@ -65,15 +69,80 @@ class _PaymentSettingsPageState extends ConsumerState<PaymentSettingsPage> {
     }
   }
 
-  void _sendOrderCompletedNotification(Order completedOrder) async {
-    ref
-        .read(dioProvider)
-        .post(
-          "/api/order/send-notification",
-          data: {"orderId": completedOrder.id},
-        )
-        // ignore: body_might_complete_normally_catch_error
-        .catchError((e) {});
+  LogisticsMapInfo? _savedStoreFor(LogisticsSubType? subType) {
+    if (subType == null) return null;
+    return _savedStoresBySubType[subType];
+  }
+
+  Future<void> _loadSavedStores() async {
+    final stores = await PaymentSavedStoreUtils.loadValidatedSavedStores(
+      ref.read(dioProvider),
+    );
+
+    if (!mounted) return;
+    setState(() {
+      _savedStoresBySubType
+        ..clear()
+        ..addAll(stores);
+
+      for (final entry in _normalCvsTypes.entries) {
+        _normalStores[entry.key] = _savedStoreFor(entry.value);
+      }
+      for (final entry in _refrigerationMethods.entries) {
+        if (entry.value != null) {
+          _refrigerationStores[entry.key] = _savedStoreFor(
+            LogisticsSubType.OKMART_LOW_TMP_C2C,
+          );
+        }
+      }
+    });
+  }
+
+  Future<void> _saveStoreForSubType(
+    LogisticsSubType subType,
+    LogisticsMapInfo store,
+  ) async {
+    _savedStoresBySubType[subType] = store;
+    await PaymentSavedStoreUtils.saveStoreForSubType(subType, store);
+  }
+
+  // void _sendOrderCompletedNotification(Order completedOrder) async {
+  //   ref
+  //       .read(dioProvider)
+  //       .post(
+  //         "/api/order/send-notification",
+  //         data: {"orderId": completedOrder.id},
+  //       )
+  //       // ignore: body_might_complete_normally_catch_error
+  //       .catchError((e) {});
+  // }
+
+  Future<bool> _confirmBeforePayment() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF262A33),
+          title: const Text("前往付款", style: TextStyle(color: Colors.white)),
+          content: const Text(
+            "您即將前往付款。為保障你的權益，請確認收件人資訊填寫正確。",
+            style: TextStyle(color: Colors.white),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text("取消", style: TextStyle(color: Colors.white70)),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text("確定", style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        );
+      },
+    );
+
+    return confirmed == true;
   }
 
   Widget _buildLayout({required Widget child, bool allowPop = true}) {
@@ -158,6 +227,95 @@ class _PaymentSettingsPageState extends ConsumerState<PaymentSettingsPage> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildPaymentMethodSection() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16.0),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.containerBgColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.borderColor, width: 1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            "付款方式",
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 18,
+              color: AppColors.primaryTextColor,
+            ),
+          ),
+          const Divider(color: AppColors.dividerColor),
+          RadioGroup<String>(
+            groupValue: _orderPayment,
+            onChanged: (value) {
+              if (value == null) return;
+              setState(() => _orderPayment = value);
+            },
+            child: Column(
+              children: [
+                _buildPaymentOption(
+                  value: "Credit",
+                  title: "信用卡",
+                  icon: Icons.credit_card,
+                ),
+                const SizedBox(height: 10),
+                _buildPaymentOption(
+                  value: "ATM",
+                  title: "ATM轉帳",
+                  icon: Icons.account_balance,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPaymentOption({
+    required String value,
+    required String title,
+    required IconData icon,
+  }) {
+    final isSelected = _orderPayment == value;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: isSelected
+            ? AppColors.primaryButtonColor.withValues(alpha: 0.08)
+            : AppColors.tileColor,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: isSelected
+              ? AppColors.primaryButtonColor
+              : AppColors.borderColor,
+          width: isSelected ? 1.5 : 1,
+        ),
+      ),
+      child: RadioListTile<String>(
+        value: value,
+        activeColor: AppColors.primaryButtonColor,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+        secondary: Icon(
+          icon,
+          color: isSelected
+              ? AppColors.primaryButtonColor
+              : AppColors.secondaryTextColor,
+        ),
+        title: Text(
+          title,
+          style: const TextStyle(
+            color: AppColors.primaryTextColor,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
       ),
     );
   }
@@ -540,13 +698,21 @@ class _PaymentSettingsPageState extends ConsumerState<PaymentSettingsPage> {
                   normalCvsTypes: _normalCvsTypes,
                   normalStores: _normalStores,
                   // manualPickupItemIds: _manualPickupItemIds,
-                  onRefrigerationMethodChanged: (sellerId, val) =>
-                      setState(() => _refrigerationMethods[sellerId] = val),
+                  onRefrigerationMethodChanged: (sellerId, val) => setState(() {
+                    _refrigerationMethods[sellerId] = val;
+                    if (val == null) {
+                      _refrigerationStores[sellerId] = null;
+                    } else {
+                      _refrigerationStores[sellerId] = _savedStoreFor(
+                        LogisticsSubType.OKMART_LOW_TMP_C2C,
+                      );
+                    }
+                  }),
                   onNormalMethodChanged: (sellerId, val) =>
                       setState(() => _normalMethods[sellerId] = val),
                   onNormalCvsTypeChanged: (sellerId, val) => setState(() {
                     _normalCvsTypes[sellerId] = val;
-                    _normalStores[sellerId] = null;
+                    _normalStores[sellerId] = _savedStoreFor(val);
                   }),
                   onSelectStore: (type, subType, sellerId) {
                     setState(() {
@@ -581,6 +747,8 @@ class _PaymentSettingsPageState extends ConsumerState<PaymentSettingsPage> {
                   },
                 ),
                 const SizedBox(height: 24),
+                _buildPaymentMethodSection(),
+                const SizedBox(height: 12),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16.0),
                   child: SizedBox(
@@ -588,7 +756,13 @@ class _PaymentSettingsPageState extends ConsumerState<PaymentSettingsPage> {
                     child: ElevatedButton(
                       onPressed: (!isRefrigerationValid || !isNormalValid)
                           ? null
-                          : () {
+                          : () async {
+                              final confirmed = await _confirmBeforePayment();
+                              if (!confirmed || !context.mounted) return;
+                              ref
+                                  .read(systemNotifierProvider.notifier)
+                                  .setCurrentOrder(null);
+
                               // Generate Groups
                               // bool splitOccurred = false;
 
@@ -649,6 +823,7 @@ class _PaymentSettingsPageState extends ConsumerState<PaymentSettingsPage> {
                                       "userMaxDiscountAtSale":
                                           widget.extra['userMaxDiscountAtSale'],
                                       "groups": generateGroup(),
+                                      "orderPayment": _orderPayment,
                                     },
                                   )
                                   // If currentOrder's status is pending, refetch currentOrder
@@ -693,11 +868,14 @@ class _PaymentSettingsPageState extends ConsumerState<PaymentSettingsPage> {
                                     }
                                   })
                                   // If currentOrder is null -> no order created -> pop
+                                  // or if currentOrder's status is payment-processing -> pop
                                   .then((value) {
                                     final resultOrder = ref
                                         .read(systemNotifierProvider)
                                         .currentOrder;
-                                    if (resultOrder == null) {
+                                    if (resultOrder == null ||
+                                        resultOrder.orderStatus ==
+                                            "payment-processing") {
                                       // ignore: use_build_context_synchronously
                                       return context.pop();
                                     }
@@ -775,10 +953,13 @@ class _PaymentSettingsPageState extends ConsumerState<PaymentSettingsPage> {
           fit: StackFit.expand,
           children: [
             LogisticsMapWebview(
-              logisticsSubType: _logisticsSubType.name,
+              logisticsSubType: _logisticsSubType,
               onSuccess: (response) {
+                final info = LogisticsMapInfo.fromApiResponseMap(response);
+                final selectedSubType = _logisticsSubType;
+                _saveStoreForSubType(selectedSubType, info);
+
                 setState(() {
-                  final info = LogisticsMapInfo.fromApiResponseMap(response);
                   final sellerId = _selectingStoreForSellerId;
                   if (sellerId != null) {
                     if (_selectingStoreFor == 'refrigeration') {
@@ -839,7 +1020,7 @@ class _PaymentSettingsPageState extends ConsumerState<PaymentSettingsPage> {
                 }
               }
 
-              _sendOrderCompletedNotification(retryOrder);
+              // _sendOrderCompletedNotification(retryOrder);
               // ignore: use_build_context_synchronously
               context.pop();
             });

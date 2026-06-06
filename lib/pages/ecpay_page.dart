@@ -19,6 +19,7 @@ import 'package:flutter_ad_ecommerce/widgets/simple_app_bar.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:uuid/uuid.dart';
 
 class ECPayPage extends ConsumerStatefulWidget {
   final dynamic extra;
@@ -35,6 +36,7 @@ class _ECPayPageState extends ConsumerState<ECPayPage>
   String? _errorMsg;
   bool _isHandlingClientReturn = false;
   Timer? _checkoutTimer;
+  String? _idempotencyKey; // To prevent duplicate order creation on app resume
 
   @override
   void initState() {
@@ -55,6 +57,8 @@ class _ECPayPageState extends ConsumerState<ECPayPage>
       return;
     }
 
+    _idempotencyKey = const Uuid().v4();
+
     _createOrder(
       subTotal: widget.extra['subTotal'],
       totalAmount: widget.extra['totalAmount'],
@@ -67,6 +71,7 @@ class _ECPayPageState extends ConsumerState<ECPayPage>
       userLevelAtSale: widget.extra['userLevelAtSale'],
       userMaxDiscountAtSale: widget.extra['userMaxDiscountAtSale'],
       groups: widget.extra['groups'],
+      orderPayment: widget.extra['orderPayment'],
     );
   }
 
@@ -89,6 +94,7 @@ class _ECPayPageState extends ConsumerState<ECPayPage>
     String? userLevelAtSale,
     int? userMaxDiscountAtSale,
     required List<Map<String, dynamic>> groups,
+    String? orderPayment,
   }) async {
     Future.delayed(Duration.zero, () async {
       final AccountInfo accountInfo = ref.watch(accountNotifierProvider);
@@ -179,6 +185,7 @@ class _ECPayPageState extends ConsumerState<ECPayPage>
       final result = await ref
           .read(orderNotifierProvider.notifier)
           .createOrder(
+            idempotencyKey: _idempotencyKey!,
             subTotal: subTotal,
             totalAmount: totalAmount,
             discountCoin: discountCoin,
@@ -193,6 +200,7 @@ class _ECPayPageState extends ConsumerState<ECPayPage>
               "cvsPickupGroup": cvsPickupGroup,
               "nonCvsPickupGroup": nonCvsPickupGroup,
             },
+            orderPayment: orderPayment,
           );
       if (result.isFailure) {
         setState(() {
@@ -271,7 +279,9 @@ class _ECPayPageState extends ConsumerState<ECPayPage>
       final result = await ref
           .read(orderNotifierProvider.notifier)
           .getOrder(orderId: order.id);
-      if (result.isSuccess && result.data!.orderStatus == "paid") {
+      if (result.isSuccess &&
+          (result.data!.orderStatus == "paid" ||
+              result.data!.orderStatus == "payment-processing")) {
         orderResult = result.data;
         break;
       }
@@ -287,12 +297,20 @@ class _ECPayPageState extends ConsumerState<ECPayPage>
     context.pop();
   }
 
-  Widget _buildLayout({required Widget child}) {
-    return Scaffold(
-      backgroundColor: AppColors.scaffoldBgColor,
-      appBar: SimpleAppBar(title: '商品結帳'),
-      resizeToAvoidBottomInset: true,
-      body: child,
+  Widget _buildLayout({required Widget child, bool allowPop = true}) {
+    return PopScope(
+      canPop: allowPop,
+      child: Scaffold(
+        backgroundColor: AppColors.scaffoldBgColor,
+        appBar: SimpleAppBar(
+          title: '商品結帳',
+          // Hide the back button if popping is not allowed
+          automaticallyImplyLeading: allowPop,
+          leading: allowPop ? null : const SizedBox.shrink(),
+        ),
+        resizeToAvoidBottomInset: true,
+        body: child,
+      ),
     );
   }
 
@@ -451,10 +469,12 @@ class _ECPayPageState extends ConsumerState<ECPayPage>
                   queryParams: {
                     "token": ref.watch(systemNotifierProvider).accessToken,
                     'orderId': currentOrder.id,
+                    'idempotencyKey': _idempotencyKey,
                     'totalAmount': currentOrder.totalAmount,
                     'tradeDesc': '請在此結帳您的商品',
                     'itemName':
                         "${currentOrder.items.length}項商品", // This will overwrite the existing 'user' param
+                    'ChoosePayment': currentOrder.orderPayment,
                   },
                 );
                 log(urlWithAddedParams.toString());

@@ -32,11 +32,22 @@ class _ChatroomListPageState extends ConsumerState<ChatroomListPage> {
     });
   }
 
-  String _buildLastMessageContent(ChatMessage message) {
+  String _buildLastMessageContent(
+    ChatMessage message, {
+    bool isSupportChat = false,
+  }) {
     if (message.content.isNotEmpty) {
-      return "${message.senderType == "user" ? "你" : "賣家"}: ${message.content}";
+      return "${message.senderType == "user"
+          ? "你"
+          : isSupportChat
+          ? "客服"
+          : "賣家"}: ${message.content}";
     } else if (message.attachments != null && message.attachments!.isNotEmpty) {
-      return "${message.senderType == "user" ? "你" : "賣家"}: ${message.attachments!.length}個附件";
+      return "${message.senderType == "user"
+          ? "你"
+          : isSupportChat
+          ? "客服"
+          : "賣家"}: ${message.attachments!.length}個附件";
     }
     return "";
   }
@@ -44,7 +55,7 @@ class _ChatroomListPageState extends ConsumerState<ChatroomListPage> {
   String _buildDeliveryStatusText(String status) {
     switch (status) {
       case "pending":
-        return "處理中";
+        return "待出貨";
       case "shipped":
         return "已出貨";
       case "delivered":
@@ -128,16 +139,22 @@ class _ChatroomListPageState extends ConsumerState<ChatroomListPage> {
                             numberOfColumn: 1,
                             itemBuilder: (item) {
                               final Chatroom chatRoom = item;
+                              final bool isSupportChat =
+                                  chatRoom.accountId == null;
+                              final String chatTitle = isSupportChat
+                                  ? "水滴客服"
+                                  : chatRoom.product?.name ?? "未知商品";
 
                               final chatroomCard = GestureDetector(
-                                onTap: chatRoom.product == null
+                                onTap:
+                                    !isSupportChat && chatRoom.product == null
                                     ? null
                                     : () {
                                         context
                                             .push(
                                               Routes.chatroomPage,
                                               extra: {
-                                                "title": chatRoom.product!.name,
+                                                "title": chatTitle,
                                                 "chatRoom": chatRoom,
                                               },
                                             )
@@ -170,12 +187,17 @@ class _ChatroomListPageState extends ConsumerState<ChatroomListPage> {
                                           ),
                                           color: Colors.grey[800],
                                         ),
-                                        child:
-                                            (chatRoom.product?.images != null &&
-                                                chatRoom
-                                                    .product!
-                                                    .images!
-                                                    .isNotEmpty)
+                                        child: isSupportChat
+                                            ? Image.asset(
+                                                "assets/icons/appstore.png",
+                                                fit: BoxFit.cover,
+                                              )
+                                            : (chatRoom.product?.images !=
+                                                      null &&
+                                                  chatRoom
+                                                      .product!
+                                                      .images!
+                                                      .isNotEmpty)
                                             ? FadeInImage.assetNetwork(
                                                 placeholder:
                                                     "assets/images/photo_loading.gif",
@@ -197,11 +219,7 @@ class _ChatroomListPageState extends ConsumerState<ChatroomListPage> {
                                                       );
                                                     },
                                               )
-                                            : InitialImage(
-                                                name:
-                                                    chatRoom.product?.name ??
-                                                    "U",
-                                              ),
+                                            : InitialImage(name: chatTitle),
                                       ),
                                       const SizedBox(width: 12),
                                       Expanded(
@@ -213,8 +231,7 @@ class _ChatroomListPageState extends ConsumerState<ChatroomListPage> {
                                               children: [
                                                 Expanded(
                                                   child: Text(
-                                                    chatRoom.product?.name ??
-                                                        "未知商品",
+                                                    chatTitle,
                                                     style: const TextStyle(
                                                       color: AppColors
                                                           .primaryTextColor,
@@ -290,6 +307,8 @@ class _ChatroomListPageState extends ConsumerState<ChatroomListPage> {
                                                     child: Text(
                                                       _buildLastMessageContent(
                                                         chatRoom.lastMessage!,
+                                                        isSupportChat:
+                                                            isSupportChat,
                                                       ),
                                                       style: const TextStyle(
                                                         color: AppColors

@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_ad_ecommerce/constants/colors.dart';
 import 'package:flutter_ad_ecommerce/main.dart';
 import 'package:flutter_ad_ecommerce/models/order.dart';
@@ -9,6 +10,7 @@ import 'package:flutter_ad_ecommerce/provider/order_provider.dart';
 import 'package:flutter_ad_ecommerce/router/routes.dart';
 import 'package:flutter_ad_ecommerce/utils/formatter.dart';
 import 'package:flutter_ad_ecommerce/utils/number_formatter_extension.dart';
+import 'package:flutter_ad_ecommerce/utils/parse_utils.dart';
 import 'package:flutter_ad_ecommerce/utils/result.dart';
 import 'package:flutter_ad_ecommerce/widgets/initial_image.dart';
 import 'package:flutter_ad_ecommerce/widgets/simple_app_bar.dart';
@@ -92,7 +94,7 @@ class _SingleOrderDetailsState extends ConsumerState<SingleOrderDetails> {
     );
   }
 
-  Widget _buildDetailRow(String label, String value) {
+  Widget _buildDetailRow(String label, String value, {Widget? trailing}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4.0),
       child: Row(
@@ -107,16 +109,115 @@ class _SingleOrderDetailsState extends ConsumerState<SingleOrderDetails> {
           ),
           const SizedBox(width: 8),
           Expanded(
-            child: Text(
-              value,
-              style: const TextStyle(
-                color: AppColors.primaryTextColor,
-                fontSize: 14,
-              ),
-            ),
+            child: trailing == null
+                ? Text(
+                    value,
+                    style: const TextStyle(
+                      color: AppColors.primaryTextColor,
+                      fontSize: 14,
+                    ),
+                  )
+                : Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Flexible(
+                        child: Text(
+                          value,
+                          style: const TextStyle(
+                            color: AppColors.primaryTextColor,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      trailing,
+                    ],
+                  ),
           ),
         ],
       ),
+    );
+  }
+
+  void _showPaymentInfoDialog(Map<dynamic, dynamic> paymentInfo) {
+    final accountNumber = paymentInfo['vAccount']?.toString().trim() ?? '';
+
+    String formatValue(String key, dynamic value) {
+      final text = value?.toString().trim() ?? '';
+      if (key == 'vAccount' && text.length >= 16) {
+        return text
+            .replaceAllMapped(
+              RegExp(r'.{1,4}'),
+              (match) => '${match.group(0)} ',
+            )
+            .trimRight();
+      }
+      if (key == 'TradeAmt') {
+        return 'NT\$ ${(ParseUtils.parseInt(text) ?? 0).formatWithCommas()}';
+      }
+      return text;
+    }
+
+    final text =
+        <String, String>{
+              'BankName': '銀行名稱',
+              'BankCode': '銀行代碼',
+              'vAccount': '銀行帳號',
+              'TradeAmt': '繳費金額',
+              'ExpireDate': '繳費期限',
+            }.entries
+            .where(
+              (entry) =>
+                  paymentInfo.containsKey(entry.key) &&
+                  paymentInfo[entry.key]?.toString().trim().isNotEmpty == true,
+            )
+            .map(
+              (entry) =>
+                  '${entry.value}: ${formatValue(entry.key, paymentInfo[entry.key])}',
+            )
+            .join('\n');
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF262A33),
+          title: const Text("ATM轉帳資訊", style: TextStyle(color: Colors.white)),
+          content: SingleChildScrollView(
+            child: SelectableText(
+              text.isNotEmpty ? text : '無可顯示的轉帳資訊',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 14,
+                height: 1.8,
+              ),
+            ),
+          ),
+          actions: [
+            if (accountNumber.isNotEmpty)
+              TextButton.icon(
+                icon: const Icon(Icons.copy, color: Colors.white, size: 18),
+                label: const Text(
+                  "複製帳號",
+                  style: TextStyle(color: Colors.white),
+                ),
+                onPressed: () {
+                  Clipboard.setData(ClipboardData(text: accountNumber));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('已複製銀行帳號'),
+                      duration: Duration(seconds: 1),
+                    ),
+                  );
+                },
+              ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text("關閉", style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -164,7 +265,7 @@ class _SingleOrderDetailsState extends ConsumerState<SingleOrderDetails> {
     Color color;
     switch (status) {
       case "pending":
-        text = "處理中";
+        text = "待出貨";
         color = Colors.orange;
         break;
       case "shipped":
@@ -699,14 +800,24 @@ class _SingleOrderDetailsState extends ConsumerState<SingleOrderDetails> {
         .toList();
 
     if (unassignedItems.isNotEmpty) {
-      itemSections.add(
-        _buildSection(
-          title: "運單未建立-請聯絡客服",
-          titleIcon: const Icon(Icons.error, color: Colors.red),
-          titleColor: Colors.red,
-          child: _buildProductList(unassignedItems),
-        ),
-      );
+      if (_order!.orderPayment != "Credit" &&
+          _order!.orderStatus == "payment-processing") {
+        itemSections.add(
+          _buildSection(
+            title: "待付款商品",
+            child: _buildProductList(unassignedItems),
+          ),
+        );
+      } else {
+        itemSections.add(
+          _buildSection(
+            title: "運單未建立-請聯絡客服",
+            titleIcon: const Icon(Icons.error, color: Colors.red),
+            titleColor: Colors.red,
+            child: _buildProductList(unassignedItems),
+          ),
+        );
+      }
     }
 
     return _buildLayout(
@@ -718,14 +829,50 @@ class _SingleOrderDetailsState extends ConsumerState<SingleOrderDetails> {
               title: '訂單資訊',
               child: Column(
                 children: [
-                  _buildDetailRow('訂單編號:', _order!.merchantTradeNo),
+                  if (_order!.merchantTradeNo.isNotEmpty)
+                    _buildDetailRow('訂單編號:', _order!.merchantTradeNo),
                   _buildDetailRow(
                     '訂單日期:',
                     Formatter.formatDateTime(
                       _order!.completedAt ?? _order!.createdAt,
                     ),
                   ),
-                  _buildDetailRow('訂單狀態:', _order!.orderStatus.toUpperCase()),
+                  _buildDetailRow(
+                    '訂單狀態:',
+                    _order!.orderStatus == "paid"
+                        ? "交易成功"
+                        : _order!.orderStatus == "payment-processing"
+                        ? "待付款"
+                        : _order!.orderStatus.toUpperCase(),
+                  ),
+                  _buildDetailRow(
+                    '付款方式:',
+                    _order!.orderPayment == "Credit"
+                        ? "信用卡"
+                        : _order!.orderPayment == "ATM"
+                        ? "ATM轉帳"
+                        : _order!.orderPayment.toUpperCase(),
+                    trailing:
+                        _order!.orderPayment == "ATM" &&
+                            _order!.paymentInfo is Map
+                        ? InkWell(
+                            onTap: () => _showPaymentInfoDialog(
+                              _order!.paymentInfo as Map<dynamic, dynamic>,
+                            ),
+                            borderRadius: BorderRadius.circular(4),
+                            child: const Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 4),
+                              child: Text(
+                                "轉帳資訊",
+                                style: TextStyle(
+                                  color: AppColors.infoColor,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ),
+                          )
+                        : null,
+                  ),
                 ],
               ),
             ),
