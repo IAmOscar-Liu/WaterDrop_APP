@@ -151,9 +151,13 @@ class OrderNotifier extends _$OrderNotifier {
               "items": cartItems.map((item) {
                 return {
                   'productId': item.productId,
+                  'productVariantId': item.productVariantId,
                   'quantity': item.quantity,
                   'unitPriceAtSale': item.product.price,
                   'productNameAtSale': item.product.name,
+                  'variantNameAtSale': item.variant?.name,
+                  'variantSkuAtSale': item.variant?.sku,
+                  'variantOptionValuesAtSale': item.variant?.optionValues,
                 };
               }).toList(),
               "shippingInfo": shippingInfo,

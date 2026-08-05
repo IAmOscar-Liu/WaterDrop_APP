@@ -532,6 +532,7 @@ class CheckoutDeliverySection extends StatelessWidget {
             itemCount: items.length,
             itemBuilder: (context, index) {
               final item = items[index];
+              final variantName = item.variant?.name?.trim() ?? "";
               return Padding(
                 padding: const EdgeInsets.symmetric(vertical: 8.0),
                 child: Row(
@@ -594,6 +595,19 @@ class CheckoutDeliverySection extends StatelessWidget {
                               ),
                             ],
                           ),
+                          if (variantName.isNotEmpty) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              variantName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: AppColors.secondaryTextColor,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
                           const SizedBox(height: 8.0),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,

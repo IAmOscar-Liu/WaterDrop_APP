@@ -144,6 +144,8 @@ class _ChatroomListPageState extends ConsumerState<ChatroomListPage> {
                               final String chatTitle = isSupportChat
                                   ? "水滴客服"
                                   : chatRoom.product?.name ?? "未知商品";
+                              final variantTitle =
+                                  chatRoom.product?.variantName?.trim() ?? "";
 
                               final chatroomCard = GestureDetector(
                                 onTap:
@@ -273,6 +275,20 @@ class _ChatroomListPageState extends ConsumerState<ChatroomListPage> {
                                                   ),
                                               ],
                                             ),
+                                            if (variantTitle.isNotEmpty) ...[
+                                              const SizedBox(height: 2),
+                                              Text(
+                                                variantTitle,
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: const TextStyle(
+                                                  color: AppColors
+                                                      .secondaryTextColor,
+                                                  fontSize: 13,
+                                                  fontWeight: FontWeight.w500,
+                                                ),
+                                              ),
+                                            ],
                                             if (chatRoom.order?.delivery !=
                                                 null) ...[
                                               const SizedBox(height: 2),

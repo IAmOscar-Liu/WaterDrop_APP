@@ -291,6 +291,7 @@ class _SingleOrderDetailsState extends ConsumerState<SingleOrderDetails> {
         "userId": userId,
         "accountId": product.sellerId,
         "productId": product.id,
+        "productVariantId": item.productVariantId,
         "orderId": _order!.id,
       },
     );
@@ -346,7 +347,12 @@ class _SingleOrderDetailsState extends ConsumerState<SingleOrderDetails> {
 
     for (var delivery in _order!.deliveries) {
       final deliveryItems = _order!.items.where((item) {
-        return delivery.items.any((dItem) => dItem.id == item.id);
+        return delivery.items.any(
+          (dItem) =>
+              dItem.id == item.id ||
+              (dItem.productId == item.productId &&
+                  dItem.productVariantId == item.productVariantId),
+        );
       }).toList();
 
       for (var item in deliveryItems) {

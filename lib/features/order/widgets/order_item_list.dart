@@ -83,6 +83,19 @@ class OrderItemList extends StatelessWidget {
                         fontWeight: FontWeight.bold,
                       ),
                     ),
+                    if (item.variantDisplayName.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        item.variantDisplayName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: AppColors.secondaryTextColor,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 2),
                     Row(
                       children: [

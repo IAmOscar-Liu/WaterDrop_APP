@@ -233,6 +233,7 @@ class ChatMessageNotifier extends _$ChatMessageNotifier {
     required String userId,
     String? accountId,
     String? productId,
+    String? productVariantId,
     String? orderId,
   }) async {
     reset();
@@ -244,6 +245,7 @@ class ChatMessageNotifier extends _$ChatMessageNotifier {
             data: {
               "accountId": accountId,
               "productId": productId,
+              "productVariantId": productVariantId,
               "orderId": orderId,
             },
           );

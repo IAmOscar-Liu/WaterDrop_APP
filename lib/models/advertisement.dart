@@ -1,6 +1,10 @@
+import 'package:flutter_ad_ecommerce/models/product.dart';
 import 'package:flutter_ad_ecommerce/utils/parse_utils.dart';
 
 class Advertisement {
+  static const String defaultFallbackVideoUrl =
+      'assets/videos/istockphoto-1013711730-640_adpp_is.mp4';
+
   final String id;
   final String title;
   final String? description; // Made optional
@@ -9,6 +13,8 @@ class Advertisement {
   final String productId;
   final String productName;
   final double price;
+  final Product? product;
+  final List<ProductVariant> variants;
 
   final String? avatarUrl;
   final Map<String, dynamic>? metadata; // New optional property for metadata
@@ -25,6 +31,8 @@ class Advertisement {
     required this.productId,
     required this.productName,
     required this.price,
+    this.product,
+    this.variants = const [],
 
     this.avatarUrl,
     this.metadata, // New optional parameter
@@ -39,6 +47,9 @@ class Advertisement {
     required int index,
   }) {
     index = index % 20;
+    final product = map['product'] is Map
+        ? Product.fromApiResponseMap(map['product'])
+        : null;
     return Advertisement(
       id: ParseUtils.parseString(map['id']) ?? "",
       title: ParseUtils.parseString(map['title']) ?? "",
@@ -46,10 +57,13 @@ class Advertisement {
       videoUrl: ParseUtils.parseString(map['video_url']) ?? "",
       // videoUrl:
       //     "https://pub-c796d4f72aca45d68562ea9d55d46e5e.r2.dev/videos/8b31c0e6-86e0-4e3d-98fa-7412e6e29c2c.mp4",
-      fallbackVideoUrl: 'assets/videos/istockphoto-1013711730-640_adpp_is.mp4',
-      productId: ParseUtils.parseString(map['productId']) ?? "",
-      productName: ParseUtils.parseString(map['product']?['name']) ?? "",
-      price: ParseUtils.parseDouble(map['product']?['price']) ?? 0,
+      fallbackVideoUrl: defaultFallbackVideoUrl,
+      productId: ParseUtils.parseString(map['productId']) ?? product?.id ?? "",
+      productName:
+          product?.name ?? ParseUtils.parseString(map['productName']) ?? "",
+      price: product?.price ?? ParseUtils.parseDouble(map['price']) ?? 0,
+      product: product,
+      variants: product?.variants ?? const [],
       avatarUrl: ParseUtils.parseString(map['product']?['avatar']),
       metadata: map['metadata'] is Map
           ? map['metadata']
@@ -66,6 +80,7 @@ class Advertisement {
       'productId': productId,
       'productName': productName,
       'price': price,
+      'variants': variants.map((variant) => variant.displayName).toList(),
       'avatarUrl': avatarUrl,
       'isCompleted': isCompleted,
       'durationSeconds': duration?.inSeconds,
@@ -94,6 +109,8 @@ class Advertisement {
     String? productId,
     String? productName,
     double? price,
+    Product? product,
+    List<ProductVariant>? variants,
     String? avatarUrl,
     Map<String, dynamic>? metadata, // New optional property for metadata
     bool? isCompleted,
@@ -109,6 +126,8 @@ class Advertisement {
       productId: productId ?? this.productId,
       productName: productName ?? this.productName,
       price: price ?? this.price,
+      product: product ?? this.product,
+      variants: variants ?? this.variants,
       avatarUrl: avatarUrl ?? this.avatarUrl,
       metadata: metadata ?? this.metadata,
       isCompleted: isCompleted ?? this.isCompleted,

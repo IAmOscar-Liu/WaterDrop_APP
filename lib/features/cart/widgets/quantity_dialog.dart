@@ -1,16 +1,28 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_ad_ecommerce/constants/colors.dart';
+import 'package:flutter_ad_ecommerce/models/product.dart';
+
+class CartItemEditResult {
+  final int quantity;
+  final ProductVariant variant;
+
+  const CartItemEditResult({required this.quantity, required this.variant});
+}
 
 class QuantityDialog extends StatefulWidget {
   const QuantityDialog({
     super.key,
     required this.quantity,
+    required this.variants,
+    required this.selectedVariant,
     required this.onSuccess,
   });
 
   final int quantity;
-  final Function(int) onSuccess;
+  final List<ProductVariant> variants;
+  final ProductVariant selectedVariant;
+  final ValueChanged<CartItemEditResult> onSuccess;
 
   @override
   State<QuantityDialog> createState() => _QuantityDialogState();
@@ -19,6 +31,7 @@ class QuantityDialog extends StatefulWidget {
 class _QuantityDialogState extends State<QuantityDialog> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _quantityController;
+  late ProductVariant _selectedVariant;
 
   @override
   void initState() {
@@ -27,6 +40,7 @@ class _QuantityDialogState extends State<QuantityDialog> {
     _quantityController = TextEditingController(
       text: widget.quantity.toString(),
     );
+    _selectedVariant = widget.selectedVariant;
   }
 
   @override
@@ -68,7 +82,9 @@ class _QuantityDialogState extends State<QuantityDialog> {
     if (_formKey.currentState!.validate()) {
       _formKey.currentState!.save();
       final int quantity = int.parse(_quantityController.text);
-      widget.onSuccess(quantity);
+      widget.onSuccess(
+        CartItemEditResult(quantity: quantity, variant: _selectedVariant),
+      );
       Navigator.of(context).pop();
     }
   }
@@ -78,50 +94,130 @@ class _QuantityDialogState extends State<QuantityDialog> {
     return GestureDetector(
       onTap: () => FocusScope.of(context).unfocus(),
       child: AlertDialog(
-        title: const Text('輸入商品數量'),
+        backgroundColor: AppColors.containerBgColor,
+        surfaceTintColor: Colors.transparent,
+        title: const Text(
+          '修改商品',
+          style: TextStyle(
+            color: AppColors.primaryTextColor,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
         content: Form(
           key: _formKey,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              // Decrement Button
-              IconButton(icon: const Icon(Icons.remove), onPressed: _decrement),
-              // Quantity Text Field
-              SizedBox(
-                width: 100,
-                child: TextFormField(
-                  controller: _quantityController,
-                  textAlign: TextAlign.center,
-                  keyboardType: TextInputType.number,
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                  decoration: const InputDecoration(
-                    border: OutlineInputBorder(),
-                    contentPadding: EdgeInsets.all(12),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (widget.variants.length > 1) ...[
+                  const Text(
+                    '選擇規格',
+                    style: TextStyle(
+                      color: AppColors.primaryTextColor,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
                   ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return '請輸入數量';
-                    }
-                    final int? quantity = int.tryParse(value);
-                    if (quantity == null) {
-                      return '輸入無效';
-                    }
-                    if (quantity < 1) {
-                      return '數量最少為1';
-                    }
-                    return null; // Return null if validation is successful
-                  },
+                  const SizedBox(height: 8),
+                  Column(
+                    children: widget.variants
+                        .map((variant) => _buildVariantOptionRow(variant))
+                        .toList(),
+                  ),
+                  const SizedBox(height: 16),
+                ],
+                const Text(
+                  '商品數量',
+                  style: TextStyle(
+                    color: AppColors.primaryTextColor,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
-              ),
-              // Increment Button
-              IconButton(icon: const Icon(Icons.add), onPressed: _increment),
-            ],
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    IconButton(
+                      icon: const Icon(Icons.remove),
+                      color: AppColors.primaryTextColor,
+                      onPressed: _decrement,
+                    ),
+                    SizedBox(
+                      width: 100,
+                      child: TextFormField(
+                        controller: _quantityController,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: AppColors.primaryTextColor,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [
+                          FilteringTextInputFormatter.digitsOnly,
+                        ],
+                        decoration: const InputDecoration(
+                          filled: true,
+                          fillColor: AppColors.fieldInputColor,
+                          border: OutlineInputBorder(),
+                          enabledBorder: OutlineInputBorder(
+                            borderSide: BorderSide(
+                              color: AppColors.borderColor,
+                            ),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderSide: BorderSide(
+                              color: AppColors.selectedBorderColor,
+                            ),
+                          ),
+                          errorBorder: OutlineInputBorder(
+                            borderSide: BorderSide(
+                              color: AppColors.dangerButtonColor,
+                            ),
+                          ),
+                          focusedErrorBorder: OutlineInputBorder(
+                            borderSide: BorderSide(
+                              color: AppColors.dangerButtonColor,
+                            ),
+                          ),
+                          contentPadding: EdgeInsets.all(12),
+                          errorStyle: TextStyle(
+                            color: AppColors.dangerButtonColor,
+                          ),
+                        ),
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return '請輸入數量';
+                          }
+                          final int? quantity = int.tryParse(value);
+                          if (quantity == null) {
+                            return '輸入無效';
+                          }
+                          if (quantity < 1) {
+                            return '數量最少為1';
+                          }
+                          return null;
+                        },
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.add),
+                      color: AppColors.primaryTextColor,
+                      onPressed: _increment,
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
         actions: <Widget>[
           // Cancel Button
           TextButton(
+            style: TextButton.styleFrom(
+              foregroundColor: AppColors.secondaryTextColor,
+            ),
             child: const Text('取消'),
             onPressed: () {
               Navigator.of(context).pop();
@@ -137,6 +233,69 @@ class _QuantityDialogState extends State<QuantityDialog> {
             child: const Text('確定'),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildVariantOptionRow(ProductVariant variant) {
+    final isSelected = _selectedVariant.id == variant.id;
+    final stockText = '庫存 ${variant.availableStock}';
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(8),
+        onTap: () => setState(() => _selectedVariant = variant),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? AppColors.navbarIndicatorColor.withValues(alpha: 0.18)
+                : AppColors.tileColor,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: isSelected
+                  ? AppColors.selectedBorderColor
+                  : AppColors.borderColor,
+            ),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                isSelected
+                    ? Icons.radio_button_checked
+                    : Icons.radio_button_unchecked,
+                color: isSelected
+                    ? AppColors.infoColor
+                    : AppColors.secondaryTextColor,
+                size: 22,
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  variant.displayName,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: AppColors.primaryTextColor,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                stockText,
+                style: const TextStyle(
+                  color: AppColors.goldColor,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

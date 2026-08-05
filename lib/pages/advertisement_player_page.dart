@@ -4,6 +4,7 @@ import 'dart:developer';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_ad_ecommerce/constants/colors.dart';
+import 'package:flutter_ad_ecommerce/features/product/widgets/product_variant_picker_sheet.dart';
 import 'package:flutter_ad_ecommerce/models/advertisement.dart';
 import 'package:flutter_ad_ecommerce/provider/advertisement_provider.dart';
 import 'package:flutter_ad_ecommerce/provider/cart_provider.dart';
@@ -113,6 +114,51 @@ class _AdvertisementPlayerPageState
         if (mounted) setState(() => _isControllerVisible = false);
       });
     }
+  }
+
+  Future<void> _addAdvertisementToCart() async {
+    final advertisement = _advertisement;
+    if (advertisement == null) return;
+
+    final availableVariants = advertisement.variants
+        .where((variant) => variant.isAvailable)
+        .toList();
+    if (availableVariants.isEmpty) {
+      _showSnackBar('商品目前沒有可購買規格', isError: true);
+      return;
+    }
+
+    final selectedVariant = availableVariants.length == 1
+        ? availableVariants.first
+        : await showProductVariantPickerSheet(
+            context,
+            productName: advertisement.productName,
+            variants: availableVariants,
+          );
+    if (selectedVariant == null) return;
+
+    final result = await ref
+        .read(cartProvider.notifier)
+        .addCartItem(
+          advertisement.productId,
+          productVariantId: selectedVariant.id,
+          productName: advertisement.productName,
+        );
+    if (!mounted) return;
+    final message = result.isSuccess ? result.data : result.error;
+    if (message == null) return;
+    _showSnackBar(message, isError: result.isFailure);
+  }
+
+  void _showSnackBar(String message, {bool isError = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? Colors.red : Colors.green,
+        duration: const Duration(seconds: 2),
+      ),
+    );
   }
 
   @override
@@ -354,27 +400,7 @@ class _AdvertisementPlayerPageState
                           ? null
                           : () {
                               _showControllerTemporarily();
-                              ref
-                                  .read(cartProvider.notifier)
-                                  .addCartItem(
-                                    _advertisement!.productId,
-                                    productName: _advertisement!.productName,
-                                  )
-                                  .then((result) {
-                                    if (!mounted) return;
-                                    final message = result.isSuccess
-                                        ? result.data
-                                        : result.error;
-                                    if (message == null) return;
-                                    // ignore: use_build_context_synchronously
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text(message),
-                                        backgroundColor: Colors.green,
-                                        duration: const Duration(seconds: 2),
-                                      ),
-                                    );
-                                  });
+                              _addAdvertisementToCart();
                             },
                       icon: const Icon(Icons.shopping_cart),
                       style: IconButton.styleFrom(

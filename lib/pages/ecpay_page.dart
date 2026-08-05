@@ -112,7 +112,14 @@ class _ECPayPageState extends ConsumerState<ECPayPage>
           );
           cvsPickupGroup.add({
             "type": AppConstants.logisticsSubType,
-            "productIds": normalPickupItems.map((e) => e.productId).toList(),
+            "products": normalPickupItems
+                .map(
+                  (e) => {
+                    "productId": e.productId,
+                    "variantId": e.productVariantId,
+                  },
+                )
+                .toList(),
             "LogisticsSubType": cvsType.name,
             "GoodsName": normalPickupItems[0].product.name,
             "GoodsAmount": goodsAmount,
@@ -159,7 +166,14 @@ class _ECPayPageState extends ConsumerState<ECPayPage>
             "LogisticsType": logisticsTypeValue,
             "LogisticsSubType": cvsType?.name,
             "GoodsAmount": goodsAmount,
-            "productIds": items.map((e) => e.productId).toList(),
+            "products": items
+                .map(
+                  (e) => {
+                    "productId": e.productId,
+                    "variantId": e.productVariantId,
+                  },
+                )
+                .toList(),
             "RtnCode": "300",
             "RtnMsg": "訂單處理中(賣家已收到訂單資料)",
             "fee": group["fee"],

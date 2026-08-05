@@ -51,6 +51,7 @@ class _ChatroomPageState extends ConsumerState<ChatroomPage> {
         userId: widget.extra['userId'],
         accountId: widget.extra['accountId'],
         productId: widget.extra['productId'],
+        productVariantId: widget.extra['productVariantId'],
         orderId: widget.extra['orderId'],
       );
     }
@@ -60,6 +61,7 @@ class _ChatroomPageState extends ConsumerState<ChatroomPage> {
     required String userId,
     String? accountId,
     String? productId,
+    String? productVariantId,
     String? orderId,
   }) async {
     Future.delayed(Duration.zero, () async {
@@ -69,6 +71,7 @@ class _ChatroomPageState extends ConsumerState<ChatroomPage> {
             userId: userId,
             accountId: accountId,
             productId: productId,
+            productVariantId: productVariantId,
             orderId: orderId,
           );
       if (result.isFailure) {

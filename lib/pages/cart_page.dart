@@ -469,16 +469,38 @@ class _CartPageState extends ConsumerState<CartPage> {
                     physics: NeverScrollableScrollPhysics(),
                     itemBuilder: (context, index) {
                       final currentItem = cartItems[index];
+                      final availableVariants =
+                          currentItem.product.availableVariants;
+                      final currentVariant =
+                          currentItem.variant ??
+                          ProductVariant(
+                            id: currentItem.productVariantId,
+                            productId: currentItem.productId,
+                          );
+                      final dialogVariants = availableVariants.isNotEmpty
+                          ? availableVariants
+                          : [currentVariant];
+                      final selectedVariant = availableVariants.firstWhere(
+                        (variant) => variant.id == currentItem.productVariantId,
+                        orElse: () => currentVariant,
+                      );
                       return CartItemCard(
                         key: UniqueKey(),
                         product: currentItem.product,
+                        variant: currentItem.variant,
+                        productVariantId: currentItem.productVariantId,
                         quantity: currentItem.quantity,
                         checked: currentItem.checked,
                         onCheckedChange: (value) {
                           if (value != null) {
                             ref
                                 .read(cartProvider.notifier)
-                                .toggleCartItem(currentItem.productId, value);
+                                .toggleCartItem(
+                                  currentItem.productId,
+                                  value,
+                                  productVariantId:
+                                      currentItem.productVariantId,
+                                );
                           }
                         },
                         onQuantityChange: () {
@@ -487,13 +509,18 @@ class _CartPageState extends ConsumerState<CartPage> {
                             builder: (context) {
                               return QuantityDialog(
                                 quantity: currentItem.quantity,
+                                variants: dialogVariants,
+                                selectedVariant: selectedVariant,
                                 onSuccess: (value) {
-                                  if (value != currentItem.quantity) {
+                                  if (value.quantity != currentItem.quantity ||
+                                      value.variant.id !=
+                                          currentItem.productVariantId) {
                                     ref
                                         .read(cartProvider.notifier)
-                                        .updateItemQuantity(
-                                          currentItem.productId,
-                                          quantity: value,
+                                        .updateCartItem(
+                                          currentItem,
+                                          quantity: value.quantity,
+                                          productVariantId: value.variant.id,
                                         );
                                   }
                                 },
@@ -504,7 +531,10 @@ class _CartPageState extends ConsumerState<CartPage> {
                         onDelete: () {
                           ref
                               .read(cartProvider.notifier)
-                              .removeItem(currentItem.productId);
+                              .removeItem(
+                                currentItem.productId,
+                                productVariantId: currentItem.productVariantId,
+                              );
                         },
                       );
                     },

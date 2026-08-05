@@ -1,6 +1,45 @@
 import 'package:flutter_ad_ecommerce/models/product.dart';
 import 'package:flutter_ad_ecommerce/utils/parse_utils.dart';
 
+class VariantAtSale {
+  final String? name;
+  final String? sku;
+  final Map<String, dynamic>? optionValues;
+
+  const VariantAtSale({this.name, this.sku, this.optionValues});
+
+  factory VariantAtSale.fromApiResponseMap(Map<String, dynamic> map) {
+    return VariantAtSale(
+      name: ParseUtils.parseString(map['name']),
+      sku: ParseUtils.parseString(map['sku']),
+      optionValues: map['optionValues'] is Map
+          ? Map<String, dynamic>.from(map['optionValues'])
+          : null,
+    );
+  }
+
+  String get displayName {
+    final trimmedName = name?.trim();
+    if (trimmedName != null && trimmedName.isNotEmpty) return trimmedName;
+
+    final optionText =
+        optionValues?.entries
+            .where(
+              (entry) =>
+                  entry.value != null && entry.value.toString().isNotEmpty,
+            )
+            .map((entry) => "${entry.key}: ${entry.value}")
+            .join(" / ") ??
+        "";
+    if (optionText.isNotEmpty) return optionText;
+
+    final trimmedSku = sku?.trim();
+    if (trimmedSku != null && trimmedSku.isNotEmpty) return trimmedSku;
+
+    return "";
+  }
+}
+
 class Order {
   final String id;
   final String userId;
@@ -154,9 +193,14 @@ class OrderItem {
   final String id;
   final String orderId;
   final String productId;
+  final String productVariantId;
   final int quantity;
   final double unitPriceAtSale;
   final String productNameAtSale;
+  final String? variantNameAtSale;
+  final String? variantSkuAtSale;
+  final Map<String, dynamic>? variantOptionValuesAtSale;
+  final VariantAtSale? variantAtSale;
   final double lineTotal;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -169,9 +213,14 @@ class OrderItem {
     required this.id,
     required this.orderId,
     required this.productId,
+    required this.productVariantId,
     required this.quantity,
     required this.unitPriceAtSale,
     required this.productNameAtSale,
+    this.variantNameAtSale,
+    this.variantSkuAtSale,
+    this.variantOptionValuesAtSale,
+    this.variantAtSale,
     required this.lineTotal,
     required this.createdAt,
     required this.updatedAt,
@@ -186,9 +235,18 @@ class OrderItem {
       id: ParseUtils.parseString(map['id']) ?? "",
       orderId: ParseUtils.parseString(map['orderId']) ?? "",
       productId: ParseUtils.parseString(map['productId']) ?? "",
+      productVariantId: ParseUtils.parseString(map['productVariantId']) ?? "",
       quantity: ParseUtils.parseInt(map['quantity']) ?? 0,
       unitPriceAtSale: ParseUtils.parseDouble(map['unitPriceAtSale']) ?? 0,
       productNameAtSale: ParseUtils.parseString(map['productNameAtSale']) ?? '',
+      variantNameAtSale: ParseUtils.parseString(map['variantNameAtSale']),
+      variantSkuAtSale: ParseUtils.parseString(map['variantSkuAtSale']),
+      variantOptionValuesAtSale: map['variantOptionValuesAtSale'] is Map
+          ? Map<String, dynamic>.from(map['variantOptionValuesAtSale'])
+          : null,
+      variantAtSale: map['variantAtSale'] is Map
+          ? VariantAtSale.fromApiResponseMap(map['variantAtSale'])
+          : null,
       lineTotal: ParseUtils.parseDouble(map['lineTotal']) ?? 0,
       createdAt: ParseUtils.parseDateTime(map['createdAt']) ?? DateTime.now(),
       updatedAt: ParseUtils.parseDateTime(map['updatedAt']) ?? DateTime.now(),
@@ -212,9 +270,14 @@ class OrderItem {
     String? id,
     String? orderId,
     String? productId,
+    String? productVariantId,
     int? quantity,
     double? unitPriceAtSale,
     String? productNameAtSale,
+    String? variantNameAtSale,
+    String? variantSkuAtSale,
+    Map<String, dynamic>? variantOptionValuesAtSale,
+    VariantAtSale? variantAtSale,
     double? lineTotal,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -226,9 +289,15 @@ class OrderItem {
       id: id ?? this.id,
       orderId: orderId ?? this.orderId,
       productId: productId ?? this.productId,
+      productVariantId: productVariantId ?? this.productVariantId,
       quantity: quantity ?? this.quantity,
       unitPriceAtSale: unitPriceAtSale ?? this.unitPriceAtSale,
       productNameAtSale: productNameAtSale ?? this.productNameAtSale,
+      variantNameAtSale: variantNameAtSale ?? this.variantNameAtSale,
+      variantSkuAtSale: variantSkuAtSale ?? this.variantSkuAtSale,
+      variantOptionValuesAtSale:
+          variantOptionValuesAtSale ?? this.variantOptionValuesAtSale,
+      variantAtSale: variantAtSale ?? this.variantAtSale,
       lineTotal: lineTotal ?? this.lineTotal,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -236,6 +305,10 @@ class OrderItem {
       canRefund: canRefund ?? this.canRefund,
       refundItems: refundItems ?? this.refundItems,
     );
+  }
+
+  String get variantDisplayName {
+    return variantAtSale?.displayName ?? "";
   }
 }
 
@@ -382,20 +455,43 @@ class Delivery {
 class DeliveryItem {
   final String id;
   final String productId;
+  final String productVariantId;
   final String productNameAtSale;
+  final String? variantNameAtSale;
+  final String? variantSkuAtSale;
+  final Map<String, dynamic>? variantOptionValuesAtSale;
+  final VariantAtSale? variantAtSale;
 
   DeliveryItem({
     required this.id,
     required this.productId,
+    required this.productVariantId,
     required this.productNameAtSale,
+    this.variantNameAtSale,
+    this.variantSkuAtSale,
+    this.variantOptionValuesAtSale,
+    this.variantAtSale,
   });
 
   factory DeliveryItem.fromApiResponseMap(Map<String, dynamic> map) {
     return DeliveryItem(
       id: ParseUtils.parseString(map['id']) ?? "",
       productId: ParseUtils.parseString(map['productId']) ?? "",
+      productVariantId: ParseUtils.parseString(map['productVariantId']) ?? "",
       productNameAtSale: ParseUtils.parseString(map['productNameAtSale']) ?? "",
+      variantNameAtSale: ParseUtils.parseString(map['variantNameAtSale']),
+      variantSkuAtSale: ParseUtils.parseString(map['variantSkuAtSale']),
+      variantOptionValuesAtSale: map['variantOptionValuesAtSale'] is Map
+          ? Map<String, dynamic>.from(map['variantOptionValuesAtSale'])
+          : null,
+      variantAtSale: map['variantAtSale'] is Map
+          ? VariantAtSale.fromApiResponseMap(map['variantAtSale'])
+          : null,
     );
+  }
+
+  String get variantDisplayName {
+    return variantAtSale?.displayName ?? "";
   }
 }
 

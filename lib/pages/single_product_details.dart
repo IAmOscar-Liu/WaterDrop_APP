@@ -26,6 +26,7 @@ class SingleProductDetails extends ConsumerStatefulWidget {
 
 class _SingleProductDetailsState extends ConsumerState<SingleProductDetails> {
   Product? _product;
+  ProductVariant? _selectedVariant;
   bool _isLoading = true;
   dynamic _error;
 
@@ -35,7 +36,7 @@ class _SingleProductDetailsState extends ConsumerState<SingleProductDetails> {
     if (widget.extra is Map && widget.extra['product'] != null) {
       setState(() {
         _isLoading = false;
-        _product = widget.extra['product'];
+        _setProduct(widget.extra['product']);
       });
     } else if (widget.extra is Map && widget.extra['productId'] is String) {
       Future.delayed(Duration.zero, () {
@@ -43,7 +44,7 @@ class _SingleProductDetailsState extends ConsumerState<SingleProductDetails> {
           if (value.isSuccess) {
             setState(() {
               _isLoading = false;
-              _product = value.data!;
+              _setProduct(value.data!);
             });
           } else {
             setState(() {
@@ -59,6 +60,19 @@ class _SingleProductDetailsState extends ConsumerState<SingleProductDetails> {
       // If data is missing, pop immediately
       WidgetsBinding.instance.addPostFrameCallback((_) => context.pop());
       return;
+    }
+  }
+
+  void _setProduct(Product product) {
+    _product = product;
+    final availableVariants = product.availableVariants;
+    if (availableVariants.length == 1) {
+      _selectedVariant = availableVariants.first;
+    } else if (_selectedVariant != null &&
+        !availableVariants.any(
+          (variant) => variant.id == _selectedVariant!.id,
+        )) {
+      _selectedVariant = null;
     }
   }
 
@@ -108,6 +122,42 @@ class _SingleProductDetailsState extends ConsumerState<SingleProductDetails> {
     );
   }
 
+  List<ProductVariant> get _availableVariants =>
+      _product?.availableVariants ?? const [];
+
+  bool get _hideAddCartItemButton =>
+      widget.extra is Map && widget.extra['hideAddCartItemButton'] == true;
+
+  bool get _hideAddCollectionButton =>
+      widget.extra is Map && widget.extra['hideAddCollectionButton'] == true;
+
+  bool get _removeFromCollection =>
+      widget.extra is Map && widget.extra['removeFromCollection'] == true;
+
+  int get _displayStock {
+    final selectedStock = _selectedVariant?.availableStock;
+    if (selectedStock != null) return selectedStock;
+
+    final product = _product;
+    if (product == null) return 0;
+    if (product.availableStock > 0 || product.variants.isNotEmpty) {
+      return product.availableStock;
+    }
+    return product.stock - product.reserve;
+  }
+
+  bool get _canAddToCart {
+    final variants = _availableVariants;
+    if (variants.isEmpty) return false;
+    final selectedVariant = _selectedVariant;
+    return selectedVariant != null && selectedVariant.isAvailable;
+  }
+
+  bool _isSingleUnnamedDefaultVariant(List<ProductVariant> variants) {
+    return variants.length == 1 &&
+        (variants.first.name == null || variants.first.name!.trim().isEmpty);
+  }
+
   void updateCollection(Product product, {bool isRemoval = false}) {
     final updateFuture = isRemoval
         ? ref
@@ -138,6 +188,225 @@ class _SingleProductDetailsState extends ConsumerState<SingleProductDetails> {
     });
   }
 
+  Future<void> _addSelectedVariantToCart() async {
+    final product = _product;
+    final selectedVariant = _selectedVariant;
+    if (product == null) return;
+    if (selectedVariant == null) {
+      _showSnackBar('請先選擇商品規格', isError: true);
+      return;
+    }
+    if (!selectedVariant.isAvailable) {
+      _showSnackBar('此規格目前缺貨', isError: true);
+      return;
+    }
+
+    final result = await ref
+        .read(cartProvider.notifier)
+        .addCartItem(
+          product.id,
+          productVariantId: selectedVariant.id,
+          productName: product.name,
+        );
+    if (!mounted) return;
+    final message = result.isSuccess ? result.data : result.error;
+    if (message == null) return;
+    _showSnackBar(message, isError: result.isFailure);
+  }
+
+  void _showSnackBar(String message, {bool isError = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? Colors.red : Colors.green,
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  Widget _buildVariantSection() {
+    final variants = _availableVariants;
+    if (variants.isEmpty) {
+      return _buildVariantContainer(
+        child: const Text(
+          '目前沒有可購買規格',
+          style: TextStyle(color: AppColors.secondaryTextColor),
+        ),
+      );
+    }
+
+    if (_isSingleUnnamedDefaultVariant(variants)) {
+      return const SizedBox.shrink();
+    }
+
+    if (_hideAddCartItemButton) {
+      return _buildVariantContainer(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              '商品規格',
+              style: TextStyle(
+                color: AppColors.primaryTextColor,
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
+            ),
+            const SizedBox(height: 10),
+            ...variants.map(_buildVariantReadOnlyRow),
+          ],
+        ),
+      );
+    }
+
+    if (variants.length <= 1) return const SizedBox.shrink();
+
+    return _buildVariantContainer(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            '選擇規格',
+            style: TextStyle(
+              color: AppColors.primaryTextColor,
+              fontWeight: FontWeight.bold,
+              fontSize: 16,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Column(
+            children: variants
+                .map((variant) => _buildVariantOptionRow(variant))
+                .toList(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildVariantContainer({required Widget child}) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(top: 16),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.containerBgColor,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.borderColor),
+      ),
+      child: child,
+    );
+  }
+
+  Widget _buildVariantOptionRow(ProductVariant variant) {
+    final isSelected = _selectedVariant?.id == variant.id;
+    final stockText = '庫存 ${variant.availableStock}';
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(8),
+        onTap: () => setState(() => _selectedVariant = variant),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? AppColors.navbarIndicatorColor.withValues(alpha: 0.18)
+                : AppColors.tileColor,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: isSelected
+                  ? AppColors.selectedBorderColor
+                  : AppColors.borderColor,
+            ),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                isSelected
+                    ? Icons.radio_button_checked
+                    : Icons.radio_button_unchecked,
+                color: isSelected
+                    ? AppColors.infoColor
+                    : AppColors.secondaryTextColor,
+                size: 22,
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  variant.displayName,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: AppColors.primaryTextColor,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                stockText,
+                style: const TextStyle(
+                  color: AppColors.goldColor,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildVariantReadOnlyRow(ProductVariant variant) {
+    final stockText = '庫存 ${variant.availableStock}';
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      decoration: const BoxDecoration(
+        border: Border(
+          bottom: BorderSide(color: AppColors.dividerColor, width: 1),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.inventory_2_outlined,
+            size: 18,
+            color: AppColors.secondaryTextColor,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              variant.displayName,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: AppColors.primaryTextColor,
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Text(
+            stockText,
+            style: const TextStyle(
+              color: AppColors.secondaryTextColor,
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isLoading || _product == null) {
@@ -162,6 +431,8 @@ class _SingleProductDetailsState extends ConsumerState<SingleProductDetails> {
     }
 
     final safeAreaPadding = MediaQuery.of(context).padding;
+    final addCartDisabled =
+        ref.watch(cartProvider).isProcessing || !_canAddToCart;
 
     return _buildLayout(
       child: SingleChildScrollView(
@@ -195,7 +466,7 @@ class _SingleProductDetailsState extends ConsumerState<SingleProductDetails> {
                         bottom: 10,
                         child: Container(
                           decoration: BoxDecoration(
-                            color: Colors.black.withOpacity(0.5),
+                            color: Colors.black.withValues(alpha: 0.5),
                             shape: BoxShape.circle,
                           ),
                           child: IconButton(
@@ -336,60 +607,38 @@ class _SingleProductDetailsState extends ConsumerState<SingleProductDetails> {
                         backgroundColor: AppColors.secondaryButtonColor,
                       ),
                       Chip(
-                        label: Text(
-                          "庫存：${_product!.stock - _product!.reserve}",
-                        ),
+                        label: Text("庫存：$_displayStock"),
                         backgroundColor: AppColors.dangerButtonColor,
                       ),
                     ],
                   ),
+                  _buildVariantSection(),
                 ],
               ),
             ),
-            if (widget.extra['hideAddCartItemButton'] != true ||
-                widget.extra['hideAddCollectionButton'] != true)
+            if (!_hideAddCartItemButton || !_hideAddCollectionButton)
               Padding(
                 padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                 child: Row(
                   mainAxisSize: MainAxisSize.max,
                   children: [
-                    if (widget.extra['hideAddCartItemButton'] != true)
+                    if (!_hideAddCartItemButton)
                       Expanded(
                         child: Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 8),
                           child: ElevatedButton(
-                            onPressed: ref.watch(cartProvider).isProcessing
+                            onPressed: addCartDisabled
                                 ? null
-                                : () {
-                                    ref
-                                        .read(cartProvider.notifier)
-                                        .addCartItem(
-                                          _product!.id,
-                                          productName: _product!.name,
-                                        )
-                                        .then((result) {
-                                          if (!mounted) return;
-                                          final message = result.isSuccess
-                                              ? result.data
-                                              : result.error;
-                                          if (message == null) return;
-                                          ScaffoldMessenger.of(
-                                            // ignore: use_build_context_synchronously
-                                            context,
-                                          ).showSnackBar(
-                                            SnackBar(
-                                              content: Text(message),
-                                              backgroundColor: Colors.green,
-                                              duration: const Duration(
-                                                seconds: 2,
-                                              ),
-                                            ),
-                                          );
-                                        });
-                                  },
+                                : _addSelectedVariantToCart,
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.red,
+                              disabledBackgroundColor: Colors.red.withValues(
+                                alpha: 0.42,
+                              ),
                               foregroundColor: AppColors.primaryTextColor,
+                              disabledForegroundColor: AppColors
+                                  .primaryTextColor
+                                  .withValues(alpha: 0.78),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(8),
                               ),
@@ -407,7 +656,7 @@ class _SingleProductDetailsState extends ConsumerState<SingleProductDetails> {
                           ),
                         ),
                       ),
-                    if (widget.extra['hideAddCollectionButton'] != true)
+                    if (!_hideAddCollectionButton)
                       Expanded(
                         child: Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -420,10 +669,7 @@ class _SingleProductDetailsState extends ConsumerState<SingleProductDetails> {
                                 : () {
                                     updateCollection(
                                       _product!,
-                                      isRemoval:
-                                          widget
-                                              .extra['removeFromCollection'] ==
-                                          true,
+                                      isRemoval: _removeFromCollection,
                                     );
                                   },
                             style: ElevatedButton.styleFrom(
@@ -439,16 +685,12 @@ class _SingleProductDetailsState extends ConsumerState<SingleProductDetails> {
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
                                 Icon(
-                                  widget.extra['removeFromCollection'] == true
+                                  _removeFromCollection
                                       ? Icons.bookmark_remove
                                       : Icons.bookmark_add,
                                 ),
                                 SizedBox(width: 12),
-                                Text(
-                                  widget.extra['removeFromCollection'] == true
-                                      ? "移除收藏"
-                                      : "加入收藏",
-                                ),
+                                Text(_removeFromCollection ? "移除收藏" : "加入收藏"),
                               ],
                             ),
                           ),

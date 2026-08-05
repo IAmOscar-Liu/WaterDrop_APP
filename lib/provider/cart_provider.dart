@@ -54,15 +54,23 @@ class Cart extends _$Cart {
   /// If the product is already in the cart, its quantity is incremented.
   Future<Result<String>> addCartItem(
     String productId, {
+    String? productVariantId,
     String? productName,
   }) async {
     if (state.isProcessing || state.isFetching) return Result.success();
     final target = (state.data ?? []).firstWhereOrNull(
-      (p) => p.productId == productId,
+      (item) =>
+          item.productId == productId &&
+          (productVariantId == null ||
+              item.productVariantId == productVariantId),
     );
+    final targetVariantId = productVariantId ?? target?.productVariantId;
+    if (targetVariantId == null || targetVariantId.isEmpty) {
+      return Result.failure('請選擇商品規格');
+    }
 
     try {
-      state = CustomAsyncValue.processing(state.data!);
+      state = CustomAsyncValue.processing(state.data ?? []);
 
       final response = await ref
           .read(dioProvider)
@@ -70,6 +78,7 @@ class Cart extends _$Cart {
             "/api/cart/item",
             data: {
               "productId": productId,
+              "productVariantId": targetVariantId,
               "quantity": target == null ? 1 : target.quantity + 1,
             },
           );
@@ -88,13 +97,14 @@ class Cart extends _$Cart {
       log('Failed to add cart item: $e');
       return Result.failure('Error: $e');
     } finally {
-      state = CustomAsyncValue.done(state.data!);
+      state = CustomAsyncValue.done(state.data ?? []);
       loadCartItems(keepPreviousData: true);
     }
   }
 
   Future<Result<bool>> updateItemQuantity(
     String productId, {
+    String? productVariantId,
     required int quantity,
   }) async {
     if (state.isProcessing || state.isFetching || state.data == null) {
@@ -102,10 +112,17 @@ class Cart extends _$Cart {
     }
 
     final target = state.data!.firstWhereOrNull(
-      (p) => p.product.id == productId,
+      (item) =>
+          item.productId == productId &&
+          (productVariantId == null ||
+              item.productVariantId == productVariantId),
     );
     if (target == null) {
       return Result.failure('target not available');
+    }
+    final targetVariantId = productVariantId ?? target.productVariantId;
+    if (targetVariantId.isEmpty) {
+      return Result.failure('請選擇商品規格');
     }
 
     try {
@@ -113,7 +130,7 @@ class Cart extends _$Cart {
       state = CustomAsyncValue.processing(
         state.data!
             .map(
-              (item) => item.productId == productId
+              (item) => _isSameCartLine(item, productId, targetVariantId)
                   ? item.copyWith(quantity: quantity)
                   : item,
             )
@@ -124,7 +141,11 @@ class Cart extends _$Cart {
           .read(dioProvider)
           .post(
             "/api/cart/item",
-            data: {"productId": productId, "quantity": quantity},
+            data: {
+              "productId": productId,
+              "productVariantId": targetVariantId,
+              "quantity": quantity,
+            },
           );
       if (response.data['success'] != true) {
         throw Exception('Request failed');
@@ -140,23 +161,111 @@ class Cart extends _$Cart {
     }
   }
 
-  Future<Result<bool>> toggleCartItem(String productId, bool checked) async {
+  Future<Result<bool>> updateCartItem(
+    CartItem cartItem, {
+    required int quantity,
+    required String productVariantId,
+  }) async {
+    if (state.isProcessing || state.isFetching || state.data == null) {
+      return Result.failure('processing');
+    }
+    if (quantity < 1) {
+      return Result.failure('數量最少為1');
+    }
+    if (productVariantId.isEmpty) {
+      return Result.failure('請選擇商品規格');
+    }
+
+    final currentItems = state.data!;
+    final source = currentItems.firstWhereOrNull(
+      (item) => item.id == cartItem.id,
+    );
+    if (source == null) {
+      return Result.failure('target not available');
+    }
+
+    final isVariantChanged = source.productVariantId != productVariantId;
+    final isQuantityChanged = source.quantity != quantity;
+    if (!isVariantChanged && !isQuantityChanged) {
+      return Result.success(true);
+    }
+
+    try {
+      state = CustomAsyncValue.processing(
+        _optimisticUpdateCartItem(
+          currentItems,
+          source,
+          quantity: quantity,
+          productVariantId: productVariantId,
+        ),
+      );
+
+      if (isQuantityChanged) {
+        final quantityResponse = await ref
+            .read(dioProvider)
+            .post(
+              "/api/cart/item",
+              data: {
+                "productId": source.productId,
+                "productVariantId": source.productVariantId,
+                "quantity": quantity,
+              },
+            );
+        if (quantityResponse.data['success'] != true) {
+          throw Exception('Request failed');
+        }
+      }
+
+      if (isVariantChanged) {
+        final variantResponse = await ref
+            .read(dioProvider)
+            .put(
+              "/api/cart/item/${source.id}/variant",
+              data: {"productVariantId": productVariantId},
+            );
+        if (variantResponse.data['success'] != true) {
+          throw Exception('Request failed');
+        }
+      }
+
+      return Result.success(true);
+    } catch (e) {
+      log('Failed to update cart item: $e');
+      return Result.failure('$e');
+    } finally {
+      state = CustomAsyncValue.done(state.data!);
+      loadCartItems(keepPreviousData: true);
+    }
+  }
+
+  Future<Result<bool>> toggleCartItem(
+    String productId,
+    bool checked, {
+    String? productVariantId,
+  }) async {
     if (state.isProcessing || state.isFetching || state.data == null) {
       return Result.failure('processing');
     }
 
     final target = state.data!.firstWhereOrNull(
-      (p) => p.product.id == productId,
+      (item) =>
+          item.productId == productId &&
+          (productVariantId == null ||
+              item.productVariantId == productVariantId),
     );
     if (target == null) {
       return Result.failure('target not available');
+    }
+    final targetVariantId = productVariantId ?? target.productVariantId;
+    if (targetVariantId.isEmpty) {
+      return Result.failure('請選擇商品規格');
     }
 
     try {
       state = CustomAsyncValue.processing(
         state.data!
             .map(
-              (item) => item.productId == productId
+              (item) => _isSameCartLine(item, productId, targetVariantId)
                   ? item.copyWith(checked: checked)
                   : item,
             )
@@ -167,7 +276,11 @@ class Cart extends _$Cart {
           .read(dioProvider)
           .put(
             "/api/cart/item/toggle",
-            data: {"productId": productId, "checked": checked},
+            data: {
+              "productId": productId,
+              "productVariantId": targetVariantId,
+              "checked": checked,
+            },
           );
       if (response.data['success'] != true) {
         throw Exception('Request failed');
@@ -182,29 +295,45 @@ class Cart extends _$Cart {
     }
   }
 
-  Future<Result<bool>> removeItem(String productId) async {
+  Future<Result<bool>> removeItem(
+    String productId, {
+    String? productVariantId,
+  }) async {
     if (state.isProcessing || state.isFetching || state.data == null) {
       return Result.failure('processing');
     }
 
     final target = state.data!.firstWhereOrNull(
-      (p) => p.product.id == productId,
+      (item) =>
+          item.productId == productId &&
+          (productVariantId == null ||
+              item.productVariantId == productVariantId),
     );
     if (target == null) {
       return Result.failure('target not available');
+    }
+    final targetVariantId = productVariantId ?? target.productVariantId;
+    if (targetVariantId.isEmpty) {
+      return Result.failure('請選擇商品規格');
     }
 
     try {
       // state = CustomAsyncValue.processing(state.data!);
       state = CustomAsyncValue.processing(
-        state.data!.where((item) => item.productId != productId).toList(),
+        state.data!
+            .where((item) => !_isSameCartLine(item, productId, targetVariantId))
+            .toList(),
       );
 
       final response = await ref
           .read(dioProvider)
           .post(
             "/api/cart/item",
-            data: {"productId": productId, "quantity": 0},
+            data: {
+              "productId": productId,
+              "productVariantId": targetVariantId,
+              "quantity": 0,
+            },
           );
       if (response.data['success'] != true) {
         throw Exception('Request failed');
@@ -221,6 +350,77 @@ class Cart extends _$Cart {
       state = CustomAsyncValue.done(state.data!);
       loadCartItems(keepPreviousData: true);
     }
+  }
+
+  Future<Result<bool>> updateItemVariant(
+    CartItem cartItem, {
+    required String productVariantId,
+  }) async {
+    return updateCartItem(
+      cartItem,
+      quantity: cartItem.quantity,
+      productVariantId: productVariantId,
+    );
+  }
+
+  bool _isSameCartLine(
+    CartItem item,
+    String productId,
+    String productVariantId,
+  ) {
+    return item.productId == productId &&
+        item.productVariantId == productVariantId;
+  }
+
+  List<CartItem> _optimisticUpdateCartItem(
+    List<CartItem> items,
+    CartItem source, {
+    required int quantity,
+    required String productVariantId,
+  }) {
+    if (source.productVariantId == productVariantId) {
+      return items
+          .map(
+            (item) =>
+                item.id == source.id ? item.copyWith(quantity: quantity) : item,
+          )
+          .toList();
+    }
+
+    final target = items.firstWhereOrNull(
+      (item) =>
+          item.id != source.id &&
+          item.productId == source.productId &&
+          item.productVariantId == productVariantId,
+    );
+    if (target == null) {
+      final nextVariant = source.product.variants.firstWhereOrNull(
+        (variant) => variant.id == productVariantId,
+      );
+      return items
+          .map(
+            (item) => item.id == source.id
+                ? item.copyWith(
+                    quantity: quantity,
+                    productVariantId: productVariantId,
+                    variant: nextVariant ?? item.variant,
+                  )
+                : item,
+          )
+          .toList();
+    }
+
+    return items
+        .where((item) => item.id != source.id)
+        .map(
+          (item) => item.id == target.id
+              ? item.copyWith(
+                  quantity: target.quantity + quantity,
+                  checked: target.checked || source.checked,
+                )
+              : item,
+        )
+        .toList();
   }
 
   // /// Clears all items from the cart.

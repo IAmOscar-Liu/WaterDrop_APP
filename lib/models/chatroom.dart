@@ -7,8 +7,10 @@ class Chatroom {
   final String userId;
   final String? accountId;
   final String? productId;
+  final String? productVariantId;
 
   final Product? product;
+  final ProductVariant? variant;
   final int? totalUnread;
   final ChatMessage? lastMessage;
   final ChatRoomOrder? order;
@@ -21,7 +23,9 @@ class Chatroom {
     required this.userId,
     this.accountId,
     this.productId,
+    this.productVariantId,
     this.product,
+    this.variant,
     this.totalUnread,
     this.lastMessage,
     this.order,
@@ -34,7 +38,9 @@ class Chatroom {
     String? userId,
     String? accountId,
     String? productId,
+    String? productVariantId,
     Product? product,
+    ProductVariant? variant,
     int? totalUnread,
     ChatMessage? lastMessage,
     ChatRoomOrder? order,
@@ -46,7 +52,9 @@ class Chatroom {
       userId: userId ?? this.userId,
       accountId: accountId ?? this.accountId,
       productId: productId ?? this.productId,
+      productVariantId: productVariantId ?? this.productVariantId,
       product: product ?? this.product,
+      variant: variant ?? this.variant,
       totalUnread: totalUnread ?? this.totalUnread,
       lastMessage: lastMessage ?? this.lastMessage,
       order: order ?? this.order,
@@ -61,6 +69,7 @@ class Chatroom {
       'userId': userId,
       'accountId': accountId,
       'productId': productId,
+      'productVariantId': productVariantId,
       'createdAt': createdAt?.millisecondsSinceEpoch,
       'updatedAt': updatedAt?.millisecondsSinceEpoch,
     };
@@ -72,8 +81,12 @@ class Chatroom {
       userId: ParseUtils.parseString(map['userId']) ?? "",
       accountId: ParseUtils.parseString(map['accountId']),
       productId: ParseUtils.parseString(map['productId']),
+      productVariantId: ParseUtils.parseString(map['productVariantId']),
       product: map['product'] is Map
           ? Product.fromApiResponseMap(map['product'])
+          : null,
+      variant: map['variant'] is Map
+          ? ProductVariant.fromApiResponseMap(map['variant'])
           : null,
       totalUnread: ParseUtils.parseInt(map['totalUnread']),
       lastMessage: map['lastMessage'] is Map
@@ -286,6 +299,8 @@ class ChatRoomOrder {
 }
 
 class ChatRoomOrderDelivery {
+  final String id;
+  final String merchantTradeNo;
   final String logisticsType;
   final String? logisticsSubType;
   final String status;
@@ -293,6 +308,8 @@ class ChatRoomOrderDelivery {
   final String rtnMsg;
 
   ChatRoomOrderDelivery({
+    required this.id,
+    required this.merchantTradeNo,
     required this.logisticsType,
     this.logisticsSubType,
     required this.status,
@@ -302,6 +319,8 @@ class ChatRoomOrderDelivery {
 
   factory ChatRoomOrderDelivery.fromApiResponseMap(Map<String, dynamic> map) {
     return ChatRoomOrderDelivery(
+      id: ParseUtils.parseString(map['id']) ?? "",
+      merchantTradeNo: ParseUtils.parseString(map['merchantTradeNo']) ?? "",
       logisticsType: ParseUtils.parseString(map['LogisticsType']) ?? "",
       logisticsSubType: ParseUtils.parseString(map['LogisticsSubType']),
       status: ParseUtils.parseString(map['status']) ?? "",

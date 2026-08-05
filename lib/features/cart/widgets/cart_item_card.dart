@@ -11,6 +11,8 @@ import 'package:go_router/go_router.dart'; // Assuming you have a colors.dart
 
 class CartItemCard extends ConsumerWidget {
   final Product product;
+  final ProductVariant? variant;
+  final String productVariantId;
   final int quantity;
   final bool checked;
   final ValueChanged<bool?>? onCheckedChange;
@@ -20,6 +22,8 @@ class CartItemCard extends ConsumerWidget {
   const CartItemCard({
     super.key,
     required this.product,
+    required this.variant,
+    required this.productVariantId,
     required this.quantity,
     required this.checked,
     required this.onCheckedChange,
@@ -37,6 +41,14 @@ class CartItemCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final variantName = variant?.displayName ?? "";
+    final hasOnlyMatchingDefaultVariant =
+        product.variants.length == 1 &&
+        variant != null &&
+        product.variants.first.id == variant!.id;
+    final shouldShowVariantName =
+        variantName.isNotEmpty && !hasOnlyMatchingDefaultVariant;
+
     return Card(
       color: AppColors.containerBgColor, // Dark background for the card
       margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
@@ -101,7 +113,7 @@ class CartItemCard extends ConsumerWidget {
                           right: 0,
                           child: Container(
                             decoration: BoxDecoration(
-                              color: Colors.blue.withOpacity(0.8),
+                              color: Colors.blue.withValues(alpha: 0.8),
                               borderRadius: const BorderRadius.vertical(
                                 bottom: Radius.circular(4.0),
                               ),
@@ -125,7 +137,7 @@ class CartItemCard extends ConsumerWidget {
                           right: 0,
                           child: Container(
                             decoration: BoxDecoration(
-                              color: Colors.green.withOpacity(0.8),
+                              color: Colors.green.withValues(alpha: 0.8),
                               borderRadius: const BorderRadius.vertical(
                                 bottom: Radius.circular(4.0),
                               ),
@@ -163,6 +175,19 @@ class CartItemCard extends ConsumerWidget {
                           ),
                         ),
                       ),
+                      if (shouldShowVariantName) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          variantName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: AppColors.secondaryTextColor,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 6.0),
                       // Quantity Controls
                       Row(
@@ -225,6 +250,7 @@ class CartItemCard extends ConsumerWidget {
                         "userId": userId,
                         "accountId": product.sellerId,
                         "productId": product.id,
+                        "productVariantId": productVariantId,
                       },
                     );
                   },
@@ -237,6 +263,7 @@ class CartItemCard extends ConsumerWidget {
                   onPressed: ref.watch(collectionNotifierProvider).isProcessing
                       ? null
                       : () {
+                          final messenger = ScaffoldMessenger.of(context);
                           ref
                               .read(collectionNotifierProvider.notifier)
                               .addCollection(
@@ -248,7 +275,7 @@ class CartItemCard extends ConsumerWidget {
                                     ? result.data
                                     : result.error;
                                 if (message == null) return;
-                                ScaffoldMessenger.of(context).showSnackBar(
+                                messenger.showSnackBar(
                                   SnackBar(
                                     content: Text(message),
                                     backgroundColor: Colors.green,
@@ -273,7 +300,7 @@ class CartItemCard extends ConsumerWidget {
                       borderRadius: BorderRadius.circular(4.0),
                     ),
                   ),
-                  child: const Text('修改數量', style: TextStyle(fontSize: 14)),
+                  child: const Text('修改', style: TextStyle(fontSize: 14)),
                 ),
                 SizedBox(width: 8),
                 ElevatedButton(

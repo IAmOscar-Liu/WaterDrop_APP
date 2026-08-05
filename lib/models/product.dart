@@ -46,6 +46,114 @@ class Seller {
   }
 }
 
+class ProductVariant {
+  final String id;
+  final String productId;
+  final String? name;
+  final String? sku;
+  final Map<String, dynamic> optionValues;
+  final int availableStock;
+  final String status;
+  final int? stock;
+  final int? reserve;
+  final int? sortOrder;
+  final Map<String, dynamic>? metadata;
+  final DateTime? createdAt;
+  final DateTime? updatedAt;
+
+  const ProductVariant({
+    required this.id,
+    required this.productId,
+    this.name,
+    this.sku,
+    this.optionValues = const {},
+    this.availableStock = 0,
+    this.status = "active",
+    this.stock,
+    this.reserve,
+    this.sortOrder,
+    this.metadata,
+    this.createdAt,
+    this.updatedAt,
+  });
+
+  factory ProductVariant.fromApiResponseMap(Map<String, dynamic> map) {
+    return ProductVariant(
+      id: ParseUtils.parseString(map['id']) ?? "",
+      productId: ParseUtils.parseString(map['productId']) ?? "",
+      name: ParseUtils.parseString(map['name']),
+      sku: ParseUtils.parseString(map['sku']),
+      optionValues: _parseStringDynamicMap(map['optionValues']),
+      availableStock:
+          ParseUtils.parseInt(map['availableStock']) ??
+          ((ParseUtils.parseInt(map['stock']) ?? 0) -
+              (ParseUtils.parseInt(map['reserve']) ?? 0)),
+      status: ParseUtils.parseString(map['status']) ?? "active",
+      stock: ParseUtils.parseInt(map['stock']),
+      reserve: ParseUtils.parseInt(map['reserve']),
+      sortOrder: ParseUtils.parseInt(map['sortOrder']),
+      metadata: map['metadata'] is Map
+          ? Map<String, dynamic>.from(map['metadata'])
+          : null,
+      createdAt: ParseUtils.parseDateTime(map['createdAt']),
+      updatedAt: ParseUtils.parseDateTime(map['updatedAt']),
+    );
+  }
+
+  bool get isActive => status == "active";
+  bool get isAvailable => isActive && availableStock > 0;
+
+  String get displayName {
+    final trimmedName = name?.trim();
+    if (trimmedName != null && trimmedName.isNotEmpty) return trimmedName;
+
+    final optionText = optionValues.entries
+        .where(
+          (entry) => entry.value != null && entry.value.toString().isNotEmpty,
+        )
+        .map((entry) => "${entry.key}: ${entry.value}")
+        .join(" / ");
+    if (optionText.isNotEmpty) return optionText;
+
+    final trimmedSku = sku?.trim();
+    if (trimmedSku != null && trimmedSku.isNotEmpty) return trimmedSku;
+
+    return "規格";
+  }
+
+  ProductVariant copyWith({
+    String? id,
+    String? productId,
+    String? name,
+    String? sku,
+    Map<String, dynamic>? optionValues,
+    int? availableStock,
+    String? status,
+    int? stock,
+    int? reserve,
+    int? sortOrder,
+    Map<String, dynamic>? metadata,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) {
+    return ProductVariant(
+      id: id ?? this.id,
+      productId: productId ?? this.productId,
+      name: name ?? this.name,
+      sku: sku ?? this.sku,
+      optionValues: optionValues ?? this.optionValues,
+      availableStock: availableStock ?? this.availableStock,
+      status: status ?? this.status,
+      stock: stock ?? this.stock,
+      reserve: reserve ?? this.reserve,
+      sortOrder: sortOrder ?? this.sortOrder,
+      metadata: metadata ?? this.metadata,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
+}
+
 class Product {
   final String id;
   final String sellerId;
@@ -64,6 +172,10 @@ class Product {
   final DateTime? createdAt;
   final DateTime? updatedAt; // Made optional
   final Map<String, dynamic>? metadata; // New optional property for metadata
+  final List<ProductVariant> variants;
+  final int availableStock;
+  final ProductVariant? variant;
+  final String? variantName;
 
   Product({
     required this.id,
@@ -83,6 +195,10 @@ class Product {
     this.createdAt,
     this.updatedAt,
     this.metadata,
+    this.variants = const [],
+    this.availableStock = 0,
+    this.variant,
+    this.variantName,
   });
 
   // Simple factory for demonstration, could be from JSON in a real app
@@ -107,6 +223,13 @@ class Product {
     Seller? seller = map['seller'] is Map
         ? Seller.fromApiResponseMap(map['seller'])
         : null;
+    final variants = map['variants'] is List
+        ? List.generate(
+            map['variants'].length,
+            (index) =>
+                ProductVariant.fromApiResponseMap(map['variants'][index]),
+          )
+        : <ProductVariant>[];
 
     return Product(
       id: ParseUtils.parseString(map['id']) ?? "",
@@ -128,8 +251,22 @@ class Product {
       metadata: map['metadata'] is Map
           ? map['metadata']
           : null, // Handle nullable metadata
+      variants: variants,
+      availableStock:
+          ParseUtils.parseInt(map['availableStock']) ??
+          variants.fold(0, (sum, variant) => sum + variant.availableStock),
+      variant: map['variant'] is Map
+          ? ProductVariant.fromApiResponseMap(map['variant'])
+          : null,
+      variantName: ParseUtils.parseString(map['variantName']),
     );
   }
+
+  List<ProductVariant> get activeVariants =>
+      variants.where((variant) => variant.isActive).toList();
+
+  List<ProductVariant> get availableVariants =>
+      variants.where((variant) => variant.isAvailable).toList();
 
   Map<String, dynamic> toMap() {
     return {
@@ -149,6 +286,10 @@ class Product {
       'createdAt': createdAt.toString(),
       'update': updatedAt.toString(),
       'metadata': metadata,
+      'availableStock': availableStock,
+      'variants': variants.map((variant) => variant.displayName).toList(),
+      'variant': variant?.displayName,
+      'variantName': variantName,
     };
   }
 
@@ -179,6 +320,10 @@ class Product {
     DateTime? createdAt,
     DateTime? updatedAt, // Made optional
     Map<String, dynamic>? metadata, // New optional property for metadata
+    List<ProductVariant>? variants,
+    int? availableStock,
+    ProductVariant? variant,
+    String? variantName,
   }) {
     return Product(
       id: id ?? this.id,
@@ -198,6 +343,10 @@ class Product {
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       metadata: metadata ?? this.metadata,
+      variants: variants ?? this.variants,
+      availableStock: availableStock ?? this.availableStock,
+      variant: variant ?? this.variant,
+      variantName: variantName ?? this.variantName,
     );
   }
 }
@@ -249,19 +398,23 @@ class CartItem {
   final String id;
   final String userId;
   final String productId;
+  final String productVariantId;
   final int quantity;
   final bool checked;
   final DateTime? createdAt;
   final Product product;
+  final ProductVariant? variant;
 
   CartItem({
     required this.id,
     required this.userId,
     required this.productId,
+    required this.productVariantId,
     required this.quantity,
     this.checked = false,
     this.createdAt,
     required this.product,
+    this.variant,
   });
 
   // Helper to create a new CartItem with updated quantity
@@ -269,19 +422,23 @@ class CartItem {
     String? id,
     String? userId,
     String? productId,
+    String? productVariantId,
     int? quantity,
     bool? checked,
     DateTime? createdAt,
     Product? product,
+    ProductVariant? variant,
   }) {
     return CartItem(
       id: id ?? this.id,
       userId: userId ?? this.userId,
       productId: productId ?? this.productId,
+      productVariantId: productVariantId ?? this.productVariantId,
       quantity: quantity ?? this.quantity,
       checked: checked ?? this.checked,
       createdAt: createdAt ?? this.createdAt,
       product: product ?? this.product,
+      variant: variant ?? this.variant,
     );
   }
 
@@ -291,12 +448,21 @@ class CartItem {
       id: ParseUtils.parseString(map['id']) ?? "",
       userId: ParseUtils.parseString(map['userId']) ?? "",
       productId: ParseUtils.parseString(map['productId']) ?? "",
+      productVariantId: ParseUtils.parseString(map['productVariantId']) ?? "",
       quantity: ParseUtils.parseInt(map['quantity']) ?? 1,
       checked: map['checked'] == true,
       createdAt: ParseUtils.parseDateTime(map['createdAt']),
       product: Product.fromApiResponseMap(map['product']),
+      variant: map['variant'] is Map
+          ? ProductVariant.fromApiResponseMap(map['variant'])
+          : null,
     );
   }
+}
+
+Map<String, dynamic> _parseStringDynamicMap(dynamic value) {
+  if (value is Map) return Map<String, dynamic>.from(value);
+  return {};
 }
 
 String productStatusTranslation(String status) {

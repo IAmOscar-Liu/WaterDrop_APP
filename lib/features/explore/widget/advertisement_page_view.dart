@@ -4,6 +4,7 @@ import 'dart:developer';
 import 'package:flutter/material.dart';
 import 'package:flutter_ad_ecommerce/constants/app_constants.dart';
 import 'package:flutter_ad_ecommerce/constants/colors.dart';
+import 'package:flutter_ad_ecommerce/features/product/widgets/product_variant_picker_sheet.dart';
 import 'package:flutter_ad_ecommerce/models/advertisement.dart';
 import 'package:flutter_ad_ecommerce/provider/advertisement_provider.dart';
 import 'package:flutter_ad_ecommerce/provider/cart_provider.dart';
@@ -132,6 +133,9 @@ class _AdvertisementPageViewState extends ConsumerState<AdvertisementPageView> {
 
     try {
       // 1. Attempt to load from the network URL first.
+      if (ad.videoUrl.trim().isEmpty) {
+        throw Exception("Advertisement video URL is empty");
+      }
       controller = VideoPlayerController.networkUrl(Uri.parse(ad.videoUrl));
       await controller.initialize();
       log("Successfully loaded network video: ${ad.id}");
@@ -143,7 +147,7 @@ class _AdvertisementPageViewState extends ConsumerState<AdvertisementPageView> {
         // 2. If network fails, attempt to load from the asset fallback URL.
         //    IMPORTANT: Make sure your Advertisement model has this field.
         controller = VideoPlayerController.asset(
-          ad.fallbackVideoUrl ?? "",
+          ad.fallbackVideoUrl ?? Advertisement.defaultFallbackVideoUrl,
         ); // Assuming this field exists
         await controller.initialize();
         log("Successfully loaded asset fallback for: ${ad.id}");
@@ -349,6 +353,48 @@ class _AdvertisementPageViewState extends ConsumerState<AdvertisementPageView> {
     return Scaffold(backgroundColor: AppColors.scaffoldBgColor, body: child);
   }
 
+  Future<void> _addAdvertisementToCart(Advertisement advertisement) async {
+    final availableVariants = advertisement.variants
+        .where((variant) => variant.isAvailable)
+        .toList();
+    if (availableVariants.isEmpty) {
+      _showSnackBar('商品目前沒有可購買規格', isError: true);
+      return;
+    }
+
+    final selectedVariant = availableVariants.length == 1
+        ? availableVariants.first
+        : await showProductVariantPickerSheet(
+            context,
+            productName: advertisement.productName,
+            variants: availableVariants,
+          );
+    if (selectedVariant == null) return;
+
+    final result = await ref
+        .read(cartProvider.notifier)
+        .addCartItem(
+          advertisement.productId,
+          productVariantId: selectedVariant.id,
+          productName: advertisement.productName,
+        );
+    if (!mounted) return;
+    final message = result.isSuccess ? result.data : result.error;
+    if (message == null) return;
+    _showSnackBar(message, isError: result.isFailure);
+  }
+
+  void _showSnackBar(String message, {bool isError = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? Colors.red : Colors.green,
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final adProvider = ref.watch(advertisementNotifierProvider);
@@ -551,29 +597,7 @@ class _AdvertisementPageViewState extends ConsumerState<AdvertisementPageView> {
               child: IconButton(
                 onPressed: ref.watch(cartProvider).isProcessing
                     ? null
-                    : () {
-                        ref
-                            .read(cartProvider.notifier)
-                            .addCartItem(
-                              circularVideoUrls[index].productId,
-                              productName: circularVideoUrls[index].productName,
-                            )
-                            .then((result) {
-                              if (!mounted) return;
-                              final message = result.isSuccess
-                                  ? result.data
-                                  : result.error;
-                              if (message == null) return;
-                              // ignore: use_build_context_synchronously
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(message),
-                                  backgroundColor: Colors.green,
-                                  duration: const Duration(seconds: 2),
-                                ),
-                              );
-                            });
-                      },
+                    : () => _addAdvertisementToCart(circularVideoUrls[index]),
                 icon: const Icon(Icons.shopping_cart),
                 style: IconButton.styleFrom(
                   backgroundColor: Colors.red,
@@ -642,7 +666,7 @@ class _AdvertisementPageViewState extends ConsumerState<AdvertisementPageView> {
               right: 0,
               child: Container(
                 decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.48),
+                  color: Colors.black.withValues(alpha: 0.48),
                 ),
                 child: Padding(
                   padding: EdgeInsets.only(

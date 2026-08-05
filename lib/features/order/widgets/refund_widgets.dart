@@ -382,6 +382,19 @@ class _CreateRefundDialogState extends ConsumerState<_CreateRefundDialog> {
                   fontWeight: FontWeight.bold,
                 ),
               ),
+              if (item.variantDisplayName.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Text(
+                  item.variantDisplayName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: AppColors.secondaryTextColor,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
               const SizedBox(height: 12),
               TextField(
                 controller: _quantityController,
