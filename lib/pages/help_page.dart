@@ -2,13 +2,93 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_ad_ecommerce/constants/colors.dart';
 import 'package:flutter_ad_ecommerce/provider/account_provider.dart';
+import 'package:flutter_ad_ecommerce/provider/system_provider.dart';
 import 'package:flutter_ad_ecommerce/router/routes.dart';
+import 'package:flutter_ad_ecommerce/widgets/page_status.dart';
 import 'package:flutter_ad_ecommerce/widgets/simple_app_bar.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-class HelpPage extends ConsumerWidget {
+class HelpPage extends ConsumerStatefulWidget {
   const HelpPage({super.key});
+
+  @override
+  ConsumerState<HelpPage> createState() => _HelpPageState();
+}
+
+class _HelpPageState extends ConsumerState<HelpPage> {
+  bool _isLoading = false;
+  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadContentIfNeeded();
+  }
+
+  Future<void> _loadContentIfNeeded() async {
+    final content = ref.read(systemNotifierProvider).customerSupportContent;
+    if (content?.isNotEmpty == true) {
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    final result = await ref
+        .read(systemNotifierProvider.notifier)
+        .loadCustomerSupportContent();
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _isLoading = false;
+      _errorMessage = result.error;
+    });
+  }
+
+  String _readString(Map<String, dynamic> map, String key, String fallback) {
+    final value = map[key];
+    return value is String && value.trim().isNotEmpty ? value : fallback;
+  }
+
+  int _readSortOrder(Map<String, dynamic> map) {
+    final value = map['sortOrder'];
+    if (value is int) {
+      return value;
+    }
+    if (value is num) {
+      return value.toInt();
+    }
+    if (value is String) {
+      return int.tryParse(value) ?? 0;
+    }
+    return 0;
+  }
+
+  List<Map<String, dynamic>> _readSections(Map<String, dynamic> content) {
+    final sections = content['sections'];
+    if (sections is! List) {
+      return [];
+    }
+
+    return sections.whereType<Map>().map(Map<String, dynamic>.from).toList()
+      ..sort((a, b) => _readSortOrder(a).compareTo(_readSortOrder(b)));
+  }
+
+  List<Map<String, dynamic>> _readItems(Map<String, dynamic> section) {
+    final items = section['items'];
+    if (items is! List) {
+      return [];
+    }
+
+    return items.whereType<Map>().map(Map<String, dynamic>.from).toList()
+      ..sort((a, b) => _readSortOrder(a).compareTo(_readSortOrder(b)));
+  }
 
   Widget _buildFAQText(String text) {
     return Text(text, style: const TextStyle(color: Colors.white, height: 1.6));
@@ -30,10 +110,8 @@ class HelpPage extends ConsumerWidget {
             splashColor: Colors.transparent,
             highlightColor: Colors.transparent,
             expansionTileTheme: const ExpansionTileThemeData(
-              iconColor: AppColors
-                  .secondaryTextColor, // Color of the arrow when collapsed
-              collapsedIconColor: AppColors
-                  .secondaryTextColor, // Color of the arrow when expanded
+              iconColor: AppColors.secondaryTextColor,
+              collapsedIconColor: AppColors.secondaryTextColor,
             ),
           ),
           child: ExpansionTile(
@@ -60,86 +138,92 @@ class HelpPage extends ConsumerWidget {
     );
   }
 
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return Scaffold(
-      backgroundColor: AppColors.scaffoldBgColor,
-      appBar: const SimpleAppBar(title: '客服/幫助中心'),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          final userId = ref.read(accountNotifierProvider).id;
-          context.push(
-            Routes.chatroomPage,
-            extra: {"title": "水滴客服", "userId": userId},
-          );
-        },
-        backgroundColor: AppColors.infoColor,
-        foregroundColor: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        icon: const Icon(Icons.support_agent),
-        label: const Text('聯絡客服'),
-      ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 16.0,
-              vertical: 12.0,
-            ),
-            child: Column(
-              children: [
-                _buildFAQExpansionTile(
-                  context,
-                  title: 'Q1：如何獲得金幣？',
-                  content: _buildFAQText(
-                    '透過參與平台廣告影片任務、每日簽到或完成指定生態活動，即可領取水滴金幣。水滴金幣是您在水滴生態中最重要的價值媒介。',
-                  ),
-                ),
-                _buildFAQExpansionTile(
-                  context,
-                  title: 'Q2：等級（A0, A1...）具體有什麼好處？',
-                  content: _buildFAQText(
-                    '等級代表您在生態系統中的貢獻權重。\n\n'
-                    '權益加成：等級越高，兌換商品時可使用的「金幣抵扣比例」上限就越高。\n\n'
-                    '極致省錢：高等級成員能用更少的現金結合金幣，換取高價值的商品，實現資產價值最大化。\n\n'
-                    '晉升機制：您的等級是由您推動的「生態團隊人數」所決定。',
-                  ),
-                ),
-                _buildFAQExpansionTile(
-                  context,
-                  title: 'Q3：如何透過「生態共建」快速提升等級？',
-                  content: _buildFAQText(
-                    '水滴生態強調連結與共贏。您可以透過以下方式壯大您的團隊：\n\n'
-                    '獲取專屬碼：進入「我的」頁面，複製您的個人推薦碼。\n\n'
-                    '連結夥伴：將推薦碼分享給親友，當他們註冊並填寫您的代碼後，即正式成為您的生態團隊成員。\n\n'
-                    '共享增益：隨著團隊成員增加，您的等級會自動晉升，解鎖更高的抵扣權限。',
-                  ),
-                ),
-                _buildFAQExpansionTile(
-                  context,
-                  title: 'Q4：如何修改收件資料？',
-                  content: _buildFAQText(
-                    '若需更改配送資訊，請至「我的」→「帳號設定與支援」→「寄貨資料」進行編輯。為確保商品準確送達，請在發貨前確認資訊無誤。',
-                  ),
-                ),
-                _buildFAQExpansionTile(
-                  context,
-                  title: 'Q5：如何一鍵複製ATM轉帳的帳號？',
-                  content: _buildFAQText(
-                    '我的 → 訂單記錄 → 查看詳情 → 轉帳記錄 → [複製帳號] 銀行帳戶數字',
-                  ),
-                ),
-                _buildFAQExpansionTile(
-                  context,
-                  title: 'Q6：如果還有其他問題怎麼辦？',
-                  content: _buildFAQText(
-                    '您可以點擊下方的「聯絡客服」按鈕，我們的生態服務專員將在第一時間為您提供協助。',
-                  ),
-                ),
-              ],
-            ),
+  Widget _buildSectionTitle(String title) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 8.0, bottom: 4.0),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Text(
+          title,
+          style: const TextStyle(
+            color: AppColors.primaryTextColor,
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildHelpContent(Map<String, dynamic> content) {
+    final sections = _readSections(content);
+    if (sections.isEmpty) {
+      return const PageError('目前沒有客服幫助內容');
+    }
+
+    return SingleChildScrollView(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+        child: Column(
+          children: [
+            for (final section in sections) ...[
+              if (_readString(section, 'title', '').isNotEmpty)
+                _buildSectionTitle(_readString(section, 'title', '')),
+              for (final entry in _readItems(section).indexed)
+                _buildFAQExpansionTile(
+                  context,
+                  title:
+                      'Q${entry.$1 + 1}：${_readString(entry.$2, 'question', '')}',
+                  content: _buildFAQText(_readString(entry.$2, 'answer', '')),
+                ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final content = ref.watch(systemNotifierProvider).customerSupportContent;
+    final support = content?['support'] is Map
+        ? Map<String, dynamic>.from(content!['support'] as Map)
+        : <String, dynamic>{};
+    final page = content?['page'] is Map
+        ? Map<String, dynamic>.from(content!['page'] as Map)
+        : <String, dynamic>{};
+    final supportEnabled = support['enabled'] != false;
+
+    return Scaffold(
+      backgroundColor: AppColors.scaffoldBgColor,
+      appBar: SimpleAppBar(title: _readString(page, 'title', '客服/幫助中心')),
+      floatingActionButton: supportEnabled
+          ? FloatingActionButton.extended(
+              onPressed: () {
+                final userId = ref.read(accountNotifierProvider).id;
+                context.push(
+                  Routes.chatroomPage,
+                  extra: {
+                    "title": _readString(support, 'chatroomTitle', '水滴客服'),
+                    "userId": userId,
+                  },
+                );
+              },
+              backgroundColor: AppColors.infoColor,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(24),
+              ),
+              icon: const Icon(Icons.support_agent),
+              label: Text(_readString(support, 'label', '聯絡客服')),
+            )
+          : null,
+      body: SafeArea(
+        child: content?.isNotEmpty == true
+            ? _buildHelpContent(content!)
+            : _isLoading
+            ? const PageLoading('載入客服幫助內容中......')
+            : PageError(_errorMessage ?? '目前沒有客服幫助內容'),
       ),
     );
   }

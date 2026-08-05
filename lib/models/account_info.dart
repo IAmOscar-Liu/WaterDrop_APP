@@ -23,6 +23,9 @@ class AccountInfo {
   final String? address;
   final String? timezone;
   final DateTime? termsAcceptedAt;
+  final String? bankCode;
+  final String? bankName;
+  final String? bankAccount;
 
   /// Constructs an [AccountInfo] instance.
   const AccountInfo({
@@ -44,6 +47,9 @@ class AccountInfo {
     this.address,
     this.timezone,
     this.termsAcceptedAt,
+    this.bankCode,
+    this.bankName,
+    this.bankAccount,
   });
 
   /// Creates a new [AccountInfo] instance with updated values.
@@ -70,6 +76,9 @@ class AccountInfo {
     String? address,
     String? timezone,
     DateTime? termsAcceptedAt,
+    String? bankCode,
+    String? bankName,
+    String? bankAccount,
   }) {
     return AccountInfo(
       id: id ?? this.id,
@@ -90,6 +99,9 @@ class AccountInfo {
       address: address ?? this.address,
       timezone: timezone ?? this.timezone,
       termsAcceptedAt: termsAcceptedAt ?? this.termsAcceptedAt,
+      bankCode: bankCode ?? this.bankCode,
+      bankName: bankName ?? this.bankName,
+      bankAccount: bankAccount ?? this.bankAccount,
     );
   }
 
@@ -129,6 +141,9 @@ class AccountInfo {
       address: ParseUtils.parseString(map['address']),
       timezone: ParseUtils.parseString(map['timezone']),
       termsAcceptedAt: ParseUtils.parseDateTime(map['termsAcceptedAt']),
+      bankCode: ParseUtils.parseString(map['bankCode']),
+      bankName: ParseUtils.parseString(map['bankName']),
+      bankAccount: ParseUtils.parseString(map['bankAccount']),
     );
   }
 
@@ -155,6 +170,9 @@ class AccountInfo {
       'phone': phone,
       'address': address,
       'timezone': timezone,
+      'bank_code': bankCode,
+      'bank_name': bankName,
+      'bank_account': bankAccount,
     };
   }
 

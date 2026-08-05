@@ -9,6 +9,7 @@ import 'package:flutter_ad_ecommerce/models/product.dart';
 import 'package:flutter_ad_ecommerce/provider/product_category_provider.dart';
 import 'package:flutter_ad_ecommerce/provider/product_provider.dart';
 import 'package:flutter_ad_ecommerce/router/routes.dart';
+import 'package:flutter_ad_ecommerce/utils/api_call_manager.dart';
 import 'package:flutter_ad_ecommerce/utils/events.dart';
 import 'package:flutter_ad_ecommerce/utils/number_formatter_extension.dart';
 import 'package:flutter_ad_ecommerce/widgets/messaging_app_bar.dart';
@@ -26,6 +27,8 @@ class ProductPage extends ConsumerStatefulWidget {
 }
 
 class _ProductPageState extends ConsumerState<ProductPage> {
+  static const _productsApiKey = 'products';
+
   Category _selectedCategory = Category(id: "all", name: '全部');
   String _textSearch = '';
   int? _minPrice;
@@ -43,7 +46,13 @@ class _ProductPageState extends ConsumerState<ProductPage> {
     ) async {
       if (event.to == Routes.productPage && event.to != event.from) {
         log('[Home] re-enter product page');
-        _loadProducts();
+        final isOutdated = await ApiCallManager.isOlderThan(
+          _productsApiKey,
+          const Duration(minutes: 10),
+        );
+        if (isOutdated) {
+          _loadProducts();
+        }
       }
     });
   }
@@ -55,8 +64,9 @@ class _ProductPageState extends ConsumerState<ProductPage> {
   }
 
   void _loadProducts() {
-    Future.delayed(Duration.zero, () {
-      ref
+    Future.delayed(Duration.zero, () async {
+      await ApiCallManager.updateApiCallTimestamp(_productsApiKey);
+      await ref
           .read(productNotifierProvider.notifier)
           .loadProducts(
             categoryId: _selectedCategory.id == "all"
@@ -225,16 +235,22 @@ class _ProductPageState extends ConsumerState<ProductPage> {
               child: Builder(
                 builder: (context) {
                   void onSelectTextSearch(String textSearch) {
-                    context.push(Routes.textSearch, extra: textSearch).then((
-                      value,
-                    ) {
-                      if (value is String) {
-                        setState(() {
-                          _textSearch = value;
+                    context
+                        .push(
+                          Routes.textSearch,
+                          extra: {
+                            'textSearch': textSearch,
+                            'source': 'product',
+                          },
+                        )
+                        .then((value) {
+                          if (value is String) {
+                            setState(() {
+                              _textSearch = value;
+                            });
+                            _loadProducts();
+                          }
                         });
-                        _loadProducts();
-                      }
-                    });
                   }
 
                   void onSelectPriceRange() {

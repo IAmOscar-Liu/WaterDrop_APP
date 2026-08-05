@@ -186,6 +186,10 @@ class _MyAppState extends ConsumerState<MyApp> {
     ref.read(productCategoryProvider.notifier).loadProductCategory();
     ref.read(cartProvider.notifier).loadCartItems();
     ref.read(messageStatsNotifierProvider.notifier).loadMessageStats();
+    ref.read(systemNotifierProvider.notifier).loadSystemInfo();
+    ref.read(systemNotifierProvider.notifier).loadProductRecommendation();
+    ref.read(systemNotifierProvider.notifier).loadCustomerSupportContent();
+    ref.read(systemNotifierProvider.notifier).loadBankList();
 
     _loadAdDailyStats();
   }

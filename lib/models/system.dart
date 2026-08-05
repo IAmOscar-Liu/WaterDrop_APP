@@ -16,6 +16,11 @@ class System {
   final String? accessToken;
   final String? fcmToken;
 
+  final Map<String, dynamic>? systemInfo;
+  final Map<String, dynamic>? productRecommendation;
+  final Map<String, dynamic>? customerSupportContent;
+  final List? bankList;
+
   final bool isSendingReferralCode;
   final Order? currentOrder;
 
@@ -30,6 +35,11 @@ class System {
     this.remainingVideoCount = 20,
     this.accessToken,
     this.fcmToken,
+
+    this.systemInfo,
+    this.productRecommendation,
+    this.customerSupportContent,
+    this.bankList,
     this.canWatchMoreVideo = true,
     this.viewedAds,
 
@@ -47,6 +57,10 @@ class System {
     int? remainingVideoCount,
     String? accessToken,
     String? fcmToken,
+    Map<String, dynamic>? systemInfo,
+    Map<String, dynamic>? productRecommendation,
+    Map<String, dynamic>? customerSupportContent,
+    List? bankList,
     bool? canWatchMoreVideo,
     List<String>? viewedAds,
     bool? isSendingReferralCode,
@@ -77,6 +91,12 @@ class System {
           : (currentChatRoomId ?? this.currentChatRoomId),
       accessToken: clearAccessToken ? null : (accessToken ?? this.accessToken),
       fcmToken: clearFcmToken ? null : (fcmToken ?? this.fcmToken),
+      productRecommendation:
+          productRecommendation ?? this.productRecommendation,
+      systemInfo: systemInfo ?? this.systemInfo,
+      customerSupportContent:
+          customerSupportContent ?? this.customerSupportContent,
+      bankList: bankList ?? this.bankList,
       currentOrder: clearCurrentOrder
           ? null
           : (currentOrder ?? this.currentOrder),

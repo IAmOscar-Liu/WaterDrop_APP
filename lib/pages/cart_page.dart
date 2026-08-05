@@ -132,7 +132,7 @@ class _CartPageState extends ConsumerState<CartPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            "收件人資訊",
+            "寄貨資料",
             style: TextStyle(
               fontWeight: FontWeight.bold,
               fontSize: 18,
@@ -140,21 +140,80 @@ class _CartPageState extends ConsumerState<CartPage> {
             ),
           ),
           Divider(color: AppColors.dividerColor),
+          Row(
+            children: [
+              Icon(
+                Icons.person_outline,
+                size: 18,
+                color: AppColors.primaryTextColor,
+              ),
+              SizedBox(width: 6),
+              Text(
+                "收件人資訊",
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.primaryTextColor,
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 8),
           Text(
-            "姓名：${accountInfo.name.isEmpty ? "尚未至「我的」頁面填寫" : accountInfo.name}",
+            "姓名：${accountInfo.name.isEmpty ? "尚未填寫" : accountInfo.name}",
             style: TextStyle(color: AppColors.secondaryTextColor),
           ),
           Text(
-            "地址：${(accountInfo.address == null || accountInfo.address!.isEmpty) ? "尚未至「我的」頁面填寫" : accountInfo.address}",
+            "地址：${(accountInfo.address == null || accountInfo.address!.isEmpty) ? "尚未填寫" : accountInfo.address}",
             style: TextStyle(color: AppColors.secondaryTextColor),
           ),
           Text(
-            "手機號碼：${(accountInfo.phone == null || accountInfo.phone!.isEmpty) ? "尚未至「我的」頁面填寫" : accountInfo.phone}",
+            "手機號碼：${(accountInfo.phone == null || accountInfo.phone!.isEmpty) ? "尚未填寫" : accountInfo.phone}",
+            style: TextStyle(color: AppColors.secondaryTextColor),
+          ),
+          SizedBox(height: 16),
+          Row(
+            children: [
+              Icon(
+                Icons.account_balance_outlined,
+                size: 18,
+                color: AppColors.primaryTextColor,
+              ),
+              SizedBox(width: 6),
+              Text(
+                "帳戶資訊",
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.primaryTextColor,
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 8),
+          Text(
+            "銀行：${(accountInfo.bankCode == null || accountInfo.bankCode!.isEmpty || accountInfo.bankName == null || accountInfo.bankName!.isEmpty) ? "尚未填寫" : "${accountInfo.bankCode} ${accountInfo.bankName}"}",
             style: TextStyle(color: AppColors.secondaryTextColor),
           ),
           Text(
-            "如需修改，請至「我的」頁面進行變更",
-            style: TextStyle(color: AppColors.mutedTextColor),
+            "銀行帳號：${(accountInfo.bankAccount == null || accountInfo.bankAccount!.isEmpty) ? "尚未填寫" : accountInfo.bankAccount}",
+            style: TextStyle(color: AppColors.secondaryTextColor),
+          ),
+          SizedBox(height: 12),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                Icons.info_outline,
+                size: 16,
+                color: AppColors.mutedTextColor,
+              ),
+              SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  "如需修改，請至「我的」→「帳號設定與支援」→「寄貨資料」頁面進行變更",
+                  style: TextStyle(color: AppColors.mutedTextColor),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -220,10 +279,10 @@ class _CartPageState extends ConsumerState<CartPage> {
             "使用金幣數量折抵(您的等級權益最多可折抵${maxDiscount.formatWithCommas()}元)",
             style: TextStyle(color: AppColors.mutedTextColor, fontSize: 14),
           ),
-          Text(
-            "如需修改，請至「我的」頁面進行變更",
-            style: TextStyle(color: AppColors.mutedTextColor),
-          ),
+          // Text(
+          //   "如需修改，請至「我的」頁面進行變更",
+          //   style: TextStyle(color: AppColors.mutedTextColor),
+          // ),
           SizedBox(height: 16),
           TextField(
             controller: _discountCoinController,

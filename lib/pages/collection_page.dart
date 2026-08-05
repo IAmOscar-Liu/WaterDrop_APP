@@ -95,16 +95,22 @@ class _CollectionPageState extends ConsumerState<CollectionPage> {
               child: Builder(
                 builder: (context) {
                   void onSelectTextSearch(String textSearch) {
-                    context.push(Routes.textSearch, extra: textSearch).then((
-                      value,
-                    ) {
-                      if (value is String) {
-                        setState(() {
-                          _textSearch = value;
+                    context
+                        .push(
+                          Routes.textSearch,
+                          extra: {
+                            'textSearch': textSearch,
+                            'source': 'collection',
+                          },
+                        )
+                        .then((value) {
+                          if (value is String) {
+                            setState(() {
+                              _textSearch = value;
+                            });
+                            _loadCollections();
+                          }
                         });
-                        _loadCollections();
-                      }
-                    });
                   }
 
                   return Row(

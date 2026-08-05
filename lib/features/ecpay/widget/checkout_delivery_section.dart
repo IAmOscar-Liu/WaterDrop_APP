@@ -281,49 +281,10 @@ class CheckoutDeliverySection extends StatelessWidget {
     List<CartItem> items,
   ) {
     final paymentSettings = shippingFee[sellerId];
-    final method = refrigerationMethods[sellerId];
-    final store = refrigerationStores[sellerId];
-
-    final bool hasHome = items.any((i) => i.product.allowHomeDelivery);
-    final bool hasNonHome = items.any((i) => !i.product.allowHomeDelivery);
-
-    List<CartItem> homeItems = [];
-    List<CartItem> pickupItems = [];
-
-    if (method == DeliveryMethod.home) {
-      for (var item in items) {
-        if (item.product.allowHomeDelivery) {
-          homeItems.add(item);
-        } else {
-          pickupItems.add(item);
-        }
-      }
-    } else {
-      pickupItems = items;
-    }
-
-    double? defaultHomeFee;
-    double? customHomeFee;
-    double? defaultPickupFee;
-    double? customPickupFee;
-
-    if (method == DeliveryMethod.home) {
-      defaultHomeFee = shippingFee['default']?.homeDeliveryRefrig;
-      customHomeFee =
-          paymentSettings?.homeDeliveryRefrig ??
-          shippingFee['default']?.homeDeliveryRefrig;
-      if (pickupItems.isNotEmpty) {
-        defaultPickupFee = shippingFee['default']?.OKMART_LOW_TMP_C2C;
-        customPickupFee =
-            paymentSettings?.OKMART_LOW_TMP_C2C ??
-            shippingFee['default']?.OKMART_LOW_TMP_C2C;
-      }
-    } else if (method == DeliveryMethod.cvs) {
-      defaultPickupFee = shippingFee['default']?.OKMART_LOW_TMP_C2C;
-      customPickupFee =
-          paymentSettings?.OKMART_LOW_TMP_C2C ??
-          shippingFee['default']?.OKMART_LOW_TMP_C2C;
-    }
+    final defaultHomeFee = shippingFee['default']?.homeDeliveryRefrig;
+    final customHomeFee =
+        paymentSettings?.homeDeliveryRefrig ??
+        shippingFee['default']?.homeDeliveryRefrig;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -339,93 +300,44 @@ class CheckoutDeliverySection extends StatelessWidget {
             ),
           ),
         ),
-        _buildDeliveryOption(
-          title: "配送方式",
-          groupValue: method,
-          onChanged: (val) {
-            onRefrigerationMethodChanged(sellerId, val);
-            if (val == DeliveryMethod.home && hasNonHome) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text("部分商品不支援宅配，已自動分為店取"),
-                  backgroundColor: Colors.redAccent,
-                  duration: Duration(seconds: 5),
-                ),
-              );
-            }
-          },
-          options: [
-            DropdownMenuItem(value: DeliveryMethod.cvs, child: Text("OK低溫店到店")),
-            if (hasHome)
-              DropdownMenuItem(value: DeliveryMethod.home, child: Text("宅配到府")),
-          ],
+        _buildStaticDeliveryValue(title: "配送方式", value: "宅配到府"),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0),
+          child: _buildItemsList(items),
         ),
-        if (method == DeliveryMethod.home) ...[
-          if (homeItems.isNotEmpty) ...[
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0),
-              child: _buildItemsList(homeItems),
-            ),
-            if (defaultHomeFee != null)
-              _buildFeeRow(defaultHomeFee, customHomeFee),
-          ],
-          if (pickupItems.isNotEmpty) ...[
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0),
-              child: Row(
-                children: [
-                  const Text(
-                    "OK店到店",
-                    style: TextStyle(
-                      color: AppColors.primaryTextColor,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  if (hasNonHome) ...[
-                    SizedBox(width: 8),
-                    const Text(
-                      "以下商品不支援宅配到府",
-                      style: TextStyle(
-                        color: AppColors.warningColor,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0),
-              child: _buildItemsList(pickupItems),
-            ),
-            _buildStoreSelector(
-              storeInfo: store,
-              onSelect: () => onSelectStore(
-                'refrigeration',
-                LogisticsSubType.OKMART_LOW_TMP_C2C,
-                sellerId,
-              ),
-            ),
-            if (defaultPickupFee != null)
-              _buildFeeRow(defaultPickupFee, customPickupFee),
-          ],
-        ] else ...[
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0),
-            child: _buildItemsList(items),
-          ),
-          _buildStoreSelector(
-            storeInfo: store,
-            onSelect: () => onSelectStore(
-              'refrigeration',
-              LogisticsSubType.OKMART_LOW_TMP_C2C,
-              sellerId,
-            ),
-          ),
-          if (defaultPickupFee != null)
-            _buildFeeRow(defaultPickupFee, customPickupFee),
-        ],
+        if (defaultHomeFee != null) _buildFeeRow(defaultHomeFee, customHomeFee),
       ],
+    );
+  }
+
+  Widget _buildStaticDeliveryValue({
+    required String title,
+    required String value,
+  }) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppColors.containerBgColor,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.borderColor),
+      ),
+      child: Row(
+        children: [
+          Text(
+            "$title：",
+            style: const TextStyle(
+              color: AppColors.primaryTextColor,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            value,
+            style: const TextStyle(color: AppColors.primaryTextColor),
+          ),
+        ],
+      ),
     );
   }
 
@@ -437,7 +349,9 @@ class CheckoutDeliverySection extends StatelessWidget {
   ) {
     final paymentSettings = shippingFee[sellerId];
     final method = normalMethods[sellerId];
-    final cvsType = normalCvsTypes[sellerId];
+    final cvsType = normalCvsTypes[sellerId] == LogisticsSubType.OKMARTC2C
+        ? null
+        : normalCvsTypes[sellerId];
     final store = normalStores[sellerId];
 
     final bool hasHome = items.any((i) => i.product.allowHomeDelivery);
@@ -477,6 +391,15 @@ class CheckoutDeliverySection extends StatelessWidget {
         customPickupFee = _getCvsFee(sellerId, cvsType);
       }
     }
+
+    final normalCvsOptions = [
+      DropdownMenuItem(
+        value: LogisticsSubType.UNIMARTC2C,
+        child: Text("7-ELEVEN"),
+      ),
+      DropdownMenuItem(value: LogisticsSubType.FAMIC2C, child: Text("全家")),
+      DropdownMenuItem(value: LogisticsSubType.HILIFEC2C, child: Text("萊爾富")),
+    ];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -555,24 +478,7 @@ class CheckoutDeliverySection extends StatelessWidget {
               title: "選擇超商",
               groupValue: cvsType,
               onChanged: (val) => onNormalCvsTypeChanged(sellerId, val),
-              options: [
-                DropdownMenuItem(
-                  value: LogisticsSubType.UNIMARTC2C,
-                  child: Text("7-ELEVEN"),
-                ),
-                DropdownMenuItem(
-                  value: LogisticsSubType.FAMIC2C,
-                  child: Text("全家"),
-                ),
-                DropdownMenuItem(
-                  value: LogisticsSubType.HILIFEC2C,
-                  child: Text("萊爾富"),
-                ),
-                DropdownMenuItem(
-                  value: LogisticsSubType.OKMARTC2C,
-                  child: Text("OK"),
-                ),
-              ],
+              options: normalCvsOptions,
             ),
             if (cvsType != null)
               _buildStoreSelector(
@@ -591,24 +497,7 @@ class CheckoutDeliverySection extends StatelessWidget {
             title: "選擇超商",
             groupValue: cvsType,
             onChanged: (val) => onNormalCvsTypeChanged(sellerId, val),
-            options: [
-              DropdownMenuItem(
-                value: LogisticsSubType.UNIMARTC2C,
-                child: Text("7-ELEVEN"),
-              ),
-              DropdownMenuItem(
-                value: LogisticsSubType.FAMIC2C,
-                child: Text("全家"),
-              ),
-              DropdownMenuItem(
-                value: LogisticsSubType.HILIFEC2C,
-                child: Text("萊爾富"),
-              ),
-              DropdownMenuItem(
-                value: LogisticsSubType.OKMARTC2C,
-                child: Text("OK"),
-              ),
-            ],
+            options: normalCvsOptions,
           ),
           if (cvsType != null)
             _buildStoreSelector(

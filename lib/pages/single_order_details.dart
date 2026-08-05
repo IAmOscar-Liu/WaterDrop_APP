@@ -2,9 +2,12 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_ad_ecommerce/constants/colors.dart';
+import 'package:flutter_ad_ecommerce/features/order/widgets/order_detail_rows.dart';
+import 'package:flutter_ad_ecommerce/features/order/widgets/order_item_list.dart';
+import 'package:flutter_ad_ecommerce/features/order/widgets/order_status_badge.dart';
+import 'package:flutter_ad_ecommerce/features/order/widgets/refund_widgets.dart';
 import 'package:flutter_ad_ecommerce/main.dart';
 import 'package:flutter_ad_ecommerce/models/order.dart';
-import 'package:flutter_ad_ecommerce/models/product.dart';
 import 'package:flutter_ad_ecommerce/provider/account_provider.dart';
 import 'package:flutter_ad_ecommerce/provider/order_provider.dart';
 import 'package:flutter_ad_ecommerce/router/routes.dart';
@@ -12,7 +15,6 @@ import 'package:flutter_ad_ecommerce/utils/formatter.dart';
 import 'package:flutter_ad_ecommerce/utils/number_formatter_extension.dart';
 import 'package:flutter_ad_ecommerce/utils/parse_utils.dart';
 import 'package:flutter_ad_ecommerce/utils/result.dart';
-import 'package:flutter_ad_ecommerce/widgets/initial_image.dart';
 import 'package:flutter_ad_ecommerce/widgets/simple_app_bar.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -75,6 +77,18 @@ class _SingleOrderDetailsState extends ConsumerState<SingleOrderDetails> {
         .getOrder(orderId: orderId);
   }
 
+  Future<void> _refreshOrder() async {
+    final orderId = _order?.id;
+    if (orderId == null) return;
+
+    final result = await _loadSingleOrder(orderId);
+    if (!mounted || result.isFailure) return;
+
+    setState(() {
+      _order = result.data!;
+    });
+  }
+
   Widget _buildLayout({required Widget child}) {
     return Scaffold(
       backgroundColor: AppColors.primaryColor,
@@ -91,51 +105,6 @@ class _SingleOrderDetailsState extends ConsumerState<SingleOrderDetails> {
             : null,
       ),
       body: child,
-    );
-  }
-
-  Widget _buildDetailRow(String label, String value, {Widget? trailing}) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4.0),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: const TextStyle(
-              color: AppColors.secondaryTextColor,
-              fontSize: 14,
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: trailing == null
-                ? Text(
-                    value,
-                    style: const TextStyle(
-                      color: AppColors.primaryTextColor,
-                      fontSize: 14,
-                    ),
-                  )
-                : Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Flexible(
-                        child: Text(
-                          value,
-                          style: const TextStyle(
-                            color: AppColors.primaryTextColor,
-                            fontSize: 14,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      trailing,
-                    ],
-                  ),
-          ),
-        ],
-      ),
     );
   }
 
@@ -234,88 +203,26 @@ class _SingleOrderDetailsState extends ConsumerState<SingleOrderDetails> {
         subType;
   }
 
-  Widget _buildSummaryRow(String label, String value, {Color? valueColor}) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4.0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            label,
-            style: const TextStyle(
-              color: AppColors.secondaryTextColor,
-              fontSize: 16,
-            ),
-          ),
-          Text(
-            value,
-            style: TextStyle(
-              color: valueColor ?? AppColors.primaryTextColor,
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  Future<bool> _showCreateRefundDialog(OrderItem item) async {
+    final created = await showCreateRefundDialog(context, item: item);
 
-  Widget _buildStatusBadge(String status) {
-    String text;
-    Color color;
-    switch (status) {
-      case "pending":
-        text = "待出貨";
-        color = Colors.orange;
-        break;
-      case "shipped":
-        text = "已出貨";
-        color = AppColors.infoColor;
-        break;
-      case "delivered":
-        text = "已送達";
-        color = AppColors.greenColor;
-        break;
-      case "ready_for_pickup":
-        text = "已送達";
-        color = AppColors.greenColor;
-        break;
-      case "returned":
-        text = "已退回";
-        color = Colors.red;
-        break;
-      case "cancelled":
-        text = "已取消";
-        color = Colors.grey;
-        break;
-      case "exception":
-        text = "發生異常";
-        color = Colors.grey;
-        break;
-      case "unknown":
-        text = "未知狀態";
-        color = Colors.grey;
-        break;
-      default:
-        return const SizedBox.shrink();
+    if (created) {
+      await _refreshOrder();
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('已送出退貨申請')));
+      }
     }
 
-    return Container(
-      margin: const EdgeInsets.only(left: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        border: Border.all(color: color),
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Text(
-        text,
-        style: TextStyle(
-          color: color,
-          fontSize: 12,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
+    return created;
+  }
+
+  void _showRefundItemsBottomSheet(OrderItem item) {
+    showRefundItemsBottomSheet(
+      context,
+      item: item,
+      onCreateRefund: _showCreateRefundDialog,
     );
   }
 
@@ -358,7 +265,10 @@ class _SingleOrderDetailsState extends ConsumerState<SingleOrderDetails> {
     );
   }
 
-  void _viewProductDetails(Product product) {
+  void _viewProductDetails(OrderItem item) {
+    final product = item.product;
+    if (product == null) return;
+
     context.push(
       Routes.singleProductDetails,
       extra: {
@@ -369,174 +279,30 @@ class _SingleOrderDetailsState extends ConsumerState<SingleOrderDetails> {
     );
   }
 
-  Widget _buildProductList(List<OrderItem> items) {
-    return ListView.separated(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: items.length,
-      itemBuilder: (context, index) {
-        final item = items[index];
-        return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8.0),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              GestureDetector(
-                onTap: item.product == null
-                    ? null
-                    : () => _viewProductDetails(item.product!),
-                child: Stack(
-                  children: [
-                    Container(
-                      width: 60,
-                      height: 60,
-                      clipBehavior: Clip.antiAlias,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(4.0),
-                      ),
-                      child:
-                          item.product?.images != null &&
-                              item.product!.images!.isNotEmpty
-                          ? FadeInImage.assetNetwork(
-                              placeholder: "assets/images/photo_loading.gif",
-                              image: item.product!.images![0],
-                              fit: BoxFit.cover,
-                              imageErrorBuilder: (context, error, stackTrace) {
-                                return Image.asset(
-                                  "assets/images/photo_not_found.jpg",
-                                  fit: BoxFit.cover,
-                                );
-                              },
-                            )
-                          : InitialImage(name: item.productNameAtSale),
-                    ),
-                    if (item.product?.type == 'refrigeration')
-                      Positioned(
-                        bottom: 0,
-                        left: 0,
-                        right: 0,
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: Colors.blue.withOpacity(0.8),
-                            borderRadius: const BorderRadius.vertical(
-                              bottom: Radius.circular(4.0),
-                            ),
-                          ),
-                          padding: const EdgeInsets.symmetric(vertical: 2),
-                          alignment: Alignment.center,
-                          child: const Text(
-                            "冷藏",
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ),
-                    if (item.product?.type == 'virtual')
-                      Positioned(
-                        bottom: 0,
-                        left: 0,
-                        right: 0,
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: Colors.green.withOpacity(0.8),
-                            borderRadius: const BorderRadius.vertical(
-                              bottom: Radius.circular(4.0),
-                            ),
-                          ),
-                          padding: const EdgeInsets.symmetric(vertical: 2),
-                          alignment: Alignment.center,
-                          child: const Text(
-                            "免運",
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 12.0),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      item.productNameAtSale,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: AppColors.primaryTextColor,
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    if (item.product != null)
-                      InkWell(
-                        onTap: () {
-                          final userId = ref.read(accountNotifierProvider).id;
-                          context.push(
-                            Routes.chatroomPage,
-                            extra: {
-                              "title": item.product!.name,
-                              "userId": userId,
-                              "accountId": item.product!.sellerId,
-                              "productId": item.product!.id,
-                              "orderId": _order!.id,
-                            },
-                          );
-                        },
-                        child: Padding(
-                          padding: const EdgeInsets.only(
-                            top: 6,
-                            bottom: 6,
-                            right: 8,
-                          ),
-                          child: Text(
-                            '聯絡客服',
-                            style: const TextStyle(
-                              fontSize: 14,
-                              color: AppColors.infoColor,
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    item.unitPriceAtSale.toDollarsString(prefix: "NT"),
-                    style: const TextStyle(
-                      color: AppColors.primaryTextColor,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 8.0),
-                  Text(
-                    '數量: ${item.quantity}',
-                    style: const TextStyle(
-                      color: AppColors.secondaryTextColor,
-                      fontSize: 14,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        );
+  void _contactSupport(OrderItem item) {
+    final product = item.product;
+    if (product == null) return;
+
+    final userId = ref.read(accountNotifierProvider).id;
+    context.push(
+      Routes.chatroomPage,
+      extra: {
+        "title": product.name,
+        "userId": userId,
+        "accountId": product.sellerId,
+        "productId": product.id,
+        "orderId": _order!.id,
       },
-      separatorBuilder: (context, index) =>
-          const Divider(color: AppColors.dividerColor, height: 1),
+    );
+  }
+
+  Widget _buildProductList(List<OrderItem> items) {
+    return OrderItemList(
+      items: items,
+      onContactSupport: _contactSupport,
+      onCreateRefund: _showCreateRefundDialog,
+      onShowRefundDetails: _showRefundItemsBottomSheet,
+      onViewProductDetails: _viewProductDetails,
     );
   }
 
@@ -601,22 +367,25 @@ class _SingleOrderDetailsState extends ConsumerState<SingleOrderDetails> {
       itemSections.add(
         _buildSection(
           title: title,
-          badge: _buildStatusBadge(delivery.status),
+          badge: OrderStatusBadge(status: delivery.status),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildDetailRow('物流單號:', delivery.merchantTradeNo),
-              _buildDetailRow('物流狀態:', delivery.rtnMsg ?? 'N/A'),
+              OrderDetailRow(label: '物流單號:', value: delivery.merchantTradeNo),
+              OrderDetailRow(label: '物流狀態:', value: delivery.rtnMsg ?? 'N/A'),
               if (delivery.logisticsType == "CVS" &&
                   delivery.cvsStoreInfo is Map &&
                   delivery.cvsStoreInfo!["storeName"] is String)
-                _buildDetailRow('取貨門市:', delivery.cvsStoreInfo!["storeName"]),
+                OrderDetailRow(
+                  label: '取貨門市:',
+                  value: delivery.cvsStoreInfo!["storeName"],
+                ),
               if (delivery.logisticsType == "CVS" &&
                   delivery.cvsStoreInfo is Map &&
                   delivery.cvsStoreInfo!["storeAddress"] is String)
-                _buildDetailRow(
-                  '取貨地址:',
-                  delivery.cvsStoreInfo!["storeAddress"],
+                OrderDetailRow(
+                  label: '取貨地址:',
+                  value: delivery.cvsStoreInfo!["storeAddress"],
                 ),
               if (delivery.logs.isNotEmpty)
                 InkWell(
@@ -713,8 +482,8 @@ class _SingleOrderDetailsState extends ConsumerState<SingleOrderDetails> {
                                                           MainAxisAlignment
                                                               .spaceBetween,
                                                       children: [
-                                                        _buildStatusBadge(
-                                                          log.status,
+                                                        OrderStatusBadge(
+                                                          status: log.status,
                                                         ),
                                                         Text(
                                                           Formatter.formatDateTime(
@@ -773,19 +542,21 @@ class _SingleOrderDetailsState extends ConsumerState<SingleOrderDetails> {
               if (delivery.logisticsType == "CVS" ||
                   delivery.logisticsType == "home_delivery") ...[
                 const Divider(color: AppColors.dividerColor),
-                _buildSummaryRow(
-                  delivery.feeDeduction > 0 ? '運費' : '運費小計',
-                  'NT\$ ${delivery.fee.formatWithCommas()}',
+                OrderSummaryRow(
+                  label: delivery.feeDeduction > 0 ? '運費' : '運費小計',
+                  value: 'NT\$ ${delivery.fee.formatWithCommas()}',
                 ),
                 if (delivery.feeDeduction > 0) ...[
-                  _buildSummaryRow(
-                    '運費減免(${delivery.feeDeduction >= delivery.fee ? '免運費活動中' : '運費優惠活動中'})',
-                    '- NT\$ ${delivery.feeDeduction.formatWithCommas()}',
+                  OrderSummaryRow(
+                    label:
+                        '運費減免(${delivery.feeDeduction >= delivery.fee ? '免運費活動中' : '運費優惠活動中'})',
+                    value: '- NT\$ ${delivery.feeDeduction.formatWithCommas()}',
                     valueColor: AppColors.greenColor,
                   ),
-                  _buildSummaryRow(
-                    '運費小計',
-                    'NT\$ ${(delivery.fee - delivery.feeDeduction).formatWithCommas()}',
+                  OrderSummaryRow(
+                    label: '運費小計',
+                    value:
+                        'NT\$ ${(delivery.fee - delivery.feeDeduction).formatWithCommas()}',
                   ),
                 ],
               ],
@@ -830,24 +601,27 @@ class _SingleOrderDetailsState extends ConsumerState<SingleOrderDetails> {
               child: Column(
                 children: [
                   if (_order!.merchantTradeNo.isNotEmpty)
-                    _buildDetailRow('訂單編號:', _order!.merchantTradeNo),
-                  _buildDetailRow(
-                    '訂單日期:',
-                    Formatter.formatDateTime(
+                    OrderDetailRow(
+                      label: '訂單編號:',
+                      value: _order!.merchantTradeNo,
+                    ),
+                  OrderDetailRow(
+                    label: '訂單日期:',
+                    value: Formatter.formatDateTime(
                       _order!.completedAt ?? _order!.createdAt,
                     ),
                   ),
-                  _buildDetailRow(
-                    '訂單狀態:',
-                    _order!.orderStatus == "paid"
+                  OrderDetailRow(
+                    label: '訂單狀態:',
+                    value: _order!.orderStatus == "paid"
                         ? "交易成功"
                         : _order!.orderStatus == "payment-processing"
                         ? "待付款"
                         : _order!.orderStatus.toUpperCase(),
                   ),
-                  _buildDetailRow(
-                    '付款方式:',
-                    _order!.orderPayment == "Credit"
+                  OrderDetailRow(
+                    label: '付款方式:',
+                    value: _order!.orderPayment == "Credit"
                         ? "信用卡"
                         : _order!.orderPayment == "ATM"
                         ? "ATM轉帳"
@@ -881,34 +655,40 @@ class _SingleOrderDetailsState extends ConsumerState<SingleOrderDetails> {
               title: '訂單摘要',
               child: Column(
                 children: [
-                  _buildSummaryRow(
-                    '商品總金額',
-                    subtotal.toDollarsString(prefix: "NT"),
+                  OrderSummaryRow(
+                    label: '商品總金額',
+                    value: subtotal.toDollarsString(prefix: "NT"),
                   ),
-                  _buildSummaryRow(
-                    '金幣折抵',
-                    '- ${discount.toDollarsString(prefix: "NT")}',
+                  OrderSummaryRow(
+                    label: '金幣折抵',
+                    value: '- ${discount.toDollarsString(prefix: "NT")}',
                     valueColor: AppColors.greenColor,
                   ),
-                  _buildSummaryRow(
-                    '總運費',
-                    shippingCost.toDollarsString(prefix: "NT"),
+                  OrderSummaryRow(
+                    label: '總運費',
+                    value: shippingCost.toDollarsString(prefix: "NT"),
                   ),
                   if (shippingCostDeduction > 0)
-                    _buildSummaryRow(
-                      '運費減免',
-                      '- ${shippingCostDeduction.toDollarsString(prefix: "NT")}',
+                    OrderSummaryRow(
+                      label: '運費減免',
+                      value:
+                          '- ${shippingCostDeduction.toDollarsString(prefix: "NT")}',
                       valueColor: AppColors.greenColor, // Green for discount
                     ),
                   if (!kReleaseMode)
-                    _buildSummaryRow(
-                      '手續費${(_order!.transactionFeeRateAtSale == null || _order!.transactionFeeRateAtSale == 0) ? "" : "(${_order!.transactionFeeRateAtSale! * 100}%)"}',
-                      transactionFee.floor().toDollarsString(prefix: "NT"),
+                    OrderSummaryRow(
+                      label:
+                          '手續費${(_order!.transactionFeeRateAtSale == null || _order!.transactionFeeRateAtSale == 0) ? "" : "(${_order!.transactionFeeRateAtSale! * 100}%)"}',
+                      value: transactionFee.floor().toDollarsString(
+                        prefix: "NT",
+                      ),
                     ),
                   const Divider(color: AppColors.dividerColor),
-                  _buildSummaryRow(
-                    '最終需支付現金',
-                    _order!.totalAmount.floor().toDollarsString(prefix: "NT"),
+                  OrderSummaryRow(
+                    label: '最終需支付現金',
+                    value: _order!.totalAmount.floor().toDollarsString(
+                      prefix: "NT",
+                    ),
                     valueColor: AppColors.goldColor,
                   ),
                 ],

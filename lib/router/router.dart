@@ -186,8 +186,23 @@ GoRouter getRouter({
           ),
           GoRoute(
             path: Routes.textSearch,
-            builder: (context, state) =>
-                TextSearchPage(textSearch: state.extra as String),
+            builder: (context, state) {
+              final extra = state.extra;
+              if (extra is Map) {
+                final source = extra['source'];
+                return TextSearchPage(
+                  textSearch: extra['textSearch'] as String? ?? '',
+                  source: source is TextSearchSource
+                      ? source
+                      : TextSearchSource.values.firstWhere(
+                          (value) => value.name == source,
+                          orElse: () => TextSearchSource.product,
+                        ),
+                );
+              }
+
+              return TextSearchPage(textSearch: extra as String? ?? '');
+            },
           ),
           GoRoute(
             path: Routes.photoView,

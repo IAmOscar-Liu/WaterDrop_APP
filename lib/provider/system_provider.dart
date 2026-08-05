@@ -21,6 +21,94 @@ class SystemNotifier extends _$SystemNotifier {
     return System();
   }
 
+  Future<Result<Map<String, dynamic>>> loadSystemInfo() async {
+    try {
+      final response = await ref.read(dioProvider).get("/api/system/info");
+      final data = response.data;
+
+      if (data['success'] != true) {
+        throw Exception("Fail to load system info");
+      }
+
+      state = state.copyWith(systemInfo: data['data']);
+
+      return Result.success(data['data']);
+    } catch (e) {
+      return Result.failure(
+        e is DioException
+            ? getDioExceptionMessage(e)
+            : "Failed to load system info: $e",
+      );
+    }
+  }
+
+  Future<Result<Map<String, dynamic>>> loadProductRecommendation() async {
+    try {
+      final response = await ref
+          .read(dioProvider)
+          .get("/api/system/product-recommendation");
+      final data = response.data;
+
+      if (data['success'] != true) {
+        throw Exception("Fail to load product recommendation");
+      }
+
+      state = state.copyWith(productRecommendation: data['data']);
+
+      return Result.success(data['data']);
+    } catch (e) {
+      return Result.failure(
+        e is DioException
+            ? getDioExceptionMessage(e)
+            : "Failed to load product recommendation: $e",
+      );
+    }
+  }
+
+  Future<Result<Map<String, dynamic>>> loadCustomerSupportContent() async {
+    try {
+      final response = await ref
+          .read(dioProvider)
+          .get("/api/system/customer-support");
+      final data = response.data;
+
+      if (data['success'] != true) {
+        throw Exception("Fail to load customer support content");
+      }
+
+      state = state.copyWith(customerSupportContent: data['data']);
+
+      return Result.success(data['data']);
+    } catch (e) {
+      return Result.failure(
+        e is DioException
+            ? getDioExceptionMessage(e)
+            : "Failed to load customer support content: $e",
+      );
+    }
+  }
+
+  Future<Result<List>> loadBankList() async {
+    try {
+      final response = await ref.read(dioProvider).get("/api/system/bank-list");
+      final data = response.data;
+
+      if (data['success'] != true) {
+        throw Exception("Fail to load bank list");
+      }
+
+      state = state.copyWith(bankList: data['data']);
+
+      return Result.success(data['data']);
+    } catch (e) {
+      return Result.failure(
+        e is DioException
+            ? getDioExceptionMessage(e)
+            : "Failed to load bank list: $e",
+      );
+    }
+  }
+
   Future<Result<String>> sendFcmToken(
     String fcmToken, {
     String? deviceId,

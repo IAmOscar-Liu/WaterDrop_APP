@@ -1,8 +1,10 @@
 // account_delivery_page.dart
 
 import 'package:flutter/material.dart';
+import 'package:flutter_ad_ecommerce/constants/app_constants.dart';
 import 'package:flutter_ad_ecommerce/constants/colors.dart';
 import 'package:flutter_ad_ecommerce/provider/account_provider.dart';
+import 'package:flutter_ad_ecommerce/provider/system_provider.dart';
 import 'package:flutter_ad_ecommerce/widgets/keyboard_dismiss_on_tap.dart';
 import 'package:flutter_ad_ecommerce/widgets/simple_app_bar.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -19,18 +21,34 @@ class _AccountDeliveryPageState extends ConsumerState<AccountDeliveryPage> {
   late final TextEditingController _nameController;
   late final TextEditingController _addressController;
   late final TextEditingController _phoneController;
+  late final TextEditingController _bankAccountController;
 
+  final _formKey = GlobalKey<FormState>();
   bool _isLoading = false;
+  bool _isLoadingBankList = false;
+  bool _resetBank = false;
+  String? _selectedBankCode;
+  String? _selectedBankName;
 
   @override
   void initState() {
     super.initState();
-    final accountDeliveryInfo = ref.read(accountNotifierProvider);
-    _nameController = TextEditingController(text: accountDeliveryInfo.name);
-    _addressController = TextEditingController(
-      text: accountDeliveryInfo.address,
+    final accountInfo = ref.read(accountNotifierProvider);
+    _nameController = TextEditingController(text: accountInfo.name);
+    _addressController = TextEditingController(text: accountInfo.address);
+    _phoneController = TextEditingController(text: accountInfo.phone);
+    _bankAccountController = TextEditingController(
+      text: accountInfo.bankAccount,
     );
-    _phoneController = TextEditingController(text: accountDeliveryInfo.phone);
+    _selectedBankCode = accountInfo.bankCode;
+    _selectedBankName = accountInfo.bankName;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final bankList = ref.read(systemNotifierProvider).bankList;
+      if (bankList == null || bankList.isEmpty) {
+        _loadBankList();
+      }
+    });
   }
 
   @override
@@ -38,44 +56,161 @@ class _AccountDeliveryPageState extends ConsumerState<AccountDeliveryPage> {
     _nameController.dispose();
     _addressController.dispose();
     _phoneController.dispose();
+    _bankAccountController.dispose();
     super.dispose();
   }
 
+  Future<void> _loadBankList() async {
+    if (_isLoadingBankList) return;
+
+    setState(() {
+      _isLoadingBankList = true;
+    });
+
+    final result = await ref
+        .read(systemNotifierProvider.notifier)
+        .loadBankList();
+
+    if (!mounted) return;
+
+    setState(() {
+      _isLoadingBankList = false;
+    });
+
+    if (result.isFailure) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(result.error ?? '銀行資料載入失敗'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
   void _handleUpdateDelivery() async {
+    if (_formKey.currentState?.validate() != true) return;
+
+    final accountInfo = ref.read(accountNotifierProvider);
+    final bankCode = _selectedBankCode?.trim();
+    final bankAccount = _bankAccountController.text.trim();
+    final isSameBankInfo =
+        (bankCode ?? '') == (accountInfo.bankCode?.trim() ?? '') &&
+        bankAccount == (accountInfo.bankAccount?.trim() ?? '');
+    final bankAccountUpdateReminder =
+        ref
+                .read(systemNotifierProvider)
+                .systemInfo?['bankAccountUpdateReminder']
+            as String?;
+    if (!isSameBankInfo && bankAccountUpdateReminder != null) {
+      final confirmed = await _confirmBankAccountUpdate(
+        bankAccountUpdateReminder,
+      );
+      if (!confirmed || !mounted) return;
+    }
+
     setState(() {
       _isLoading = true;
     });
 
-    try {
-      await ref
-          .read(accountNotifierProvider.notifier)
-          .saveDeliveryInfo(
-            name: _nameController.text,
-            address: _addressController.text,
-            phone: _phoneController.text,
-          );
+    final result = await ref
+        .read(accountNotifierProvider.notifier)
+        .saveDeliveryInfo(
+          name: _nameController.text.trim(),
+          address: _addressController.text.trim(),
+          phone: _phoneController.text.trim(),
+          bankCode: isSameBankInfo ? null : bankCode,
+          bankAccount: isSameBankInfo ? null : bankAccount,
+          resetBank: isSameBankInfo ? null : _resetBank,
+        );
 
-      // Show success message
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('寄貨資料已成功儲存！'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-    } catch (e) {
-      // Show error message
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('儲存失敗：$e'), backgroundColor: Colors.red),
-        );
-      }
-    } finally {
+    if (mounted) {
       setState(() {
         _isLoading = false;
       });
+
+      if (result.isSuccess) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('寄貨資訊已成功儲存！'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else {
+        await showDialog<void>(
+          context: context,
+          builder: (context) {
+            return AlertDialog(
+              backgroundColor: const Color(0xFF262A33),
+              title: const Text('儲存失敗', style: TextStyle(color: Colors.white)),
+              content: Text(
+                result.error ?? '寄貨資訊儲存失敗，請稍後再試。',
+                style: const TextStyle(color: Colors.white),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text(
+                    '確定',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      }
     }
+  }
+
+  Future<bool> _confirmBankAccountUpdate(String reminder) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF262A33),
+          title: const Text('確認銀行帳戶', style: TextStyle(color: Colors.white)),
+          content: Text(reminder, style: TextStyle(color: Colors.white)),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('取消', style: TextStyle(color: Colors.white70)),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('確認送出', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        );
+      },
+    );
+
+    return confirmed == true;
+  }
+
+  String? _requiredValidator(String? value, String label) {
+    if (value == null || value.trim().isEmpty) {
+      return '請輸入$label';
+    }
+    return null;
+  }
+
+  String? _bankAccountValidator(String? value) {
+    final bankAccount = value?.trim() ?? '';
+    final hasBank = _selectedBankCode != null && _selectedBankCode!.isNotEmpty;
+
+    if (bankAccount.isEmpty && !hasBank) return null;
+    if (!hasBank) return '請選擇銀行';
+    if (bankAccount.isEmpty) return '請輸入銀行帳號';
+    return null;
+  }
+
+  void _clearBankInfo() {
+    setState(() {
+      _selectedBankCode = null;
+      _selectedBankName = null;
+      _bankAccountController.clear();
+      _resetBank = true;
+    });
   }
 
   Widget _buildDeliveryInfo() {
@@ -90,12 +225,25 @@ class _AccountDeliveryPageState extends ConsumerState<AccountDeliveryPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            "寄貨資料",
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 18,
-              color: AppColors.primaryTextColor,
+          const SizedBox(
+            height: 32,
+            child: Row(
+              children: [
+                Icon(
+                  Icons.person_outline,
+                  size: 20,
+                  color: AppColors.primaryTextColor,
+                ),
+                SizedBox(width: 6),
+                Text(
+                  "收件人資訊",
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                    color: AppColors.primaryTextColor,
+                  ),
+                ),
+              ],
             ),
           ),
           const Divider(color: AppColors.dividerColor),
@@ -104,11 +252,30 @@ class _AccountDeliveryPageState extends ConsumerState<AccountDeliveryPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildInputField(label: '姓名', controller: _nameController),
+                _buildInputField(
+                  label: '姓名',
+                  controller: _nameController,
+                  isRequired: true,
+                  validator: (value) => _requiredValidator(value, '姓名'),
+                ),
                 const SizedBox(height: 16),
-                _buildInputField(label: '地址', controller: _addressController),
+                _buildInputField(
+                  label: '地址',
+                  controller: _addressController,
+                  isRequired: true,
+                  keyboardType: TextInputType.multiline,
+                  minLines: 3,
+                  maxLines: 5,
+                  validator: (value) => _requiredValidator(value, '地址'),
+                ),
                 const SizedBox(height: 16),
-                _buildInputField(label: '手機號碼', controller: _phoneController),
+                _buildInputField(
+                  label: '手機號碼',
+                  controller: _phoneController,
+                  isRequired: true,
+                  keyboardType: TextInputType.phone,
+                  validator: (value) => _requiredValidator(value, '手機號碼'),
+                ),
               ],
             ),
           ),
@@ -117,50 +284,277 @@ class _AccountDeliveryPageState extends ConsumerState<AccountDeliveryPage> {
     );
   }
 
+  Widget _buildBankInfo() {
+    final bankList = ref.watch(systemNotifierProvider).bankList ?? [];
+    final bankItems = bankList
+        .whereType<Map>()
+        .map((bank) {
+          final code = bank['code']?.toString() ?? '';
+          final name = bank['name']?.toString() ?? '';
+          if (code.isEmpty || name.isEmpty) return null;
+          return MapEntry(code, name);
+        })
+        .whereType<MapEntry<String, String>>()
+        .toList();
+    final selectedBankCode =
+        bankItems.any((bank) => bank.key == _selectedBankCode)
+        ? _selectedBankCode
+        : null;
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16.0),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.containerBgColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.borderColor, width: 1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            height: 32,
+            child: Row(
+              children: [
+                const Expanded(
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.account_balance_outlined,
+                        size: 20,
+                        color: AppColors.primaryTextColor,
+                      ),
+                      SizedBox(width: 6),
+                      Text(
+                        "帳戶資訊",
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 18,
+                          color: AppColors.primaryTextColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                InkWell(
+                  onTap: _isLoading ? null : _clearBankInfo,
+                  borderRadius: BorderRadius.circular(6),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    child: Text(
+                      '清除',
+                      style: TextStyle(
+                        color: _isLoading
+                            ? AppColors.secondaryTextColor
+                            : AppColors.navbarIndicatorColor,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Divider(color: AppColors.dividerColor),
+          const Padding(
+            padding: EdgeInsets.fromLTRB(16, 0, 16, 12),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.info_outline,
+                  size: 16,
+                  color: AppColors.secondaryTextColor,
+                ),
+                SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    '帳戶資訊僅供退款使用',
+                    style: TextStyle(
+                      color: AppColors.secondaryTextColor,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildBankSelector(
+                  bankItems: bankItems,
+                  selectedBankCode: selectedBankCode,
+                ),
+                const SizedBox(height: 16),
+                _buildInputField(
+                  label: '銀行帳號',
+                  controller: _bankAccountController,
+                  keyboardType: TextInputType.number,
+                  validator: _bankAccountValidator,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBankSelector({
+    required List<MapEntry<String, String>> bankItems,
+    required String? selectedBankCode,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.only(bottom: 8.0),
+          child: Text(
+            '銀行代碼 / 銀行名稱',
+            style: TextStyle(color: AppColors.secondaryTextColor, fontSize: 14),
+          ),
+        ),
+        DropdownButtonFormField<String>(
+          key: ValueKey(selectedBankCode ?? 'empty-bank'),
+          initialValue: selectedBankCode,
+          isExpanded: true,
+          dropdownColor: AppColors.fieldInputColor,
+          style: const TextStyle(color: Colors.white, fontSize: 16),
+          iconEnabledColor: AppColors.secondaryTextColor,
+          decoration: _inputDecoration(),
+          hint: Text(
+            _isLoadingBankList ? '銀行資料載入中...' : '選擇銀行',
+            style: const TextStyle(color: AppColors.secondaryTextColor),
+          ),
+          items: bankItems
+              .map(
+                (bank) => DropdownMenuItem<String>(
+                  value: bank.key,
+                  child: Text('${bank.key} ${bank.value}'),
+                ),
+              )
+              .toList(),
+          onChanged: _isLoading || _isLoadingBankList
+              ? null
+              : (value) {
+                  final selectedBank = bankItems
+                      .where((bank) => bank.key == value)
+                      .firstOrNull;
+                  setState(() {
+                    _selectedBankCode = selectedBank?.key;
+                    _selectedBankName = selectedBank?.value;
+                    _resetBank = false;
+                  });
+                },
+          validator: (_) {
+            if (_bankAccountController.text.trim().isNotEmpty &&
+                (_selectedBankCode == null || _selectedBankCode!.isEmpty)) {
+              return '請選擇銀行';
+            }
+            return null;
+          },
+        ),
+        if (selectedBankCode == null &&
+            _selectedBankCode != null &&
+            _selectedBankName != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 8.0),
+            child: Text(
+              '目前銀行：$_selectedBankCode $_selectedBankName',
+              style: const TextStyle(
+                color: AppColors.secondaryTextColor,
+                fontSize: 12,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
   Widget _buildInputField({
     required String label,
     required TextEditingController controller,
+    bool isRequired = false,
+    TextInputType? keyboardType,
+    int? minLines,
+    int? maxLines = 1,
+    String? Function(String?)? validator,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
           padding: const EdgeInsets.only(bottom: 8.0),
-          child: Text(
-            label,
-            style: const TextStyle(
-              color: AppColors.secondaryTextColor,
-              fontSize: 14,
+          child: RichText(
+            text: TextSpan(
+              text: label,
+              style: const TextStyle(
+                color: AppColors.secondaryTextColor,
+                fontSize: 14,
+              ),
+              children: [
+                if (isRequired)
+                  const TextSpan(
+                    text: ' *',
+                    style: TextStyle(color: Colors.red),
+                  ),
+              ],
             ),
           ),
         ),
-        TextField(
+        TextFormField(
           controller: controller,
+          keyboardType: keyboardType,
+          minLines: minLines,
+          maxLines: maxLines,
           style: const TextStyle(color: Colors.white, fontSize: 16),
           cursorColor: AppColors.navbarIndicatorColor,
-          decoration: InputDecoration(
-            filled: true,
-            fillColor: AppColors.fieldInputColor,
-            border: InputBorder.none,
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 12,
-            ),
-            isDense: true,
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(color: Colors.transparent),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(
-                color: AppColors.navbarIndicatorColor,
-                width: 2,
-              ),
-            ),
-          ),
+          decoration: _inputDecoration(),
+          validator: validator,
+          onChanged: (_) {
+            if (controller == _bankAccountController) {
+              setState(() {
+                _resetBank = false;
+              });
+            }
+          },
         ),
       ],
+    );
+  }
+
+  InputDecoration _inputDecoration() {
+    return InputDecoration(
+      filled: true,
+      fillColor: AppColors.fieldInputColor,
+      border: InputBorder.none,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      isDense: true,
+      errorStyle: const TextStyle(color: Colors.redAccent),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+        borderSide: const BorderSide(color: Colors.transparent),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+        borderSide: const BorderSide(
+          color: AppColors.navbarIndicatorColor,
+          width: 2,
+        ),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+        borderSide: const BorderSide(color: Colors.redAccent),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+        borderSide: const BorderSide(color: Colors.redAccent, width: 2),
+      ),
     );
   }
 
@@ -168,50 +562,55 @@ class _AccountDeliveryPageState extends ConsumerState<AccountDeliveryPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.scaffoldBgColor,
-      appBar: const SimpleAppBar(title: '帳號設定與支援'),
+      appBar: const SimpleAppBar(title: '寄貨資料'),
       body: SafeArea(
         child: KeyboardDismissOnTap(
           child: SingleChildScrollView(
             padding: const EdgeInsets.only(top: 24, bottom: 24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildDeliveryInfo(),
-                const SizedBox(height: 24),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: _isLoading ? null : _handleUpdateDelivery,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.navbarIndicatorColor,
-                        padding: const EdgeInsets.symmetric(vertical: 16.0),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildDeliveryInfo(),
+                  const SizedBox(height: 16),
+                  _buildBankInfo(),
+                  const SizedBox(height: 24),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: _isLoading ? null : _handleUpdateDelivery,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.navbarIndicatorColor,
+                          padding: const EdgeInsets.symmetric(vertical: 16.0),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
                         ),
+                        child: _isLoading
+                            ? const SizedBox(
+                                height: 24,
+                                width: 24,
+                                child: CircularProgressIndicator(
+                                  color: Colors.white,
+                                  strokeWidth: 3,
+                                ),
+                              )
+                            : const Text(
+                                '儲存寄貨資料',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
                       ),
-                      child: _isLoading
-                          ? const SizedBox(
-                              height: 24,
-                              width: 24,
-                              child: CircularProgressIndicator(
-                                color: Colors.white,
-                                strokeWidth: 3,
-                              ),
-                            )
-                          : const Text(
-                              '儲存寄貨資料',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),

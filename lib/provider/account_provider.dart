@@ -82,27 +82,46 @@ class AccountNotifier extends _$AccountNotifier {
   }
 
   /// Simulates saving the delivery information
-  Future<void> saveDeliveryInfo({
+  Future<Result> saveDeliveryInfo({
     required String name,
     required String address,
     required String phone,
+    String? bankCode,
+    String? bankAccount,
+    bool? resetBank,
   }) async {
+    Map<String, dynamic> payload = {
+      "name": name,
+      "address": address,
+      "phone": phone,
+    };
+
+    if (resetBank == true) {
+      payload["resetBank"] = true;
+    } else if (bankCode != null &&
+        bankCode.isNotEmpty &&
+        bankAccount != null &&
+        bankAccount.isNotEmpty) {
+      payload["bankCode"] = bankCode;
+      payload["bankAccount"] = bankAccount;
+    }
+
     try {
       final response = await ref
           .read(dioProvider)
-          .put(
-            "/api/auth/profile",
-            data: {"name": name, "address": address, "phone": phone},
-          );
+          .put("/api/auth/profile", data: payload);
       final data = response.data;
       if (data['success'] != true) {
         throw Exception("Failed to save delivery info");
       }
       refreshAccountInfo();
+      return Result.success();
     } on DioException catch (e) {
       log("Error saving delivery info: ${getDioExceptionMessage(e)}");
+      return Result.failure(getDioExceptionMessage(e));
     } catch (e) {
       log("Error saving delivery info: $e");
+      return Result.failure("Error saving delivery info: $e");
     }
     // state = state.copyWith(name: name, address: address, phone: phone);
   }

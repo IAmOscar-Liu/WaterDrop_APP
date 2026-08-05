@@ -35,6 +35,22 @@ class ApiCallManager {
     return lastCallDate != currentDate;
   }
 
+  static Future<bool> isOlderThan(String apiKey, Duration maxAge) async {
+    final prefs = await SharedPreferences.getInstance();
+    final String? lastCallString = prefs.getString(apiKey);
+
+    if (lastCallString == null) {
+      return true;
+    }
+
+    final DateTime? lastCallTime = DateTime.tryParse(lastCallString);
+    if (lastCallTime == null) {
+      return true;
+    }
+
+    return DateTime.now().difference(lastCallTime) > maxAge;
+  }
+
   // A function to update the timestamp after a successful call.
   static Future<void> updateApiCallTimestamp(String apiKey) async {
     final prefs = await SharedPreferences.getInstance();

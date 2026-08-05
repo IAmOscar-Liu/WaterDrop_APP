@@ -1,58 +1,64 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_ad_ecommerce/constants/colors.dart';
+import 'package:flutter_ad_ecommerce/provider/system_provider.dart';
 import 'package:flutter_ad_ecommerce/widgets/simple_app_bar.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
-class TextSearchPage extends StatefulWidget {
-  const TextSearchPage({super.key, required this.textSearch});
+enum TextSearchSource {
+  product,
+  collection,
+  message;
 
-  final String textSearch;
+  String get historyKey => 'text-search-history-$name';
 
-  @override
-  State<TextSearchPage> createState() => _TextSearchPageState();
+  String get historyTitle => switch (this) {
+    TextSearchSource.product => '商品搜尋記錄',
+    TextSearchSource.collection => '收藏搜尋記錄',
+    TextSearchSource.message => '訊息搜尋記錄',
+  };
+
+  bool get showsPopularSearches => this != TextSearchSource.message;
 }
 
-class _TextSearchPageState extends State<TextSearchPage> {
-  // Use a TextEditingController to manage the text field's state
+class TextSearchPage extends ConsumerStatefulWidget {
+  const TextSearchPage({
+    super.key,
+    required this.textSearch,
+    this.source = TextSearchSource.product,
+  });
+
+  final String textSearch;
+  final TextSearchSource source;
+
+  @override
+  ConsumerState<TextSearchPage> createState() => _TextSearchPageState();
+}
+
+class _TextSearchPageState extends ConsumerState<TextSearchPage> {
+  static const _maxSearchHistory = 10;
+
   late final TextEditingController _textController;
 
-  // Mock data for search suggestions
-  List<String> _suggestions = [
-    '手機殼',
-    '保護貼',
-    '充電線',
-    '藍牙耳機',
-    '行動電源',
-    '智慧手錶',
-    '筆記型電腦',
-    '平板電腦',
-    '相機',
-    '遊戲機',
-    '手機',
-    '電視',
-    '手機支架',
-    '手機貼膜',
-    '手機充電器',
-    '平板電腦保護殼',
-  ];
+  List<String> _suggestions = [];
 
-  // The list of suggestions to display, filtered based on user input
   List<String> _filteredSuggestions = [];
+  List<String> _searchHistory = [];
 
   @override
   void initState() {
     super.initState();
-    _loadProductSuggestions();
     // Initialize the text controller with the text from the previous page
     _textController = TextEditingController(text: widget.textSearch);
-    // Add a listener to the text controller to rebuild the widget when the text changes.
-    // This is needed to show/hide the clear button.
     _textController.addListener(() {
       setState(() {});
     });
+    _filteredSuggestions = _buildFilteredSuggestions();
+    _loadSearchHistory();
+    if (widget.source.showsPopularSearches) {
+      _loadProductSuggestions();
+    }
   }
 
   @override
@@ -63,89 +69,133 @@ class _TextSearchPageState extends State<TextSearchPage> {
 
   Future<void> _loadProductSuggestions() async {
     try {
-      // 1. Load the JSON file as a string from the assets folder.
-      // Make sure you have created the file at this path: /assets/json/mock_product_list.json
-      // And declared it in your pubspec.yaml file.
-      final String jsonString = await rootBundle.loadString(
-        'assets/json/mock_product_list.json',
-      );
+      Map<String, dynamic> data =
+          ref.read(systemNotifierProvider).productRecommendation ?? {};
 
-      // 2. Decode the JSON string into a Dart Map.
-      // The structure is Map<String, dynamic> where the value is a List<dynamic>.
-      final Map<String, dynamic> data = json.decode(jsonString);
-
-      // 3. Create a temporary list to hold all items.
-      final List<String> allItems = [];
-
-      // 4. Iterate over the values of the map (which are the lists of products).
-      for (var productList in data.values) {
-        // Ensure each item is a String and add it to our master list.
-        allItems.addAll(List<String>.from(productList));
+      if (data.isEmpty) {
+        final result = await ref
+            .read(systemNotifierProvider.notifier)
+            .loadProductRecommendation();
+        if (result.isFailure) {
+          debugPrint('Error loading product suggestions: ${result.error}');
+          return;
+        }
+        data = result.data ?? {};
       }
 
-      // 5. Update the state with the loaded data.
-      // This will trigger a rebuild of the widget to display the list.
+      final popular = data['popular'];
+      final suggestions = popular is Iterable
+          ? popular.whereType<String>().toSet().toList()
+          : <String>[];
+
       if (mounted) {
-        print("suggestions length: ${allItems.length} ");
-        final combineList = [..._suggestions, ...allItems];
         setState(() {
-          _suggestions = combineList.toSet().toList();
-          // Call _filterSuggestions() here to ensure the list is filtered after data is loaded
-          _filterSuggestions();
+          _suggestions = suggestions;
+          _filteredSuggestions = _buildFilteredSuggestions();
         });
       }
     } catch (e) {
       // Handle any errors that might occur during loading/parsing
-      print('Error loading product suggestions: $e');
+      debugPrint('Error loading product suggestions: $e');
     }
   }
 
-  // A method to filter the suggestions based on user input
-  void _filterSuggestions() {
+  Future<void> _loadSearchHistory() async {
+    final prefs = await SharedPreferences.getInstance();
+    final history = prefs.getStringList(widget.source.historyKey) ?? [];
+
+    if (mounted) {
+      setState(() {
+        _searchHistory = history;
+      });
+    }
+  }
+
+  Future<void> _saveSearchHistory(String searchText) async {
+    final trimmedSearchText = searchText.trim();
+    if (trimmedSearchText.isEmpty) {
+      return;
+    }
+
+    final history = [
+      trimmedSearchText,
+      ..._searchHistory.where((item) => item != trimmedSearchText),
+    ].take(_maxSearchHistory).toList();
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(widget.source.historyKey, history);
+
+    if (mounted) {
+      setState(() {
+        _searchHistory = history;
+      });
+    }
+  }
+
+  Future<void> _clearSearchHistory() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(widget.source.historyKey);
+
+    if (mounted) {
+      setState(() {
+        _searchHistory = [];
+      });
+    }
+  }
+
+  List<String> _buildFilteredSuggestions() {
     final String query = _textController.text.toLowerCase();
+
+    if (query.isEmpty) {
+      return _suggestions.take(5).toList();
+    }
+
+    final List<String> matches = _suggestions
+        .where((suggestion) => suggestion.toLowerCase().contains(query))
+        .toList();
+
+    matches.sort((a, b) {
+      final int aCount = a.toLowerCase().split(query).length - 1;
+      final int bCount = b.toLowerCase().split(query).length - 1;
+      return bCount.compareTo(aCount); // Sort in descending order
+    });
+
+    final filteredSuggestions = matches.take(5).toList();
+
+    // Add the user's input as the first item if it's not already in the list
+    if (!filteredSuggestions.any((s) => s.toLowerCase() == query)) {
+      filteredSuggestions.insert(0, _textController.text);
+    }
+
+    return filteredSuggestions;
+  }
+
+  void _filterSuggestions() {
     setState(() {
-      if (query.isEmpty) {
-        // If the input is empty, show the first 5 suggestions
-        _filteredSuggestions = _suggestions.take(5).toList();
-      } else {
-        // If there's input, filter and show the most relevant 5
-        final List<String> matches = _suggestions
-            .where((suggestion) => suggestion.toLowerCase().contains(query))
-            .toList();
-
-        // Sort the matched suggestions based on relevance
-        matches.sort((a, b) {
-          final int aCount = a.toLowerCase().split(query).length - 1;
-          final int bCount = b.toLowerCase().split(query).length - 1;
-          return bCount.compareTo(aCount); // Sort in descending order
-        });
-
-        _filteredSuggestions = matches.take(5).toList();
-
-        // Add the user's input as the first item if it's not already in the list
-        if (!_filteredSuggestions.any((s) => s.toLowerCase() == query)) {
-          _filteredSuggestions.insert(0, _textController.text);
-        }
-      }
+      _filteredSuggestions = _buildFilteredSuggestions();
     });
   }
 
-  // A method to handle item taps and keyboard "send" action
-  void _performSearch(String searchText) {
-    // This is a placeholder for `Navigator.pop(context, searchText)`.
-    // Since we don't have access to Navigator here, we will print the result.
-    // Replace this with `Navigator.pop(context, searchText);` in a real app.
+  Future<void> _performSearch(String searchText) async {
+    final trimmedSearchText = searchText.trim();
+    if (trimmedSearchText.isEmpty) {
+      if (mounted) {
+        context.pop('');
+      }
+      return;
+    }
 
-    debugPrint('Performing search for: $searchText');
-    context.pop(searchText);
+    debugPrint('Performing search for: $trimmedSearchText');
+    await _saveSearchHistory(trimmedSearchText);
+    if (mounted) {
+      context.pop(trimmedSearchText);
+    }
   }
 
-  // A helper function to build a RichText widget with highlighted matched query.
   Widget _buildHighlightedText(String text, String query) {
     final lowerCaseText = text.toLowerCase();
     final lowerCaseQuery = query.toLowerCase();
 
-    // If the query is empty or doesn't exist, return a normal Text widget.
     if (lowerCaseQuery.isEmpty || !lowerCaseText.contains(lowerCaseQuery)) {
       return Text(
         text,
@@ -153,16 +203,13 @@ class _TextSearchPageState extends State<TextSearchPage> {
       );
     }
 
-    // Find the starting index of the query in the text
     final startIndex = lowerCaseText.indexOf(lowerCaseQuery);
     final endIndex = startIndex + lowerCaseQuery.length;
 
-    // Split the string into three parts: before, the match, and after.
     final leadingText = text.substring(0, startIndex);
     final matchedText = text.substring(startIndex, endIndex);
     final trailingText = text.substring(endIndex);
 
-    // Return a RichText widget with different styles for each part.
     return RichText(
       text: TextSpan(
         style: const TextStyle(color: AppColors.primaryTextColor),
@@ -181,20 +228,91 @@ class _TextSearchPageState extends State<TextSearchPage> {
     );
   }
 
+  Widget _buildSectionHeader(String title, {VoidCallback? onClear}) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              title,
+              style: const TextStyle(
+                color: AppColors.primaryTextColor,
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          if (onClear != null)
+            IconButton(
+              tooltip: '清除搜尋記錄',
+              icon: const Icon(
+                Icons.delete_outline,
+                color: AppColors.mutedTextColor,
+              ),
+              onPressed: onClear,
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSearchItem(String text, IconData icon) {
+    return ListTile(
+      leading: Icon(icon, color: AppColors.primaryTextColor),
+      title: _buildHighlightedText(text, _textController.text),
+      onTap: () {
+        _performSearch(text);
+      },
+    );
+  }
+
+  List<String> _filterItems(List<String> items) {
+    final query = _textController.text.trim().toLowerCase();
+    if (query.isEmpty) {
+      return items;
+    }
+
+    return items.where((item) => item.toLowerCase().contains(query)).toList();
+  }
+
+  Widget _buildSearchGroups() {
+    final history = _filterItems(_searchHistory);
+    final popularSearches = _textController.text.trim().isEmpty
+        ? _suggestions.take(8).toList()
+        : _filteredSuggestions;
+
+    return ListView(
+      children: [
+        if (history.isNotEmpty) ...[
+          _buildSectionHeader(
+            widget.source.historyTitle,
+            onClear: _clearSearchHistory,
+          ),
+          ...history.map((item) => _buildSearchItem(item, Icons.history)),
+        ],
+        if (widget.source.showsPopularSearches) ...[
+          _buildSectionHeader('熱門搜尋'),
+          ...popularSearches.map(
+            (item) => _buildSearchItem(item, Icons.search),
+          ),
+        ],
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.scaffoldBgColor,
       appBar: SimpleAppBar(title: '關鍵字搜尋'),
       resizeToAvoidBottomInset: true,
-      // Use GestureDetector to dismiss the keyboard when clicking outside the text field
       body: GestureDetector(
         onTap: () {
           FocusScope.of(context).unfocus();
         },
         child: Column(
           children: [
-            // The search text field
             Padding(
               padding: const EdgeInsets.all(16.0),
               child: TextField(
@@ -235,28 +353,7 @@ class _TextSearchPageState extends State<TextSearchPage> {
                 ),
               ),
             ),
-            // The list of suggestions
-            Expanded(
-              child: ListView.builder(
-                itemCount: _filteredSuggestions.length,
-                itemBuilder: (context, index) {
-                  final String suggestion = _filteredSuggestions[index];
-                  return ListTile(
-                    leading: const Icon(
-                      Icons.search,
-                      color: AppColors.primaryTextColor,
-                    ),
-                    title: _buildHighlightedText(
-                      suggestion,
-                      _textController.text,
-                    ),
-                    onTap: () {
-                      _performSearch(suggestion);
-                    },
-                  );
-                },
-              ),
-            ),
+            Expanded(child: _buildSearchGroups()),
           ],
         ),
       ),

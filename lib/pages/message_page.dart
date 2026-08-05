@@ -323,16 +323,22 @@ class _MessagePageState extends ConsumerState<MessagePage> {
               child: Builder(
                 builder: (context) {
                   void onSelectTextSearch(String textSearch) {
-                    context.push(Routes.textSearch, extra: textSearch).then((
-                      value,
-                    ) {
-                      if (value is String) {
-                        setState(() {
-                          _textSearch = value;
+                    context
+                        .push(
+                          Routes.textSearch,
+                          extra: {
+                            'textSearch': textSearch,
+                            'source': 'message',
+                          },
+                        )
+                        .then((value) {
+                          if (value is String) {
+                            setState(() {
+                              _textSearch = value;
+                            });
+                            _loadMessages();
+                          }
                         });
-                        _loadMessages();
-                      }
-                    });
                   }
 
                   return Row(

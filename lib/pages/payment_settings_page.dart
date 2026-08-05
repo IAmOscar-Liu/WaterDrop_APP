@@ -145,6 +145,28 @@ class _PaymentSettingsPageState extends ConsumerState<PaymentSettingsPage> {
     return confirmed == true;
   }
 
+  Future<void> _showBankAccountRequiredAlert() {
+    return showDialog<void>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF262A33),
+          title: const Text("需設定銀行帳戶", style: TextStyle(color: Colors.white)),
+          content: const Text(
+            "選擇 ATM 轉帳前，請先至「我的」→「帳號設定與支援」→「寄貨資料」設定銀行帳戶資料。",
+            style: TextStyle(color: Colors.white),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text("確定", style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   Widget _buildLayout({required Widget child, bool allowPop = true}) {
     return PopScope(
       canPop: allowPop,
@@ -176,7 +198,7 @@ class _PaymentSettingsPageState extends ConsumerState<PaymentSettingsPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            "收件人資訊",
+            "寄貨資料",
             style: TextStyle(
               fontWeight: FontWeight.bold,
               fontSize: 18,
@@ -184,6 +206,24 @@ class _PaymentSettingsPageState extends ConsumerState<PaymentSettingsPage> {
             ),
           ),
           const Divider(color: AppColors.dividerColor),
+          const Row(
+            children: [
+              Icon(
+                Icons.person_outline,
+                size: 18,
+                color: AppColors.primaryTextColor,
+              ),
+              SizedBox(width: 6),
+              Text(
+                "收件人資訊",
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.primaryTextColor,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
           Text(
             "姓名：${accountInfo.name.isEmpty ? "尚未填寫" : accountInfo.name}",
             style: const TextStyle(color: AppColors.secondaryTextColor),
@@ -196,10 +236,51 @@ class _PaymentSettingsPageState extends ConsumerState<PaymentSettingsPage> {
             "手機號碼：${(accountInfo.phone == null || accountInfo.phone!.isEmpty) ? "尚未填寫" : accountInfo.phone}",
             style: const TextStyle(color: AppColors.secondaryTextColor),
           ),
-          // Text(
-          //   "Email：${accountInfo.email.isEmpty ? "尚未填寫" : accountInfo.email}",
-          //   style: const TextStyle(color: AppColors.secondaryTextColor),
-          // ),
+          const SizedBox(height: 16),
+          const Row(
+            children: [
+              Icon(
+                Icons.account_balance_outlined,
+                size: 18,
+                color: AppColors.primaryTextColor,
+              ),
+              SizedBox(width: 6),
+              Text(
+                "帳戶資訊",
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.primaryTextColor,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            "銀行：${(accountInfo.bankCode == null || accountInfo.bankCode!.isEmpty || accountInfo.bankName == null || accountInfo.bankName!.isEmpty) ? "尚未填寫" : "${accountInfo.bankCode} ${accountInfo.bankName}"}",
+            style: const TextStyle(color: AppColors.secondaryTextColor),
+          ),
+          Text(
+            "銀行帳號：${(accountInfo.bankAccount == null || accountInfo.bankAccount!.isEmpty) ? "尚未填寫" : accountInfo.bankAccount}",
+            style: const TextStyle(color: AppColors.secondaryTextColor),
+          ),
+          const SizedBox(height: 12),
+          const Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                Icons.info_outline,
+                size: 16,
+                color: AppColors.mutedTextColor,
+              ),
+              SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  "如需修改，請至「我的」→「帳號設定與支援」→「寄貨資料」頁面進行變更",
+                  style: TextStyle(color: AppColors.mutedTextColor),
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );
@@ -419,30 +500,12 @@ class _PaymentSettingsPageState extends ConsumerState<PaymentSettingsPage> {
     final refrigBySeller = _groupItemsBySeller(refrigerationItems);
     final normalBySeller = _groupItemsBySeller(normalItems);
 
-    bool isRefrigerationValid = true;
-    for (var entry in refrigBySeller.entries) {
-      final sellerId = entry.key;
-      final items = entry.value;
-      final method = _refrigerationMethods[sellerId];
-      final store = _refrigerationStores[sellerId];
-      final hasHome = items.any((i) => i.product.allowHomeDelivery);
+    const bool isRefrigerationValid = true;
 
-      if (!hasHome) {
-        // Force CVS check
-        if (store == null) isRefrigerationValid = false;
-      } else {
-        if (method == null) isRefrigerationValid = false;
-        if (method == DeliveryMethod.cvs && store == null) {
-          isRefrigerationValid = false;
-        }
-        // Check split case: Home selected but some items don't support it -> need store
-        if (method == DeliveryMethod.home) {
-          final hasNonHome = items.any((i) => !i.product.allowHomeDelivery);
-          if (hasNonHome && store == null) {
-            isRefrigerationValid = false;
-          }
-        }
-      }
+    bool isSupportedNormalCvsType(LogisticsSubType? type) {
+      return type == LogisticsSubType.UNIMARTC2C ||
+          type == LogisticsSubType.FAMIC2C ||
+          type == LogisticsSubType.HILIFEC2C;
     }
 
     bool isNormalValid = true;
@@ -456,17 +519,20 @@ class _PaymentSettingsPageState extends ConsumerState<PaymentSettingsPage> {
 
       if (!hasHome) {
         // Force CVS check
-        if (cvsType == null || store == null) isNormalValid = false;
+        if (!isSupportedNormalCvsType(cvsType) || store == null) {
+          isNormalValid = false;
+        }
       } else {
         if (method == null) isNormalValid = false;
         if (method == DeliveryMethod.cvs &&
-            (cvsType == null || store == null)) {
+            (!isSupportedNormalCvsType(cvsType) || store == null)) {
           isNormalValid = false;
         }
         // Check split case
         if (method == DeliveryMethod.home) {
           final hasNonHome = items.any((i) => !i.product.allowHomeDelivery);
-          if (hasNonHome && (cvsType == null || store == null)) {
+          if (hasNonHome &&
+              (!isSupportedNormalCvsType(cvsType) || store == null)) {
             isNormalValid = false;
           }
         }
@@ -531,60 +597,28 @@ class _PaymentSettingsPageState extends ConsumerState<PaymentSettingsPage> {
 
       if (refrigerationItems.isNotEmpty) {
         refrigBySeller.forEach((sellerId, items) {
-          final method = _refrigerationMethods[sellerId];
-          final store = _refrigerationStores[sellerId];
-
-          List<CartItem> homeItems = [];
-          List<CartItem> pickupItems = [];
-
-          if (method == DeliveryMethod.home) {
-            for (var item in items) {
-              if (item.product.allowHomeDelivery) {
-                homeItems.add(item);
-              } else {
-                pickupItems.add(item);
-              }
-            }
-          } else {
-            pickupItems = items;
-          }
-
-          if (homeItems.isNotEmpty) {
-            final double defaultFee =
-                shippingFee["default"]?.homeDeliveryRefrig ?? 0;
-            final double customFee =
-                shippingFee[sellerId]?.homeDeliveryRefrig ?? defaultFee;
-            groups.add({
-              "name": "冷藏(宅配到府)",
-              "items": homeItems,
-              "method": DeliveryMethod.home,
-              "fee": defaultFee,
-              "feeDeduction": defaultFee - customFee,
-            });
-          }
-          if (pickupItems.isNotEmpty) {
-            final double defaultFee =
-                shippingFee["default"]?.OKMART_LOW_TMP_C2C ?? 0;
-            final double customFee =
-                shippingFee[sellerId]?.OKMART_LOW_TMP_C2C ?? defaultFee;
-            groups.add({
-              "name": "冷藏(店到店)",
-              "items": pickupItems,
-              "store": store,
-              "method": DeliveryMethod.cvs,
-              "cvsType": LogisticsSubType.OKMART_LOW_TMP_C2C,
-              "fee": defaultFee,
-              "feeDeduction": defaultFee - customFee,
-            });
-          }
+          final double defaultFee =
+              shippingFee["default"]?.homeDeliveryRefrig ?? 0;
+          final double customFee =
+              shippingFee[sellerId]?.homeDeliveryRefrig ?? defaultFee;
+          groups.add({
+            "name": "冷藏(宅配到府)",
+            "items": items,
+            "method": DeliveryMethod.home,
+            "fee": defaultFee,
+            "feeDeduction": defaultFee - customFee,
+          });
         });
       }
 
       if (normalItems.isNotEmpty) {
         normalBySeller.forEach((sellerId, items) {
           final method = _normalMethods[sellerId];
-          final cvsType = _normalCvsTypes[sellerId];
-          final store = _normalStores[sellerId];
+          final savedCvsType = _normalCvsTypes[sellerId];
+          final cvsType = isSupportedNormalCvsType(savedCvsType)
+              ? savedCvsType
+              : null;
+          final store = cvsType == null ? null : _normalStores[sellerId];
 
           List<CartItem> homeItems = [];
           List<CartItem> pickupItems = [];
@@ -757,6 +791,18 @@ class _PaymentSettingsPageState extends ConsumerState<PaymentSettingsPage> {
                       onPressed: (!isRefrigerationValid || !isNormalValid)
                           ? null
                           : () async {
+                              final bankCode = accountInfo.bankCode?.trim();
+                              final bankAccount = accountInfo.bankAccount
+                                  ?.trim();
+                              if (_orderPayment == "ATM" &&
+                                  (bankCode == null ||
+                                      bankCode.isEmpty ||
+                                      bankAccount == null ||
+                                      bankAccount.isEmpty)) {
+                                await _showBankAccountRequiredAlert();
+                                return;
+                              }
+
                               final confirmed = await _confirmBeforePayment();
                               if (!confirmed || !context.mounted) return;
                               ref

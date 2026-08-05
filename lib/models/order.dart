@@ -159,7 +159,11 @@ class OrderItem {
   final String productNameAtSale;
   final double lineTotal;
   final DateTime createdAt;
+  final DateTime updatedAt;
   final Product? product;
+  final bool canRefund;
+  final int remainingRefundQuantity;
+  final List<RefundItem> refundItems;
 
   const OrderItem({
     required this.id,
@@ -170,7 +174,11 @@ class OrderItem {
     required this.productNameAtSale,
     required this.lineTotal,
     required this.createdAt,
+    required this.updatedAt,
     this.product,
+    this.canRefund = false,
+    this.remainingRefundQuantity = 0,
+    this.refundItems = const [],
   });
 
   factory OrderItem.fromApiResponseMap(Map<String, dynamic> map) {
@@ -183,9 +191,20 @@ class OrderItem {
       productNameAtSale: ParseUtils.parseString(map['productNameAtSale']) ?? '',
       lineTotal: ParseUtils.parseDouble(map['lineTotal']) ?? 0,
       createdAt: ParseUtils.parseDateTime(map['createdAt']) ?? DateTime.now(),
+      updatedAt: ParseUtils.parseDateTime(map['updatedAt']) ?? DateTime.now(),
       product: map['product'] is Map
           ? Product.fromApiResponseMap(map['product'])
           : null,
+      canRefund: map['canRefund'] == true,
+      remainingRefundQuantity:
+          ParseUtils.parseInt(map['remainingRefundQuantity']) ?? 0,
+      refundItems: map['refundItems'] is List
+          ? List.generate(
+              map['refundItems'].length,
+              (index) =>
+                  RefundItem.fromApiResponseMap(map['refundItems'][index]),
+            )
+          : [],
     );
   }
 
@@ -198,7 +217,10 @@ class OrderItem {
     String? productNameAtSale,
     double? lineTotal,
     DateTime? createdAt,
+    DateTime? updatedAt,
     Product? product,
+    bool? canRefund,
+    List<RefundItem>? refundItems,
   }) {
     return OrderItem(
       id: id ?? this.id,
@@ -209,6 +231,66 @@ class OrderItem {
       productNameAtSale: productNameAtSale ?? this.productNameAtSale,
       lineTotal: lineTotal ?? this.lineTotal,
       createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      product: product ?? this.product,
+      canRefund: canRefund ?? this.canRefund,
+      refundItems: refundItems ?? this.refundItems,
+    );
+  }
+}
+
+class RefundItem {
+  final String id;
+  final String orderItemId;
+  final int quantity;
+  final String status;
+  final String? reason;
+  final String? note;
+  final double refundAmount;
+  final double paidRefundAmount;
+  final double extraRefundAmount;
+  final double coins;
+  final double? returnableCoins;
+  final Map<String, dynamic>? metadata;
+  final Map<String, dynamic>? summary;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+
+  const RefundItem({
+    required this.id,
+    required this.orderItemId,
+    required this.quantity,
+    required this.status,
+    this.reason,
+    this.note,
+    required this.refundAmount,
+    required this.paidRefundAmount,
+    required this.extraRefundAmount,
+    required this.coins,
+    this.returnableCoins,
+    this.metadata,
+    this.summary,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+
+  factory RefundItem.fromApiResponseMap(Map<String, dynamic> map) {
+    return RefundItem(
+      id: ParseUtils.parseString(map['id']) ?? "",
+      orderItemId: ParseUtils.parseString(map['orderItemId']) ?? "",
+      quantity: ParseUtils.parseInt(map['quantity']) ?? 0,
+      status: ParseUtils.parseString(map['status']) ?? "",
+      reason: ParseUtils.parseString(map['reason']),
+      note: ParseUtils.parseString(map['note']),
+      refundAmount: ParseUtils.parseDouble(map['refundAmount']) ?? 0,
+      paidRefundAmount: ParseUtils.parseDouble(map['paidRefundAmount']) ?? 0,
+      extraRefundAmount: ParseUtils.parseDouble(map['extraRefundAmount']) ?? 0,
+      coins: ParseUtils.parseDouble(map['coins']) ?? 0,
+      returnableCoins: ParseUtils.parseDouble(map['returnableCoins']),
+      metadata: map['metadata'] is Map ? map['metadata'] : null,
+      summary: map['summary'] is Map ? map['summary'] : null,
+      createdAt: ParseUtils.parseDateTime(map['createdAt']) ?? DateTime.now(),
+      updatedAt: ParseUtils.parseDateTime(map['updatedAt']) ?? DateTime.now(),
     );
   }
 }

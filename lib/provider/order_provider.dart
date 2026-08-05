@@ -212,4 +212,35 @@ class OrderNotifier extends _$OrderNotifier {
       return Result.failure('Error: $e');
     }
   }
+
+  Future<Result> createRefund({
+    required String orderItemId,
+    required String accountId,
+    required int quantity,
+    required String reason,
+    String? note,
+  }) async {
+    try {
+      final response = await ref
+          .read(dioProvider)
+          .post(
+            "/api/refund",
+            data: {
+              "orderItemId": orderItemId,
+              "accountId": accountId,
+              "quantity": quantity,
+              "reason": reason,
+              "note": note,
+            },
+          );
+
+      if (response.data['success'] != true) {
+        throw Exception('Failed to create refund');
+      }
+      return Result.success();
+    } catch (e) {
+      log('Failed to create refund: $e');
+      return Result.failure('Error: $e');
+    }
+  }
 }
