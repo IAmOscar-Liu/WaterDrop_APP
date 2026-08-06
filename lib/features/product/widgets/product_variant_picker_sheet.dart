@@ -10,6 +10,7 @@ Future<ProductVariant?> showProductVariantPickerSheet(
   return showModalBottomSheet<ProductVariant>(
     context: context,
     backgroundColor: AppColors.containerBgColor,
+    barrierColor: Colors.black.withValues(alpha: 0.45),
     isScrollControlled: true,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
@@ -50,31 +51,47 @@ Future<ProductVariant?> showProductVariantPickerSheet(
                 constraints: BoxConstraints(
                   maxHeight: MediaQuery.of(context).size.height * 0.45,
                 ),
-                child: ListView.separated(
-                  shrinkWrap: true,
-                  itemCount: variants.length,
-                  separatorBuilder: (context, index) =>
-                      const Divider(color: AppColors.dividerColor, height: 1),
-                  itemBuilder: (context, index) {
-                    final variant = variants[index];
-                    return ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(
-                        variant.displayName,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: AppColors.primaryTextColor,
-                          fontWeight: FontWeight.w600,
+                child: SingleChildScrollView(
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: variants.map((variant) {
+                      return FilledButton(
+                        style: FilledButton.styleFrom(
+                          foregroundColor: AppColors.primaryTextColor,
+                          backgroundColor: AppColors.navbarIndicatorColor,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 10,
+                          ),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
                         ),
-                      ),
-                      trailing: Icon(
-                        Icons.chevron_right,
-                        color: AppColors.primaryTextColor,
-                      ),
-                      onTap: () => Navigator.of(context).pop(variant),
-                    );
-                  },
+                        onPressed: () => Navigator.of(context).pop(variant),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.add, size: 16),
+                            const SizedBox(width: 4),
+                            Flexible(
+                              child: Text(
+                                variant.displayName,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }).toList(),
+                  ),
                 ),
               ),
             ],

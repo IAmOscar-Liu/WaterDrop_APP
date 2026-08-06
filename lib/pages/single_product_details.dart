@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:developer';
 
 import 'package:flutter/material.dart';
@@ -156,6 +157,22 @@ class _SingleProductDetailsState extends ConsumerState<SingleProductDetails> {
   bool _isSingleUnnamedDefaultVariant(List<ProductVariant> variants) {
     return variants.length == 1 &&
         (variants.first.name == null || variants.first.name!.trim().isEmpty);
+  }
+
+  List<MapEntry<String, dynamic>> get _metadataEntries {
+    final metadata = _product?.metadata;
+    if (metadata == null || metadata.isEmpty) return const [];
+
+    return metadata.entries
+        .where((entry) => entry.key.trim().isNotEmpty && entry.value != null)
+        .toList();
+  }
+
+  String _formatMetadataValue(dynamic value) {
+    if (value is Map || value is List) {
+      return jsonEncode(value);
+    }
+    return value.toString();
   }
 
   void updateCollection(Product product, {bool isRemoval = false}) {
@@ -407,6 +424,68 @@ class _SingleProductDetailsState extends ConsumerState<SingleProductDetails> {
     );
   }
 
+  Widget _buildMetadataTable() {
+    final entries = _metadataEntries;
+    if (entries.isEmpty) return const SizedBox.shrink();
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(top: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.containerBgColor,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.borderColor),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            '商品資訊',
+            style: TextStyle(
+              color: AppColors.primaryTextColor,
+              fontWeight: FontWeight.bold,
+              fontSize: 16,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Table(
+            columnWidths: const {
+              0: FlexColumnWidth(0.9),
+              1: FlexColumnWidth(1.6),
+            },
+            border: TableBorder.all(color: AppColors.dividerColor, width: 1),
+            defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+            children: entries.map((entry) {
+              return TableRow(
+                children: [
+                  _buildMetadataCell(entry.key, isKey: true),
+                  _buildMetadataCell(_formatMetadataValue(entry.value)),
+                ],
+              );
+            }).toList(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMetadataCell(String text, {bool isKey = false}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      child: Text(
+        text,
+        style: TextStyle(
+          color: isKey
+              ? AppColors.secondaryTextColor
+              : AppColors.primaryTextColor,
+          fontSize: 13,
+          fontWeight: isKey ? FontWeight.w600 : FontWeight.w500,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isLoading || _product == null) {
@@ -583,9 +662,10 @@ class _SingleProductDetailsState extends ConsumerState<SingleProductDetails> {
                   // Meta chips
                   Wrap(
                     spacing: 8,
-                    runSpacing: 8,
+                    runSpacing: 3,
                     children: [
                       Chip(
+                        labelPadding: const EdgeInsets.symmetric(horizontal: 4),
                         label: Builder(
                           builder: (context) {
                             final String categoryText =
@@ -601,17 +681,21 @@ class _SingleProductDetailsState extends ConsumerState<SingleProductDetails> {
                         backgroundColor: AppColors.primaryButtonColor,
                       ),
                       Chip(
+                        labelPadding: const EdgeInsets.symmetric(horizontal: 4),
                         label: Text(
                           "狀態：${_product!.status.isEmpty ? "N/A" : productStatusTranslation(_product!.status)}",
                         ),
                         backgroundColor: AppColors.secondaryButtonColor,
                       ),
                       Chip(
+                        labelPadding: const EdgeInsets.symmetric(horizontal: 4),
                         label: Text("庫存：$_displayStock"),
-                        backgroundColor: AppColors.dangerButtonColor,
+                        labelStyle: const TextStyle(color: Colors.black),
+                        backgroundColor: AppColors.goldColor,
                       ),
                     ],
                   ),
+                  _buildMetadataTable(),
                   _buildVariantSection(),
                 ],
               ),
