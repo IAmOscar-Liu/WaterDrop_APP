@@ -1,3 +1,4 @@
+import 'package:flutter_ad_ecommerce/models/api_enums.dart';
 import 'package:flutter_ad_ecommerce/models/product.dart';
 import 'package:flutter_ad_ecommerce/utils/parse_utils.dart';
 
@@ -51,8 +52,8 @@ class Order {
   final double transactionFee;
   final double totalAmount;
   final int discountCoin;
-  final String orderStatus;
-  final String orderPayment;
+  final OrderStatus orderStatus;
+  final OrderPayment orderPayment;
   final double? transactionFeeRateAtSale;
   final String? userLevelAtSale;
   final int? userMaxDiscountAtSale;
@@ -118,8 +119,12 @@ class Order {
       transactionFee: ParseUtils.parseDouble(map['transactionFee']) ?? 0,
       totalAmount: ParseUtils.parseDouble(map['totalAmount']) ?? 0,
       discountCoin: ParseUtils.parseInt(map['discountCoin']) ?? 0,
-      orderStatus: ParseUtils.parseString(map['orderStatus']) ?? "pending",
-      orderPayment: ParseUtils.parseString(map['orderPayment']) ?? "Credit",
+      orderStatus: OrderStatus.fromWire(
+        ParseUtils.parseString(map['orderStatus']),
+      ),
+      orderPayment: OrderPayment.fromWire(
+        ParseUtils.parseString(map['orderPayment']),
+      ),
       transactionFeeRateAtSale: ParseUtils.parseDouble(
         map['transactionFeeRateAtSale'],
       ),
@@ -147,8 +152,8 @@ class Order {
     double? transactionFee,
     double? totalAmount,
     int? discountCoin,
-    String? orderStatus,
-    String? orderPayment,
+    OrderStatus? orderStatus,
+    OrderPayment? orderPayment,
     String? userLevelAtSale,
     int? userMaxDiscountAtSale,
     Map<String, dynamic>? metadata,
@@ -316,7 +321,7 @@ class RefundItem {
   final String id;
   final String orderItemId;
   final int quantity;
-  final String status;
+  final RefundStatus status;
   final String? reason;
   final String? note;
   final double refundAmount;
@@ -352,7 +357,7 @@ class RefundItem {
       id: ParseUtils.parseString(map['id']) ?? "",
       orderItemId: ParseUtils.parseString(map['orderItemId']) ?? "",
       quantity: ParseUtils.parseInt(map['quantity']) ?? 0,
-      status: ParseUtils.parseString(map['status']) ?? "",
+      status: RefundStatus.fromWire(ParseUtils.parseString(map['status'])),
       reason: ParseUtils.parseString(map['reason']),
       note: ParseUtils.parseString(map['note']),
       refundAmount: ParseUtils.parseDouble(map['refundAmount']) ?? 0,
@@ -372,10 +377,10 @@ class Delivery {
   final String id;
   final String orderId;
   final String merchantTradeNo;
-  final String status;
+  final DeliveryStatus status;
   final double goodsAmount;
   final String? allPayLogisticsID;
-  final String logisticsType;
+  final DeliveryLogisticsType logisticsType;
   final String logisticsSubType;
   final String? cvsPaymentNo;
   final String? cvsValidationNo;
@@ -420,12 +425,14 @@ class Delivery {
       id: ParseUtils.parseString(map['id']) ?? "",
       orderId: ParseUtils.parseString(map['orderId']) ?? "",
       merchantTradeNo: ParseUtils.parseString(map['merchantTradeNo']) ?? "",
-      status: ParseUtils.parseString(map['status']) ?? "",
+      status: DeliveryStatus.fromWire(ParseUtils.parseString(map['status'])),
       goodsAmount: ParseUtils.parseDouble(map['GoodsAmount']) ?? 0,
       allPayLogisticsID: ParseUtils.parseString(map['AllPayLogisticsID']),
       cvsPaymentNo: ParseUtils.parseString(map['CVSPaymentNo']),
       cvsValidationNo: ParseUtils.parseString(map['CVSValidationNo']),
-      logisticsType: ParseUtils.parseString(map['LogisticsType']) ?? "",
+      logisticsType: DeliveryLogisticsType.fromWire(
+        ParseUtils.parseString(map['LogisticsType']),
+      ),
       logisticsSubType: ParseUtils.parseString(map['LogisticsSubType']) ?? "",
       rtnCode: ParseUtils.parseString(map['RtnCode']),
       rtnMsg: ParseUtils.parseString(map['RtnMsg']),
@@ -498,7 +505,7 @@ class DeliveryItem {
 class DeliveryLog {
   final String id;
   final String deliveryId;
-  final String status;
+  final DeliveryStatus status;
   final String rtnCode;
   final String rtnMsg;
   final DateTime createdAt;
@@ -516,7 +523,7 @@ class DeliveryLog {
     return DeliveryLog(
       id: ParseUtils.parseString(map['id']) ?? "",
       deliveryId: ParseUtils.parseString(map['deliveryId']) ?? "",
-      status: ParseUtils.parseString(map['status']) ?? "",
+      status: DeliveryStatus.fromWire(ParseUtils.parseString(map['status'])),
       rtnCode: ParseUtils.parseString(map['RtnCode']) ?? "",
       rtnMsg: ParseUtils.parseString(map['RtnMsg']) ?? "",
       createdAt: ParseUtils.parseDateTime(map["createdAt"]) ?? DateTime.now(),

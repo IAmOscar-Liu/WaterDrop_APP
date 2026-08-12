@@ -2,8 +2,8 @@ import 'dart:developer';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_ad_ecommerce/constants/colors.dart';
+import 'package:flutter_ad_ecommerce/models/api_enums.dart';
 import 'package:flutter_ad_ecommerce/models/message.dart';
-import 'package:flutter_ad_ecommerce/pages/message_page.dart';
 import 'package:flutter_ad_ecommerce/provider/dio_provider.dart';
 import 'package:flutter_ad_ecommerce/provider/message_provider.dart';
 import 'package:flutter_ad_ecommerce/router/routes.dart';
@@ -31,14 +31,7 @@ class _SingleMessageDetailsState extends ConsumerState<SingleMessageDetails> {
 
   bool _isDeleting = false;
 
-  String _getTypeLabel(String? type) {
-    if (type == null) return '其他';
-    try {
-      return MessageType.values.firstWhere((e) => e.name == type).label;
-    } catch (_) {
-      return '其他';
-    }
-  }
+  String _getTypeLabel(NotificationType type) => type.displayName;
 
   @override
   void initState() {

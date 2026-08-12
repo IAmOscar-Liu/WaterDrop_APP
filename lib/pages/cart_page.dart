@@ -9,6 +9,7 @@ import 'package:flutter_ad_ecommerce/constants/colors.dart';
 import 'package:flutter_ad_ecommerce/features/cart/widgets/cart_item_card.dart';
 import 'package:flutter_ad_ecommerce/features/cart/widgets/quantity_dialog.dart';
 import 'package:flutter_ad_ecommerce/models/account_info.dart';
+import 'package:flutter_ad_ecommerce/models/api_enums.dart';
 import 'package:flutter_ad_ecommerce/models/order.dart';
 import 'package:flutter_ad_ecommerce/models/product.dart';
 import 'package:flutter_ad_ecommerce/provider/account_provider.dart';
@@ -672,7 +673,7 @@ class _CartPageState extends ConsumerState<CartPage> {
                                           .currentOrder;
                                       if (currentOrder != null &&
                                           currentOrder.orderStatus ==
-                                              'pending') {
+                                              OrderStatus.pending) {
                                         return ref
                                             .read(
                                               orderNotifierProvider.notifier,
@@ -691,8 +692,9 @@ class _CartPageState extends ConsumerState<CartPage> {
                                       final orderStatus = value is Order
                                           ? value.orderStatus
                                           : null;
-                                      if (orderStatus == "paid" ||
-                                          orderStatus == "payment-processing") {
+                                      if (orderStatus == OrderStatus.paid ||
+                                          orderStatus ==
+                                              OrderStatus.paymentProcessing) {
                                         return showDialog(
                                           // ignore: use_build_context_synchronously
                                           context: context,
@@ -702,7 +704,7 @@ class _CartPageState extends ConsumerState<CartPage> {
                                                 0xFF262A33,
                                               ),
                                               title: Text(
-                                                orderStatus == "paid"
+                                                orderStatus == OrderStatus.paid
                                                     ? "交易成功"
                                                     : "訂單已送出，請於指定期限內完成付款(如已付款，請於訂單紀錄確認付款狀態)",
                                                 style: TextStyle(

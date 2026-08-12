@@ -1,6 +1,7 @@
 import 'dart:developer';
 
 import 'package:dio/dio.dart';
+import 'package:flutter_ad_ecommerce/models/api_enums.dart';
 import 'package:flutter_ad_ecommerce/models/chatroom.dart';
 import 'package:flutter_ad_ecommerce/provider/dio_provider.dart';
 import 'package:flutter_ad_ecommerce/utils/custom_async_value.dart';
@@ -115,12 +116,14 @@ class ChatMessageNotifier extends _$ChatMessageNotifier {
       ];
 
       // if we get any messages sent from the other side, mark message as read
-      if (latestChatMessages.any((msg) => msg.senderType != "user")) {
+      if (latestChatMessages.any(
+        (msg) => msg.senderType != ChatMessageSenderType.user,
+      )) {
         markMessageAsRead(chatRoomId: chatRoomId);
 
         // Also, mark user's message as read
         updatedChatMessages = updatedChatMessages.map((msg) {
-          if (msg.senderType == "user" && !msg.isRead) {
+          if (msg.senderType == ChatMessageSenderType.user && !msg.isRead) {
             return msg.copyWith(isRead: true);
           }
           return msg;
@@ -140,7 +143,7 @@ class ChatMessageNotifier extends _$ChatMessageNotifier {
 
   Future<Result<bool>> sendMessage({
     required String chatRoomId,
-    required String senderType,
+    required ChatMessageSenderType senderType,
     required String content,
     required List<XFile> files,
     Function()? onCompleted,
@@ -165,7 +168,7 @@ class ChatMessageNotifier extends _$ChatMessageNotifier {
             "/api/chatroom/message/$chatRoomId",
             data: {
               "content": content.isNotEmpty ? content : null,
-              "senderType": senderType,
+              "senderType": senderType.wireValue,
               "attachments": attachments,
             },
           );
@@ -298,7 +301,7 @@ class ChatMessageNotifier extends _$ChatMessageNotifier {
           .read(dioProvider)
           .put(
             "/api/chatroom/message/$chatRoomId/read",
-            data: {"readerType": "user"},
+            data: {"readerType": ChatMessageSenderType.user.wireValue},
           );
       if (response.data['success'] != true) {
         throw Exception('訊息發送失敗');

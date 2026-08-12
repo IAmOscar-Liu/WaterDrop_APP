@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_ad_ecommerce/constants/colors.dart';
+import 'package:flutter_ad_ecommerce/models/api_enums.dart';
 import 'package:flutter_ad_ecommerce/models/chatroom.dart';
 import 'package:flutter_ad_ecommerce/provider/chatroom_list_provider.dart';
 import 'package:flutter_ad_ecommerce/router/routes.dart';
@@ -37,13 +38,13 @@ class _ChatroomListPageState extends ConsumerState<ChatroomListPage> {
     bool isSupportChat = false,
   }) {
     if (message.content.isNotEmpty) {
-      return "${message.senderType == "user"
+      return "${message.senderType == ChatMessageSenderType.user
           ? "你"
           : isSupportChat
           ? "客服"
           : "賣家"}: ${message.content}";
     } else if (message.attachments != null && message.attachments!.isNotEmpty) {
-      return "${message.senderType == "user"
+      return "${message.senderType == ChatMessageSenderType.user
           ? "你"
           : isSupportChat
           ? "客服"
@@ -52,26 +53,24 @@ class _ChatroomListPageState extends ConsumerState<ChatroomListPage> {
     return "";
   }
 
-  String _buildDeliveryStatusText(String status) {
+  String _buildDeliveryStatusText(DeliveryStatus status) {
     switch (status) {
-      case "pending":
+      case DeliveryStatus.pending:
         return "待出貨";
-      case "shipped":
+      case DeliveryStatus.shipped:
         return "已出貨";
-      case "delivered":
+      case DeliveryStatus.delivered:
         return "已送達";
-      case "ready_for_pickup":
+      case DeliveryStatus.readyForPickup:
         return "已送達";
-      case "returned":
+      case DeliveryStatus.returned:
         return "已退回";
-      case "cancelled":
+      case DeliveryStatus.cancelled:
         return "已取消";
-      case "exception":
+      case DeliveryStatus.exception:
         return "發生異常";
-      case "unknown":
+      case DeliveryStatus.unknown:
         return "未知狀態";
-      default:
-        return status;
     }
   }
 

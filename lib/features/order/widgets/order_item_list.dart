@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_ad_ecommerce/constants/colors.dart';
+import 'package:flutter_ad_ecommerce/models/api_enums.dart';
 import 'package:flutter_ad_ecommerce/models/order.dart';
 import 'package:flutter_ad_ecommerce/widgets/initial_image.dart';
 import 'package:flutter_ad_ecommerce/utils/number_formatter_extension.dart';
@@ -62,9 +63,9 @@ class OrderItemList extends StatelessWidget {
                             )
                           : InitialImage(name: item.productNameAtSale),
                     ),
-                    if (item.product?.type == 'refrigeration')
+                    if (item.product?.type == ProductType.refrigeration)
                       const _ProductTypeBadge(label: "冷藏", color: Colors.blue),
-                    if (item.product?.type == 'virtual')
+                    if (item.product?.type == ProductType.virtual)
                       const _ProductTypeBadge(label: "免運", color: Colors.green),
                   ],
                 ),

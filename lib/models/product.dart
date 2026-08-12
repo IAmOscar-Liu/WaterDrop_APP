@@ -1,6 +1,7 @@
 // ignore_for_file: public_member_api_docs, sort_constructors_first
 
 import 'package:flutter_ad_ecommerce/models/advertisement.dart';
+import 'package:flutter_ad_ecommerce/models/api_enums.dart';
 import 'package:flutter_ad_ecommerce/utils/parse_utils.dart';
 
 class Category {
@@ -53,7 +54,7 @@ class ProductVariant {
   final String? sku;
   final Map<String, dynamic> optionValues;
   final int availableStock;
-  final String status;
+  final ProductStatus status;
   final int? stock;
   final int? reserve;
   final int? sortOrder;
@@ -68,7 +69,7 @@ class ProductVariant {
     this.sku,
     this.optionValues = const {},
     this.availableStock = 0,
-    this.status = "active",
+    this.status = ProductStatus.active,
     this.stock,
     this.reserve,
     this.sortOrder,
@@ -88,7 +89,10 @@ class ProductVariant {
           ParseUtils.parseInt(map['availableStock']) ??
           ((ParseUtils.parseInt(map['stock']) ?? 0) -
               (ParseUtils.parseInt(map['reserve']) ?? 0)),
-      status: ParseUtils.parseString(map['status']) ?? "active",
+      status: ProductStatus.fromWire(
+        ParseUtils.parseString(map['status']),
+        fallback: ProductStatus.active,
+      ),
       stock: ParseUtils.parseInt(map['stock']),
       reserve: ParseUtils.parseInt(map['reserve']),
       sortOrder: ParseUtils.parseInt(map['sortOrder']),
@@ -100,7 +104,7 @@ class ProductVariant {
     );
   }
 
-  bool get isActive => status == "active";
+  bool get isActive => status == ProductStatus.active;
   bool get isAvailable => isActive && availableStock > 0;
 
   String get displayName {
@@ -128,7 +132,7 @@ class ProductVariant {
     String? sku,
     Map<String, dynamic>? optionValues,
     int? availableStock,
-    String? status,
+    ProductStatus? status,
     int? stock,
     int? reserve,
     int? sortOrder,
@@ -162,13 +166,13 @@ class Product {
   final double price;
   final int stock;
   final int reserve;
-  final String type;
+  final ProductType type;
   final bool allowHomeDelivery;
   final List<String>? images;
   final Advertisement? advertisement;
   final List<Category>? categories;
   final Seller? seller;
-  final String status;
+  final ProductStatus status;
   final DateTime? createdAt;
   final DateTime? updatedAt; // Made optional
   final Map<String, dynamic>? metadata; // New optional property for metadata
@@ -239,13 +243,13 @@ class Product {
       description: ParseUtils.parseString(map['description']) ?? "",
       stock: ParseUtils.parseInt(map['stock']) ?? 0,
       reserve: ParseUtils.parseInt(map['reserve']) ?? 0,
-      type: ParseUtils.parseString(map['type']) ?? "",
+      type: ProductType.fromWire(ParseUtils.parseString(map['type'])),
       allowHomeDelivery: map['allowHomeDelivery'] == true,
       images: images,
       advertisement: advertisement,
       categories: categories,
       seller: seller,
-      status: ParseUtils.parseString(map['status']) ?? "",
+      status: ProductStatus.fromWire(ParseUtils.parseString(map['status'])),
       createdAt: ParseUtils.parseDateTime(map['createdAt']),
       updatedAt: ParseUtils.parseDateTime(map['updatedAt']),
       metadata: map['metadata'] is Map
@@ -280,9 +284,9 @@ class Product {
       'advertisement': advertisement.toString(),
       'categories': categories.toString(),
       'seller': seller.toString(),
-      'type': type,
+      'type': type.wireValue,
       'allowHomeDelivery': allowHomeDelivery,
-      'status': status,
+      'status': status.wireValue,
       'createdAt': createdAt.toString(),
       'update': updatedAt.toString(),
       'metadata': metadata,
@@ -310,13 +314,13 @@ class Product {
     double? price,
     int? stock,
     int? reserve,
-    String? type,
+    ProductType? type,
     bool? allowHomeDelivery,
     List<String>? images,
     Advertisement? advertisement,
     List<Category>? categories,
     Seller? seller,
-    String? status,
+    ProductStatus? status,
     DateTime? createdAt,
     DateTime? updatedAt, // Made optional
     Map<String, dynamic>? metadata, // New optional property for metadata
@@ -465,11 +469,11 @@ Map<String, dynamic> _parseStringDynamicMap(dynamic value) {
   return {};
 }
 
-String productStatusTranslation(String status) {
+String productStatusTranslation(ProductStatus status) {
   switch (status) {
-    case "active":
+    case ProductStatus.active:
       return "上架中";
-    default:
+    case ProductStatus.inactive:
       return "已下架";
   }
 }

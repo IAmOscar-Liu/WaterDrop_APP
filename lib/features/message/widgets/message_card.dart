@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_ad_ecommerce/models/message.dart';
-import 'package:flutter_ad_ecommerce/pages/message_page.dart';
 import 'package:flutter_ad_ecommerce/utils/formatter.dart';
 
 class MessageCard extends StatelessWidget {
@@ -8,15 +7,6 @@ class MessageCard extends StatelessWidget {
   final void Function()? onTap;
 
   const MessageCard({super.key, required this.message, required this.onTap});
-
-  String _getTypeLabel(String? type) {
-    if (type == null) return '其他';
-    try {
-      return MessageType.values.firstWhere((e) => e.name == type).label;
-    } catch (_) {
-      return '其他';
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -70,7 +60,7 @@ class MessageCard extends StatelessWidget {
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text(
-                        _getTypeLabel(message.type),
+                        message.type.displayName,
                         style: const TextStyle(
                           color: Colors.white70,
                           fontSize: 10,

@@ -130,3 +130,90 @@ Support multiple variants per product across product discovery, cart, checkout, 
   - edit cart variant to an existing row and verify optimistic merge
   - checkout ECPay payload construction
   - order detail and chatroom list variant labels.
+
+# Flutter API Enum Migration Plan
+
+## Goal
+
+Replace API enum-like strings with Dart enums that preserve BE wire values from `FLUTTER_API_ENUMS.md`.
+
+## TODO
+
+- [x] 1. Shared Enum Wire Helpers
+- [x] 2. Product And Variant Models
+- [x] 3. Order, Payment, Refund, And Delivery Models
+- [x] 4. Chatroom Models And Providers
+- [x] 5. Auth Account Model
+- [x] 6. Notification Models And Filters
+- [x] 7. Request Payloads And Query Parameters
+- [x] 8. Verification
+
+## 1. Shared Enum Wire Helpers
+
+- Add a shared enum file for BE-backed enums:
+  - `OAuthProvider`
+  - `ProductStatus`
+  - `ProductType`
+  - `ChatRoomStatus`
+  - `ChatMessageSenderType`
+  - `OrderPayment`
+  - `OrderStatus`
+  - `RefundStatus`
+  - `DeliveryStatus`
+  - `DeliveryLogisticsType`
+  - `AdvertisementStatus`
+  - `AdvertisementTransactionType`
+  - `NotificationType`
+- Each enum should expose:
+  - `wireValue` for request/query serialization
+  - `fromWire(...)` for response parsing
+  - fallback behavior for unknown or missing values.
+- Keep BE-specific wire spelling such as `payment-processing`, `ready_for_pickup`, `home_delivery`, and notification snake-case values.
+
+## 2. Product And Variant Models
+
+- Change `Product.status` and `ProductVariant.status` to `ProductStatus`.
+- Change `Product.type` to `ProductType`.
+- Update product parsing, `copyWith`, `toMap`, and display helpers to use enum wire values.
+- Update product/cart/order/checkout UI comparisons from raw strings to enum values.
+- Keep `Seller.role` as a string because BE marks it as an admin-domain value, not part of this enum migration.
+
+## 3. Order, Payment, Refund, And Delivery Models
+
+- Change order fields to enums:
+  - `Order.orderStatus`: `OrderStatus`
+  - `Order.orderPayment`: `OrderPayment`
+  - refund item status: `RefundStatus`
+  - delivery status and delivery logs: `DeliveryStatus`
+  - delivery logistics type: `DeliveryLogisticsType`
+- Update order cards, badges, order details, checkout settings, and ECPay page status/logistics comparisons.
+
+## 4. Chatroom Models And Providers
+
+- Change chatroom status to `ChatRoomStatus`.
+- Change message sender type to `ChatMessageSenderType`.
+- Change nested chatroom order/delivery fields to order and delivery enums.
+- Send `ChatMessageSenderType.user.wireValue` when creating/sending/marking read from Flutter.
+
+## 5. Auth Account Model
+
+- Change account/login OAuth provider fields to `OAuthProvider`.
+- Serialize login request `oauthProvider` with `wireValue`.
+
+## 6. Notification Models And Filters
+
+- Change notification message type to `NotificationType`.
+- Keep UI-only `all` filter separate from BE `NotificationType`.
+- Serialize notification list filters with `wireValue`.
+
+## 7. Request Payloads And Query Parameters
+
+- Replace raw enum strings in providers/pages with enum parameters.
+- Serialize enums only at the API boundary.
+- Keep non-enum strings as strings, including sort order `asc | desc`, seller role, and ECPay `LogisticsSubType`.
+
+## 8. Verification
+
+- Run `dart format` on changed Dart files.
+- Run `fvm flutter analyze`.
+- Smoke test product list/detail, cart, checkout, order list/detail, chatroom list/detail, login/profile, and notification list.

@@ -7,6 +7,7 @@ import 'package:flutter_ad_ecommerce/constants/app_constants.dart';
 import 'package:flutter_ad_ecommerce/constants/colors.dart';
 import 'package:flutter_ad_ecommerce/features/ecpay/widget/checkout_delivery_section.dart';
 import 'package:flutter_ad_ecommerce/models/account_info.dart';
+import 'package:flutter_ad_ecommerce/models/api_enums.dart';
 import 'package:flutter_ad_ecommerce/models/logistics_info.dart';
 import 'package:flutter_ad_ecommerce/models/order.dart';
 import 'package:flutter_ad_ecommerce/models/product.dart';
@@ -71,7 +72,9 @@ class _ECPayPageState extends ConsumerState<ECPayPage>
       userLevelAtSale: widget.extra['userLevelAtSale'],
       userMaxDiscountAtSale: widget.extra['userMaxDiscountAtSale'],
       groups: widget.extra['groups'],
-      orderPayment: widget.extra['orderPayment'],
+      orderPayment: widget.extra['orderPayment'] is OrderPayment
+          ? widget.extra['orderPayment']
+          : OrderPayment.fromWire(widget.extra['orderPayment']?.toString()),
     );
   }
 
@@ -94,7 +97,7 @@ class _ECPayPageState extends ConsumerState<ECPayPage>
     String? userLevelAtSale,
     int? userMaxDiscountAtSale,
     required List<Map<String, dynamic>> groups,
-    String? orderPayment,
+    OrderPayment? orderPayment,
   }) async {
     Future.delayed(Duration.zero, () async {
       final AccountInfo accountInfo = ref.watch(accountNotifierProvider);
@@ -157,10 +160,10 @@ class _ECPayPageState extends ConsumerState<ECPayPage>
           }
 
           final logisticsTypeValue = group["name"] == "虛擬商品(免運)"
-              ? "virtual"
+              ? DeliveryLogisticsType.virtual.wireValue
               : group["name"] == "冷藏(店到店)"
-              ? "CVS"
-              : "home_delivery";
+              ? DeliveryLogisticsType.CVS.wireValue
+              : DeliveryLogisticsType.homeDelivery.wireValue;
 
           nonCvsPickupGroup.add({
             "LogisticsType": logisticsTypeValue,
@@ -236,7 +239,7 @@ class _ECPayPageState extends ConsumerState<ECPayPage>
       return;
     }
     if (resultOrder.data == null ||
-        resultOrder.data!.orderStatus != "pending") {
+        resultOrder.data!.orderStatus != OrderStatus.pending) {
       ref
           .read(systemNotifierProvider.notifier)
           .setCurrentOrder(resultOrder.data);
@@ -245,7 +248,7 @@ class _ECPayPageState extends ConsumerState<ECPayPage>
     // expire order since it's still pending
     resultOrder = await ref
         .read(orderNotifierProvider.notifier)
-        .updateOrder(orderId: orderId, status: "expired");
+        .updateOrder(orderId: orderId, status: OrderStatus.expired);
     if (resultOrder.isSuccess) {
       ref
           .read(systemNotifierProvider.notifier)
@@ -294,8 +297,8 @@ class _ECPayPageState extends ConsumerState<ECPayPage>
           .read(orderNotifierProvider.notifier)
           .getOrder(orderId: order.id);
       if (result.isSuccess &&
-          (result.data!.orderStatus == "paid" ||
-              result.data!.orderStatus == "payment-processing")) {
+          (result.data!.orderStatus == OrderStatus.paid ||
+              result.data!.orderStatus == OrderStatus.paymentProcessing)) {
         orderResult = result.data;
         break;
       }
@@ -488,7 +491,7 @@ class _ECPayPageState extends ConsumerState<ECPayPage>
                     'tradeDesc': '請在此結帳您的商品',
                     'itemName':
                         "${currentOrder.items.length}項商品", // This will overwrite the existing 'user' param
-                    'ChoosePayment': currentOrder.orderPayment,
+                    'ChoosePayment': currentOrder.orderPayment.wireValue,
                   },
                 );
                 log(urlWithAddedParams.toString());

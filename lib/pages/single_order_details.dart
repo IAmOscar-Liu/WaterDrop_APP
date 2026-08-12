@@ -7,6 +7,7 @@ import 'package:flutter_ad_ecommerce/features/order/widgets/order_item_list.dart
 import 'package:flutter_ad_ecommerce/features/order/widgets/order_status_badge.dart';
 import 'package:flutter_ad_ecommerce/features/order/widgets/refund_widgets.dart';
 import 'package:flutter_ad_ecommerce/main.dart';
+import 'package:flutter_ad_ecommerce/models/api_enums.dart';
 import 'package:flutter_ad_ecommerce/models/order.dart';
 import 'package:flutter_ad_ecommerce/provider/account_provider.dart';
 import 'package:flutter_ad_ecommerce/provider/order_provider.dart';
@@ -360,14 +361,14 @@ class _SingleOrderDetailsState extends ConsumerState<SingleOrderDetails> {
       }
 
       String title;
-      if (delivery.logisticsType == "CVS") {
+      if (delivery.logisticsType == DeliveryLogisticsType.CVS) {
         title = "超商取貨 - ${_getLogisticsName(delivery.logisticsSubType)}";
-      } else if (delivery.logisticsType == "home_delivery") {
+      } else if (delivery.logisticsType == DeliveryLogisticsType.homeDelivery) {
         title = "宅配到府";
-      } else if (delivery.logisticsType == "virtual") {
+      } else if (delivery.logisticsType == DeliveryLogisticsType.virtual) {
         title = "虛擬商品 - 免運";
       } else {
-        title = delivery.logisticsType;
+        title = delivery.logisticsType.wireValue;
       }
 
       itemSections.add(
@@ -379,14 +380,14 @@ class _SingleOrderDetailsState extends ConsumerState<SingleOrderDetails> {
             children: [
               OrderDetailRow(label: '物流單號:', value: delivery.merchantTradeNo),
               OrderDetailRow(label: '物流狀態:', value: delivery.rtnMsg ?? 'N/A'),
-              if (delivery.logisticsType == "CVS" &&
+              if (delivery.logisticsType == DeliveryLogisticsType.CVS &&
                   delivery.cvsStoreInfo is Map &&
                   delivery.cvsStoreInfo!["storeName"] is String)
                 OrderDetailRow(
                   label: '取貨門市:',
                   value: delivery.cvsStoreInfo!["storeName"],
                 ),
-              if (delivery.logisticsType == "CVS" &&
+              if (delivery.logisticsType == DeliveryLogisticsType.CVS &&
                   delivery.cvsStoreInfo is Map &&
                   delivery.cvsStoreInfo!["storeAddress"] is String)
                 OrderDetailRow(
@@ -545,8 +546,9 @@ class _SingleOrderDetailsState extends ConsumerState<SingleOrderDetails> {
                 ),
               const Divider(color: AppColors.dividerColor),
               _buildProductList(deliveryItems),
-              if (delivery.logisticsType == "CVS" ||
-                  delivery.logisticsType == "home_delivery") ...[
+              if (delivery.logisticsType == DeliveryLogisticsType.CVS ||
+                  delivery.logisticsType ==
+                      DeliveryLogisticsType.homeDelivery) ...[
                 const Divider(color: AppColors.dividerColor),
                 OrderSummaryRow(
                   label: delivery.feeDeduction > 0 ? '運費' : '運費小計',
@@ -577,8 +579,8 @@ class _SingleOrderDetailsState extends ConsumerState<SingleOrderDetails> {
         .toList();
 
     if (unassignedItems.isNotEmpty) {
-      if (_order!.orderPayment != "Credit" &&
-          _order!.orderStatus == "payment-processing") {
+      if (_order!.orderPayment != OrderPayment.Credit &&
+          _order!.orderStatus == OrderStatus.paymentProcessing) {
         itemSections.add(
           _buildSection(
             title: "待付款商品",
@@ -619,21 +621,13 @@ class _SingleOrderDetailsState extends ConsumerState<SingleOrderDetails> {
                   ),
                   OrderDetailRow(
                     label: '訂單狀態:',
-                    value: _order!.orderStatus == "paid"
-                        ? "交易成功"
-                        : _order!.orderStatus == "payment-processing"
-                        ? "待付款"
-                        : _order!.orderStatus.toUpperCase(),
+                    value: _order!.orderStatus.displayName,
                   ),
                   OrderDetailRow(
                     label: '付款方式:',
-                    value: _order!.orderPayment == "Credit"
-                        ? "信用卡"
-                        : _order!.orderPayment == "ATM"
-                        ? "ATM轉帳"
-                        : _order!.orderPayment.toUpperCase(),
+                    value: _order!.orderPayment.displayName,
                     trailing:
-                        _order!.orderPayment == "ATM" &&
+                        _order!.orderPayment == OrderPayment.ATM &&
                             _order!.paymentInfo is Map
                         ? InkWell(
                             onTap: () => _showPaymentInfoDialog(

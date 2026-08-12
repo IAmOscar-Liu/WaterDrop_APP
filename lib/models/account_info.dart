@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter_ad_ecommerce/models/api_enums.dart';
 import 'package:flutter_ad_ecommerce/utils/parse_utils.dart';
 import 'package:uuid/uuid.dart';
 
@@ -7,7 +8,7 @@ import 'package:uuid/uuid.dart';
 class AccountInfo {
   final String id;
   final String email;
-  final String oauthProvider;
+  final OAuthProvider oauthProvider;
   final String oauthId;
   final String? groupId;
   final String level;
@@ -59,7 +60,7 @@ class AccountInfo {
   AccountInfo copyWith({
     String? id,
     String? email,
-    String? oauthProvider,
+    OAuthProvider? oauthProvider,
     String? oauthId,
     String? groupId,
     String? level,
@@ -110,7 +111,7 @@ class AccountInfo {
     return AccountInfo(
       id: uuid.v4(),
       email: "",
-      oauthProvider: "google",
+      oauthProvider: OAuthProvider.google,
       oauthId: "",
       level: "A0",
       coins: 0,
@@ -125,7 +126,9 @@ class AccountInfo {
     return AccountInfo(
       id: ParseUtils.parseString(map['id']) ?? "",
       email: ParseUtils.parseString(map['email']) ?? "",
-      oauthProvider: ParseUtils.parseString(map['oauthProvider']) ?? "",
+      oauthProvider: OAuthProvider.fromWire(
+        ParseUtils.parseString(map['oauthProvider']),
+      ),
       oauthId: ParseUtils.parseString(map['oauthId']) ?? "",
       groupId: ParseUtils.parseString(map['groupId']),
       level: ParseUtils.parseString(map['level']) ?? "",
@@ -154,7 +157,7 @@ class AccountInfo {
     return {
       'id': id,
       'email': email,
-      'oauth_provider': oauthProvider,
+      'oauth_provider': oauthProvider.wireValue,
       'level': level,
       'coins': coins,
       'coinsExpireSoon': coinsExpireSoon,

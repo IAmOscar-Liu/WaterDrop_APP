@@ -2,6 +2,7 @@
 import 'dart:developer';
 
 import 'package:dio/dio.dart';
+import 'package:flutter_ad_ecommerce/models/api_enums.dart';
 import 'package:flutter_ad_ecommerce/models/message.dart';
 import 'package:flutter_ad_ecommerce/provider/dio_provider.dart';
 import 'package:flutter_ad_ecommerce/provider/message_stats_provider.dart';
@@ -20,7 +21,7 @@ class MessageNotifier extends _$MessageNotifier {
   int _page = 1;
   int _limit = _customLimit;
   String? _search;
-  String? _type;
+  NotificationType? _type;
   bool? _onlyUnread;
 
   @override
@@ -35,7 +36,7 @@ class MessageNotifier extends _$MessageNotifier {
 
   Future<void> loadMessages({
     String? search,
-    String? type,
+    NotificationType? type,
     bool? onlyUnread,
     int? minPrice,
     int? maxPrice,
@@ -56,7 +57,7 @@ class MessageNotifier extends _$MessageNotifier {
               "page": _page,
               "limit": _limit,
               "search": _search,
-              "types": _type == null ? null : [_type],
+              "types": _type == null ? null : [_type!.wireValue],
               "onlyUnread": _onlyUnread == true,
             },
           );
@@ -105,7 +106,7 @@ class MessageNotifier extends _$MessageNotifier {
               "page": _page,
               "limit": _limit,
               "search": _search,
-              "types": _type == null ? null : [_type],
+              "types": _type == null ? null : [_type!.wireValue],
               "onlyUnread": _onlyUnread == true,
             },
           );
@@ -276,7 +277,7 @@ class MessageNotifier extends _$MessageNotifier {
             "page": 1,
             "limit": _page * _limit,
             "search": _search,
-            "types": _type == null ? null : [_type],
+            "types": _type == null ? null : [_type!.wireValue],
             "onlyUnread": _onlyUnread == true,
           },
         );

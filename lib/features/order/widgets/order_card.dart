@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_ad_ecommerce/models/api_enums.dart';
 import 'package:flutter_ad_ecommerce/models/order.dart'; // Make sure you have this model
 import 'package:flutter_ad_ecommerce/constants/colors.dart'; // Your colors file
 import 'package:flutter_ad_ecommerce/router/routes.dart';
@@ -57,12 +58,8 @@ class _OrderCardState extends State<OrderCard> {
     final transactionFeeRateAtSale =
         widget.order.transactionFeeRateAtSale ?? 0.0;
     final orderStatus = widget.order.orderStatus;
-    final orderStatusText = orderStatus == "paid"
-        ? "交易成功"
-        : orderStatus == "payment-processing"
-        ? "待付款"
-        : orderStatus.toUpperCase();
-    final orderStatusColor = orderStatus == "payment-processing"
+    final orderStatusText = orderStatus.displayName;
+    final orderStatusColor = orderStatus == OrderStatus.paymentProcessing
         ? AppColors.warningColor
         : AppColors.paidStatusColor;
 

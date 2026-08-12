@@ -3,6 +3,7 @@ import 'dart:developer';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_ad_ecommerce/constants/colors.dart';
+import 'package:flutter_ad_ecommerce/models/api_enums.dart';
 import 'package:flutter_ad_ecommerce/models/product.dart';
 import 'package:flutter_ad_ecommerce/provider/cart_provider.dart';
 import 'package:flutter_ad_ecommerce/provider/collection_provider.dart';
@@ -585,12 +586,12 @@ class _SingleProductDetailsState extends ConsumerState<SingleProductDetails> {
                           color: Colors.white,
                         ),
                       ),
-                      if (_product!.type == "refrigeration")
+                      if (_product!.type == ProductType.refrigeration)
                         _buildTag("冷藏", Colors.blueAccent)
-                      else if (_product!.type == "virtual")
+                      else if (_product!.type == ProductType.virtual)
                         _buildTag("免運", Colors.green),
                       if (_product!.allowHomeDelivery &&
-                          _product!.type != 'virtual')
+                          _product!.type != ProductType.virtual)
                         _buildTag("宅配到府", Colors.orange),
                     ],
                   ),
@@ -683,7 +684,7 @@ class _SingleProductDetailsState extends ConsumerState<SingleProductDetails> {
                       Chip(
                         labelPadding: const EdgeInsets.symmetric(horizontal: 4),
                         label: Text(
-                          "狀態：${_product!.status.isEmpty ? "N/A" : productStatusTranslation(_product!.status)}",
+                          "狀態：${productStatusTranslation(_product!.status)}",
                         ),
                         backgroundColor: AppColors.secondaryButtonColor,
                       ),

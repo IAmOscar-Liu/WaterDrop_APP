@@ -1,3 +1,4 @@
+import 'package:flutter_ad_ecommerce/models/api_enums.dart';
 import 'package:flutter_ad_ecommerce/models/product.dart';
 import 'package:flutter_ad_ecommerce/utils/parse_utils.dart';
 
@@ -8,6 +9,7 @@ class Chatroom {
   final String? accountId;
   final String? productId;
   final String? productVariantId;
+  final ChatRoomStatus status;
 
   final Product? product;
   final ProductVariant? variant;
@@ -24,6 +26,7 @@ class Chatroom {
     this.accountId,
     this.productId,
     this.productVariantId,
+    this.status = ChatRoomStatus.inactive,
     this.product,
     this.variant,
     this.totalUnread,
@@ -39,6 +42,7 @@ class Chatroom {
     String? accountId,
     String? productId,
     String? productVariantId,
+    ChatRoomStatus? status,
     Product? product,
     ProductVariant? variant,
     int? totalUnread,
@@ -53,6 +57,7 @@ class Chatroom {
       accountId: accountId ?? this.accountId,
       productId: productId ?? this.productId,
       productVariantId: productVariantId ?? this.productVariantId,
+      status: status ?? this.status,
       product: product ?? this.product,
       variant: variant ?? this.variant,
       totalUnread: totalUnread ?? this.totalUnread,
@@ -70,6 +75,7 @@ class Chatroom {
       'accountId': accountId,
       'productId': productId,
       'productVariantId': productVariantId,
+      'status': status.wireValue,
       'createdAt': createdAt?.millisecondsSinceEpoch,
       'updatedAt': updatedAt?.millisecondsSinceEpoch,
     };
@@ -82,6 +88,7 @@ class Chatroom {
       accountId: ParseUtils.parseString(map['accountId']),
       productId: ParseUtils.parseString(map['productId']),
       productVariantId: ParseUtils.parseString(map['productVariantId']),
+      status: ChatRoomStatus.fromWire(ParseUtils.parseString(map['status'])),
       product: map['product'] is Map
           ? Product.fromApiResponseMap(map['product'])
           : null,
@@ -104,7 +111,7 @@ class Chatroom {
 class ChatMessage {
   final String id;
   final String chatRoomId;
-  final String senderType;
+  final ChatMessageSenderType senderType;
   final String content;
   final List<ChatMessageAttachment>? attachments;
   final bool isRead;
@@ -123,7 +130,7 @@ class ChatMessage {
   ChatMessage copyWith({
     String? id,
     String? chatRoomId,
-    String? senderType,
+    ChatMessageSenderType? senderType,
     String? content,
     List<ChatMessageAttachment>? attachments,
     bool? isRead,
@@ -144,7 +151,7 @@ class ChatMessage {
     return <String, dynamic>{
       'id': id,
       'chatRoomId': chatRoomId,
-      'senderType': senderType,
+      'senderType': senderType.wireValue,
       'content': content,
       'isRead': isRead,
       'createdAt': createdAt.millisecondsSinceEpoch,
@@ -155,7 +162,7 @@ class ChatMessage {
     return ChatMessage(
       id: "pending",
       chatRoomId: "",
-      senderType: "user",
+      senderType: ChatMessageSenderType.user,
       content: content,
       isRead: false,
       createdAt: DateTime.now(),
@@ -166,7 +173,9 @@ class ChatMessage {
     return ChatMessage(
       id: ParseUtils.parseString(map['id']) ?? "",
       chatRoomId: ParseUtils.parseString(map['chatRoomId']) ?? "",
-      senderType: ParseUtils.parseString(map['senderType']) ?? "",
+      senderType: ChatMessageSenderType.fromWire(
+        ParseUtils.parseString(map['senderType']),
+      ),
       content: ParseUtils.parseString(map['content']) ?? "",
       attachments: map["attachments"] is List
           ? List.generate(
@@ -269,7 +278,7 @@ class ChatMessagePagination {
 
 class ChatRoomOrder {
   final String id;
-  final String orderStatus;
+  final OrderStatus orderStatus;
   final String merchantTradeNo;
   final int totalAmount;
   final int discountCoin;
@@ -287,7 +296,9 @@ class ChatRoomOrder {
   factory ChatRoomOrder.fromApiResponseMap(Map<String, dynamic> map) {
     return ChatRoomOrder(
       id: ParseUtils.parseString(map['id']) ?? "",
-      orderStatus: ParseUtils.parseString(map['orderStatus']) ?? "",
+      orderStatus: OrderStatus.fromWire(
+        ParseUtils.parseString(map['orderStatus']),
+      ),
       merchantTradeNo: ParseUtils.parseString(map['merchantTradeNo']) ?? "",
       totalAmount: ParseUtils.parseInt(map['totalAmount']) ?? 0,
       discountCoin: ParseUtils.parseInt(map['discountCoin']) ?? 0,
@@ -301,9 +312,9 @@ class ChatRoomOrder {
 class ChatRoomOrderDelivery {
   final String id;
   final String merchantTradeNo;
-  final String logisticsType;
+  final DeliveryLogisticsType logisticsType;
   final String? logisticsSubType;
-  final String status;
+  final DeliveryStatus status;
   final String rtnCode;
   final String rtnMsg;
 
@@ -321,9 +332,11 @@ class ChatRoomOrderDelivery {
     return ChatRoomOrderDelivery(
       id: ParseUtils.parseString(map['id']) ?? "",
       merchantTradeNo: ParseUtils.parseString(map['merchantTradeNo']) ?? "",
-      logisticsType: ParseUtils.parseString(map['LogisticsType']) ?? "",
+      logisticsType: DeliveryLogisticsType.fromWire(
+        ParseUtils.parseString(map['LogisticsType']),
+      ),
       logisticsSubType: ParseUtils.parseString(map['LogisticsSubType']),
-      status: ParseUtils.parseString(map['status']) ?? "",
+      status: DeliveryStatus.fromWire(ParseUtils.parseString(map['status'])),
       rtnCode: ParseUtils.parseString(map['RtnCode']) ?? "",
       rtnMsg: ParseUtils.parseString(map['RtnMsg']) ?? "",
     );

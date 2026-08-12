@@ -1,6 +1,7 @@
 import 'dart:developer';
 
 import 'package:dio/dio.dart';
+import 'package:flutter_ad_ecommerce/models/api_enums.dart';
 import 'package:flutter_ad_ecommerce/models/order.dart';
 import 'package:flutter_ad_ecommerce/models/product.dart';
 import 'package:flutter_ad_ecommerce/provider/dio_provider.dart';
@@ -130,7 +131,7 @@ class OrderNotifier extends _$OrderNotifier {
     int? userMaxDiscountAtSale,
     required List<CartItem> cartItems,
     required Map<String, dynamic> shippingInfo,
-    String? orderPayment,
+    OrderPayment? orderPayment,
   }) async {
     try {
       final response = await ref
@@ -161,7 +162,7 @@ class OrderNotifier extends _$OrderNotifier {
                 };
               }).toList(),
               "shippingInfo": shippingInfo,
-              "orderPayment": orderPayment,
+              "orderPayment": orderPayment?.wireValue,
             },
           );
 
@@ -196,7 +197,7 @@ class OrderNotifier extends _$OrderNotifier {
 
   Future<Result<Order>> updateOrder({
     required String orderId,
-    required String status,
+    required OrderStatus status,
     dynamic metadata,
   }) async {
     try {
@@ -204,7 +205,7 @@ class OrderNotifier extends _$OrderNotifier {
           .read(dioProvider)
           .put(
             "/api/order/$orderId",
-            data: {"status": status, "metadata": metadata},
+            data: {"status": status.wireValue, "metadata": metadata},
           );
 
       if (response.data['success'] != true) {

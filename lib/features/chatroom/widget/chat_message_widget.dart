@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_ad_ecommerce/constants/colors.dart';
+import 'package:flutter_ad_ecommerce/models/api_enums.dart';
 import 'package:flutter_ad_ecommerce/models/chatroom.dart';
 import 'package:flutter_ad_ecommerce/router/routes.dart';
 import 'package:flutter_ad_ecommerce/utils/file_utils.dart';
@@ -84,7 +85,7 @@ class ChatMessageWidget extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 12),
       child: Column(
-        crossAxisAlignment: message.senderType != 'user'
+        crossAxisAlignment: message.senderType != ChatMessageSenderType.user
             ? CrossAxisAlignment.start
             : CrossAxisAlignment.end,
         children: [
@@ -104,8 +105,8 @@ class ChatMessageWidget extends StatelessWidget {
               ),
               decoration: BoxDecoration(
                 color:
-                    (message.senderType == 'admin' ||
-                        message.senderType == 'seller')
+                    (message.senderType == ChatMessageSenderType.admin ||
+                        message.senderType == ChatMessageSenderType.seller)
                     ? AppColors.mutedTextColor
                     : AppColors.infoColor,
                 borderRadius: BorderRadius.circular(16),
@@ -128,8 +129,8 @@ class ChatMessageWidget extends StatelessWidget {
                     .toList(),
               ),
             ),
-          if (message.senderType != "admin" &&
-              message.senderType != "seller" &&
+          if (message.senderType != ChatMessageSenderType.admin &&
+              message.senderType != ChatMessageSenderType.seller &&
               (message.id == "pending" || message.isRead))
             Padding(
               padding: EdgeInsetsGeometry.only(top: 4, right: 8),

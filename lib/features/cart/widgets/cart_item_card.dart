@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_ad_ecommerce/models/api_enums.dart';
 import 'package:flutter_ad_ecommerce/models/product.dart';
 import 'package:flutter_ad_ecommerce/constants/colors.dart';
 import 'package:flutter_ad_ecommerce/provider/account_provider.dart';
@@ -106,7 +107,7 @@ class CartItemCard extends ConsumerWidget {
                               )
                             : InitialImage(name: product.name),
                       ),
-                      if (product.type == 'refrigeration')
+                      if (product.type == ProductType.refrigeration)
                         Positioned(
                           bottom: 0,
                           left: 0,
@@ -130,7 +131,7 @@ class CartItemCard extends ConsumerWidget {
                             ),
                           ),
                         ),
-                      if (product.type == 'virtual')
+                      if (product.type == ProductType.virtual)
                         Positioned(
                           bottom: 0,
                           left: 0,

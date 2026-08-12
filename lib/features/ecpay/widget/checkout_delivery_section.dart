@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_ad_ecommerce/constants/colors.dart';
+import 'package:flutter_ad_ecommerce/models/api_enums.dart';
 import 'package:flutter_ad_ecommerce/models/logistics_info.dart';
 import 'package:flutter_ad_ecommerce/models/payment_settings.dart';
 import 'package:flutter_ad_ecommerce/models/product.dart';
@@ -160,13 +161,13 @@ class CheckoutDeliverySection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final virtualItems = cartItems
-        .where((i) => i.product.type == 'virtual')
+        .where((i) => i.product.type == ProductType.virtual)
         .toList();
     final refrigerationItems = cartItems
-        .where((i) => i.product.type == 'refrigeration')
+        .where((i) => i.product.type == ProductType.refrigeration)
         .toList();
     final normalItems = cartItems
-        .where((i) => i.product.type == 'normal')
+        .where((i) => i.product.type == ProductType.normal)
         .toList();
 
     // Group by seller

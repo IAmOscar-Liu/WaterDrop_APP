@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_ad_ecommerce/constants/colors.dart';
 import 'package:flutter_ad_ecommerce/features/chatroom/widget/chat_input_widget.dart';
 import 'package:flutter_ad_ecommerce/features/chatroom/widget/chat_message_widget.dart';
+import 'package:flutter_ad_ecommerce/models/api_enums.dart';
 import 'package:flutter_ad_ecommerce/models/chatroom.dart';
 import 'package:flutter_ad_ecommerce/provider/chat_message_provider.dart';
 import 'package:flutter_ad_ecommerce/provider/system_provider.dart';
@@ -197,7 +198,7 @@ class _ChatroomPageState extends ConsumerState<ChatroomPage> {
                 itemBuilder: (context, index) {
                   final message = chatMessages[index];
                   return Align(
-                    alignment: message.senderType != 'user'
+                    alignment: message.senderType != ChatMessageSenderType.user
                         ? Alignment.centerLeft
                         : Alignment.centerRight,
                     child: ChatMessageWidget(message: message),
@@ -215,7 +216,7 @@ class _ChatroomPageState extends ConsumerState<ChatroomPage> {
                     .read(chatMessageNotifierProvider.notifier)
                     .sendMessage(
                       chatRoomId: _chatroom!.id,
-                      senderType: "user",
+                      senderType: ChatMessageSenderType.user,
                       content: value,
                       files: files,
                       onCompleted: () =>

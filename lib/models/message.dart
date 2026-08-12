@@ -1,11 +1,12 @@
 // lib/models.dart
+import 'package:flutter_ad_ecommerce/models/api_enums.dart';
 import 'package:flutter_ad_ecommerce/utils/parse_utils.dart';
 
 class Message {
   final String id;
   final String userId;
   final String? orderId;
-  final String type;
+  final NotificationType type;
   final String title;
   final String body;
   final bool isRead;
@@ -32,7 +33,7 @@ class Message {
       id: ParseUtils.parseString(map['id']) ?? "",
       userId: ParseUtils.parseString(map['userId']) ?? "",
       orderId: ParseUtils.parseString(map['orderId']),
-      type: ParseUtils.parseString(map['type']) ?? "",
+      type: NotificationType.fromWire(ParseUtils.parseString(map['type'])),
       title: ParseUtils.parseString(map['title']) ?? "",
       body: ParseUtils.parseString(map['body']) ?? "",
       isRead: map['isRead'] == true,
@@ -48,7 +49,7 @@ class Message {
     String? id,
     String? userId,
     String? orderId,
-    String? type,
+    NotificationType? type,
     String? title,
     String? body,
     bool? isRead,

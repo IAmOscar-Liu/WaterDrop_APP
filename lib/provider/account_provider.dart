@@ -3,6 +3,7 @@ import 'dart:developer';
 import 'package:dio/dio.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_ad_ecommerce/models/account_info.dart';
+import 'package:flutter_ad_ecommerce/models/api_enums.dart' as api_enums;
 import 'package:flutter_ad_ecommerce/provider/dio_provider.dart';
 import 'package:flutter_ad_ecommerce/provider/system_provider.dart';
 import 'package:flutter_ad_ecommerce/utils/exception_handler.dart';
@@ -32,7 +33,7 @@ class AccountNotifier extends _$AccountNotifier {
             "/api/auth/login",
             data: {
               "oauthId": user.uid,
-              "oauthProvider": "google",
+              "oauthProvider": api_enums.OAuthProvider.google.wireValue,
               "email": user.email,
               "name": user.displayName,
               "timezone": timezone,

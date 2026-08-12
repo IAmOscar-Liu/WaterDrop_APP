@@ -6,6 +6,7 @@ import 'package:flutter_ad_ecommerce/constants/app_constants.dart';
 import 'package:flutter_ad_ecommerce/constants/colors.dart';
 import 'package:flutter_ad_ecommerce/features/ecpay/widget/checkout_delivery_section.dart';
 import 'package:flutter_ad_ecommerce/features/ecpay/widget/checkout_webview.dart';
+import 'package:flutter_ad_ecommerce/models/api_enums.dart';
 import 'package:flutter_ad_ecommerce/models/logistics_info.dart';
 import 'package:flutter_ad_ecommerce/models/order.dart';
 import 'package:flutter_ad_ecommerce/models/payment_settings.dart';
@@ -48,7 +49,7 @@ class _PaymentSettingsPageState extends ConsumerState<PaymentSettingsPage> {
   final Map<String, LogisticsSubType?> _normalCvsTypes = {};
   final Map<String, LogisticsMapInfo?> _normalStores = {};
   final Map<LogisticsSubType, LogisticsMapInfo> _savedStoresBySubType = {};
-  String _orderPayment = "Credit";
+  OrderPayment _orderPayment = OrderPayment.Credit;
 
   String? _selectingStoreFor; // 'refrigeration' or 'normal'
   String? _selectingStoreForSellerId; // Track which seller we are selecting for
@@ -333,7 +334,7 @@ class _PaymentSettingsPageState extends ConsumerState<PaymentSettingsPage> {
             ),
           ),
           const Divider(color: AppColors.dividerColor),
-          RadioGroup<String>(
+          RadioGroup<OrderPayment>(
             groupValue: _orderPayment,
             onChanged: (value) {
               if (value == null) return;
@@ -342,13 +343,13 @@ class _PaymentSettingsPageState extends ConsumerState<PaymentSettingsPage> {
             child: Column(
               children: [
                 _buildPaymentOption(
-                  value: "Credit",
+                  value: OrderPayment.Credit,
                   title: "信用卡",
                   icon: Icons.credit_card,
                 ),
                 const SizedBox(height: 10),
                 _buildPaymentOption(
-                  value: "ATM",
+                  value: OrderPayment.ATM,
                   title: "ATM轉帳",
                   icon: Icons.account_balance,
                 ),
@@ -361,7 +362,7 @@ class _PaymentSettingsPageState extends ConsumerState<PaymentSettingsPage> {
   }
 
   Widget _buildPaymentOption({
-    required String value,
+    required OrderPayment value,
     required String title,
     required IconData icon,
   }) {
@@ -380,7 +381,7 @@ class _PaymentSettingsPageState extends ConsumerState<PaymentSettingsPage> {
           width: isSelected ? 1.5 : 1,
         ),
       ),
-      child: RadioListTile<String>(
+      child: RadioListTile<OrderPayment>(
         value: value,
         activeColor: AppColors.primaryButtonColor,
         contentPadding: const EdgeInsets.symmetric(horizontal: 12),
@@ -487,13 +488,13 @@ class _PaymentSettingsPageState extends ConsumerState<PaymentSettingsPage> {
     final List<CartItem> cartItems = widget.extra['cartItems'];
 
     final virtualItems = cartItems
-        .where((i) => i.product.type == 'virtual')
+        .where((i) => i.product.type == ProductType.virtual)
         .toList();
     final refrigerationItems = cartItems
-        .where((i) => i.product.type == 'refrigeration')
+        .where((i) => i.product.type == ProductType.refrigeration)
         .toList();
     final normalItems = cartItems
-        .where((i) => i.product.type == 'normal')
+        .where((i) => i.product.type == ProductType.normal)
         .toList();
 
     // Group items by seller for validation logic
@@ -794,7 +795,7 @@ class _PaymentSettingsPageState extends ConsumerState<PaymentSettingsPage> {
                               final bankCode = accountInfo.bankCode?.trim();
                               final bankAccount = accountInfo.bankAccount
                                   ?.trim();
-                              if (_orderPayment == "ATM" &&
+                              if (_orderPayment == OrderPayment.ATM &&
                                   (bankCode == null ||
                                       bankCode.isEmpty ||
                                       bankAccount == null ||
@@ -878,7 +879,8 @@ class _PaymentSettingsPageState extends ConsumerState<PaymentSettingsPage> {
                                         .read(systemNotifierProvider)
                                         .currentOrder;
                                     if (resultOrder != null &&
-                                        resultOrder.orderStatus == "pending") {
+                                        resultOrder.orderStatus ==
+                                            OrderStatus.pending) {
                                       final result = await ref
                                           .read(orderNotifierProvider.notifier)
                                           .getOrder(orderId: resultOrder.id);
@@ -897,12 +899,13 @@ class _PaymentSettingsPageState extends ConsumerState<PaymentSettingsPage> {
                                         .read(systemNotifierProvider)
                                         .currentOrder;
                                     if (resultOrder != null &&
-                                        resultOrder.orderStatus == "pending") {
+                                        resultOrder.orderStatus ==
+                                            OrderStatus.pending) {
                                       final result = await ref
                                           .read(orderNotifierProvider.notifier)
                                           .updateOrder(
                                             orderId: resultOrder.id,
-                                            status: "canceled",
+                                            status: OrderStatus.canceled,
                                           );
                                       if (result.isSuccess) {
                                         ref
@@ -921,12 +924,12 @@ class _PaymentSettingsPageState extends ConsumerState<PaymentSettingsPage> {
                                         .currentOrder;
                                     if (resultOrder == null ||
                                         resultOrder.orderStatus ==
-                                            "payment-processing") {
+                                            OrderStatus.paymentProcessing) {
                                       // ignore: use_build_context_synchronously
                                       return context.pop();
                                     }
                                     final orderStatus = resultOrder.orderStatus;
-                                    if (orderStatus != "paid") {
+                                    if (orderStatus != OrderStatus.paid) {
                                       showDialog(
                                         // ignore: use_build_context_synchronously
                                         context: context,
@@ -936,9 +939,11 @@ class _PaymentSettingsPageState extends ConsumerState<PaymentSettingsPage> {
                                               0xFF262A33,
                                             ),
                                             title: Text(
-                                              orderStatus == "canceled"
+                                              orderStatus ==
+                                                      OrderStatus.canceled
                                                   ? "交易取消"
-                                                  : orderStatus == "expired"
+                                                  : orderStatus ==
+                                                        OrderStatus.expired
                                                   ? "交易逾期"
                                                   : "交易失敗",
                                               style: const TextStyle(
@@ -1022,7 +1027,7 @@ class _PaymentSettingsPageState extends ConsumerState<PaymentSettingsPage> {
         ),
       );
     } else if (_checkoutStat == CheckoutStat.processingPayment &&
-        currentOrder?.orderStatus == "paid") {
+        currentOrder?.orderStatus == OrderStatus.paid) {
       return _buildLayout(
         child: Builder(
           builder: (context) {

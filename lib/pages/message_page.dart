@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_ad_ecommerce/constants/colors.dart';
 import 'package:flutter_ad_ecommerce/features/message/widgets/message_card.dart';
+import 'package:flutter_ad_ecommerce/models/api_enums.dart';
 import 'package:flutter_ad_ecommerce/models/message.dart';
 import 'package:flutter_ad_ecommerce/provider/message_provider.dart';
 import 'package:flutter_ad_ecommerce/provider/message_stats_provider.dart';
@@ -14,17 +15,17 @@ import 'package:go_router/go_router.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 
 enum MessageType {
-  all("all", "全部"),
-  systemAlert("system_alert", "系統通知"),
-  orderStatus("order_status", "訂單狀態"),
-  promotion("promotion", "促銷優惠"),
-  coinsEarned("coins_earned", "賺取金幣"),
-  chatMessage("chat_message", "聊天訊息"),
-  other("other", "其他");
+  all(null, "全部"),
+  systemAlert(NotificationType.systemAlert, "系統通知"),
+  orderStatus(NotificationType.orderStatus, "訂單狀態"),
+  promotion(NotificationType.promotion, "促銷優惠"),
+  coinsEarned(NotificationType.coinsEarned, "賺取金幣"),
+  chatMessage(NotificationType.chatMessage, "聊天訊息"),
+  other(NotificationType.other, "其他");
 
-  const MessageType(this.name, this.label);
+  const MessageType(this.notificationType, this.label);
 
-  final String name;
+  final NotificationType? notificationType;
   final String label;
 }
 
@@ -54,7 +55,7 @@ class _MessagePageState extends ConsumerState<MessagePage> {
       ref
           .read(messageNotifierProvider.notifier)
           .loadMessages(
-            type: _type == MessageType.all ? null : _type.name,
+            type: _type.notificationType,
             search: _textSearch.isEmpty ? null : _textSearch,
             onlyUnread: _onlyUnread,
           );
