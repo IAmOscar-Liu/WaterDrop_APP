@@ -455,8 +455,5 @@ double cartTotalPrice(CartTotalPriceRef ref) {
   final cartItems = (ref.watch(cartProvider).data ?? [])
       .where((item) => item.checked)
       .toList(); // Watch the main cart state
-  return cartItems.fold(
-    0.0,
-    (sum, item) => sum + (item.product.price * item.quantity),
-  );
+  return cartItems.fold(0.0, (sum, item) => sum + item.lineTotal);
 }

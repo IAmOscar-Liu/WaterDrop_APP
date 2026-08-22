@@ -111,7 +111,7 @@ class _ECPayPageState extends ConsumerState<ECPayPage>
           LogisticsSubType cvsType = group["cvsType"];
           double goodsAmount = normalPickupItems.fold(
             0,
-            (sum, item) => sum + item.product.price * item.quantity,
+            (sum, item) => sum + item.lineTotal,
           );
           cvsPickupGroup.add({
             "type": AppConstants.logisticsSubType,
@@ -143,7 +143,7 @@ class _ECPayPageState extends ConsumerState<ECPayPage>
           LogisticsSubType? cvsType = group["cvsType"];
           double goodsAmount = items.fold(
             0.0,
-            (sum, item) => sum + item.product.price * item.quantity,
+            (sum, item) => sum + item.lineTotal,
           );
 
           Map<String, String>? getCvsStoreInfo(LogisticsMapInfo? storeInfo) {

@@ -49,6 +49,13 @@ class CartItemCard extends ConsumerWidget {
         product.variants.first.id == variant!.id;
     final shouldShowVariantName =
         variantName.isNotEmpty && !hasOnlyMatchingDefaultVariant;
+    final variantPrice = variant?.price ?? 0;
+    final unitPrice = variantPrice > 0 ? variantPrice : product.price;
+    final productImages = product.images ?? const <String>[];
+    final variantImages = variant?.images ?? const <String>[];
+    final imageUrl = variantImages.isNotEmpty
+        ? variantImages.first
+        : (productImages.isNotEmpty ? productImages.first : null);
 
     return Card(
       color: AppColors.containerBgColor, // Dark background for the card
@@ -90,11 +97,10 @@ class CartItemCard extends ConsumerWidget {
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(4.0),
                         ),
-                        child:
-                            product.images != null && product.images!.isNotEmpty
+                        child: imageUrl != null
                             ? FadeInImage.assetNetwork(
                                 placeholder: "assets/images/photo_loading.gif",
-                                image: product.images![0],
+                                image: imageUrl,
                                 fit: BoxFit.cover,
                                 imageErrorBuilder: (context, error, stackTrace) {
                                   // This builder is used if the network image fails to load.
@@ -195,7 +201,7 @@ class CartItemCard extends ConsumerWidget {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            'NT\$ ${product.price.formatWithCommas()}',
+                            'NT\$ ${unitPrice.formatWithCommas()}',
                             style: const TextStyle(
                               color: AppColors.goldColor, // Gold for price
                               fontSize: 16,
@@ -248,6 +254,9 @@ class CartItemCard extends ConsumerWidget {
                       Routes.chatroomPage,
                       extra: {
                         "title": product.name,
+                        "variantName": shouldShowVariantName
+                            ? variantName
+                            : null,
                         "userId": userId,
                         "accountId": product.sellerId,
                         "productId": product.id,

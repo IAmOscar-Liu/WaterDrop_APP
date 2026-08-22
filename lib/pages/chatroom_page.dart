@@ -141,6 +141,23 @@ class _ChatroomPageState extends ConsumerState<ChatroomPage> {
     });
   }
 
+  String get _appBarTitle {
+    final extraTitle = widget.extra is Map
+        ? ParseUtils.parseString(widget.extra['title'])
+        : null;
+    return extraTitle ?? _chatroom?.product?.name ?? '聊天室';
+  }
+
+  String? get _appBarSubtitle {
+    final variantName =
+        _chatroom?.product?.variantName?.trim() ??
+        (widget.extra is Map
+            ? ParseUtils.parseString(widget.extra['variantName'])?.trim()
+            : null);
+    if (variantName == null || variantName.isEmpty) return null;
+    return variantName;
+  }
+
   Widget _buildLayout({required Widget child}) {
     return PopScope(
       canPop: true,
@@ -150,12 +167,7 @@ class _ChatroomPageState extends ConsumerState<ChatroomPage> {
       child: Scaffold(
         backgroundColor: AppColors.scaffoldBgColor,
         resizeToAvoidBottomInset: true,
-        appBar: SimpleAppBar(
-          title:
-              ParseUtils.parseString(widget.extra['title']) ??
-              _chatroom?.product?.name ??
-              '聊天室',
-        ),
+        appBar: SimpleAppBar(title: _appBarTitle, subtitle: _appBarSubtitle),
         body: KeyboardDismissOnTap(child: child),
       ),
     );

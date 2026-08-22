@@ -272,11 +272,7 @@ class _SingleOrderDetailsState extends ConsumerState<SingleOrderDetails> {
 
     context.push(
       Routes.singleProductDetails,
-      extra: {
-        "productId": product.id,
-        "hideAddCartItemButton": true,
-        "hideAddCollectionButton": true,
-      },
+      extra: {"productId": product.id, "hideAddCartItemButton": true},
     );
   }
 
@@ -289,6 +285,9 @@ class _SingleOrderDetailsState extends ConsumerState<SingleOrderDetails> {
       Routes.chatroomPage,
       extra: {
         "title": product.name,
+        "variantName": item.variantDisplayName.isNotEmpty
+            ? item.variantDisplayName
+            : null,
         "userId": userId,
         "accountId": product.sellerId,
         "productId": product.id,
@@ -395,122 +394,124 @@ class _SingleOrderDetailsState extends ConsumerState<SingleOrderDetails> {
                   value: delivery.cvsStoreInfo!["storeAddress"],
                 ),
               if (delivery.logs.isNotEmpty)
-                InkWell(
-                  onTap: () {
-                    showModalBottomSheet(
-                      context: context,
-                      isScrollControlled: true,
-                      backgroundColor: AppColors.primaryColor,
-                      shape: const RoundedRectangleBorder(
-                        borderRadius: BorderRadius.vertical(
-                          top: Radius.circular(16),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8.0),
+                  child: FilledButton.icon(
+                    onPressed: () {
+                      showModalBottomSheet(
+                        context: context,
+                        isScrollControlled: true,
+                        backgroundColor: AppColors.primaryColor,
+                        shape: const RoundedRectangleBorder(
+                          borderRadius: BorderRadius.vertical(
+                            top: Radius.circular(16),
+                          ),
                         ),
-                      ),
-                      builder: (BuildContext context) {
-                        final mediaQuery = MediaQuery.of(context);
-                        final maxChildSize =
-                            (mediaQuery.size.height -
-                                mediaQuery.padding.top -
-                                kToolbarHeight) /
-                            mediaQuery.size.height;
-                        var sheetSize = 0.5;
+                        builder: (BuildContext context) {
+                          final mediaQuery = MediaQuery.of(context);
+                          final maxChildSize =
+                              (mediaQuery.size.height -
+                                  mediaQuery.padding.top -
+                                  kToolbarHeight) /
+                              mediaQuery.size.height;
+                          var sheetSize = 0.5;
 
-                        return StatefulBuilder(
-                          builder: (context, setSheetState) {
-                            return NotificationListener<
-                              DraggableScrollableNotification
-                            >(
-                              onNotification: (notification) {
-                                if ((notification.extent - sheetSize).abs() >
-                                    0.01) {
-                                  setSheetState(() {
-                                    sheetSize = notification.extent;
-                                  });
-                                }
-                                return false;
-                              },
-                              child: DraggableScrollableSheet(
-                                initialChildSize: 0.5,
-                                minChildSize: 0.5,
-                                maxChildSize: maxChildSize
-                                    .clamp(0.5, 1.0)
-                                    .toDouble(),
-                                expand: false,
-                                builder: (context, scrollController) {
-                                  return Padding(
-                                    padding: const EdgeInsets.all(16.0),
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Center(
-                                          child: Icon(
-                                            sheetSize <= 0.51
-                                                ? Icons.keyboard_arrow_up
-                                                : Icons.keyboard_arrow_down,
-                                            color: AppColors.secondaryTextColor,
+                          return StatefulBuilder(
+                            builder: (context, setSheetState) {
+                              return NotificationListener<
+                                DraggableScrollableNotification
+                              >(
+                                onNotification: (notification) {
+                                  if ((notification.extent - sheetSize).abs() >
+                                      0.01) {
+                                    setSheetState(() {
+                                      sheetSize = notification.extent;
+                                    });
+                                  }
+                                  return false;
+                                },
+                                child: DraggableScrollableSheet(
+                                  initialChildSize: 0.5,
+                                  minChildSize: 0.5,
+                                  maxChildSize: maxChildSize
+                                      .clamp(0.5, 1.0)
+                                      .toDouble(),
+                                  expand: false,
+                                  builder: (context, scrollController) {
+                                    return Padding(
+                                      padding: const EdgeInsets.all(16.0),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Center(
+                                            child: Icon(
+                                              sheetSize <= 0.51
+                                                  ? Icons.keyboard_arrow_up
+                                                  : Icons.keyboard_arrow_down,
+                                              color:
+                                                  AppColors.secondaryTextColor,
+                                            ),
                                           ),
-                                        ),
-                                        const SizedBox(height: 8),
-                                        const Text(
-                                          '運單詳情',
-                                          style: TextStyle(
-                                            color: AppColors.primaryTextColor,
-                                            fontSize: 18,
-                                            fontWeight: FontWeight.bold,
+                                          const SizedBox(height: 8),
+                                          const Text(
+                                            '運單詳情',
+                                            style: TextStyle(
+                                              color: AppColors.primaryTextColor,
+                                              fontSize: 18,
+                                              fontWeight: FontWeight.bold,
+                                            ),
                                           ),
-                                        ),
-                                        const SizedBox(height: 16),
-                                        Expanded(
-                                          child: ListView.builder(
-                                            controller: scrollController,
-                                            itemCount: delivery.logs.length,
-                                            itemBuilder: (context, index) {
-                                              final log = delivery.logs[index];
-                                              return Container(
-                                                margin:
-                                                    const EdgeInsets.symmetric(
-                                                      vertical: 8.0,
-                                                    ),
-                                                padding: const EdgeInsets.all(
-                                                  12.0,
-                                                ),
-                                                decoration: BoxDecoration(
-                                                  color: AppColors.tileColor,
-                                                  borderRadius:
-                                                      BorderRadius.circular(8),
-                                                ),
-                                                child: Column(
-                                                  crossAxisAlignment:
-                                                      CrossAxisAlignment.start,
-                                                  children: [
-                                                    Row(
-                                                      mainAxisAlignment:
-                                                          MainAxisAlignment
-                                                              .spaceBetween,
-                                                      children: [
-                                                        OrderStatusBadge(
-                                                          status: log.status,
+                                          const SizedBox(height: 16),
+                                          Expanded(
+                                            child: ListView.builder(
+                                              controller: scrollController,
+                                              itemCount: delivery.logs.length,
+                                              itemBuilder: (context, index) {
+                                                final log =
+                                                    delivery.logs[index];
+                                                return Container(
+                                                  margin:
+                                                      const EdgeInsets.symmetric(
+                                                        vertical: 8.0,
+                                                      ),
+                                                  padding: const EdgeInsets.all(
+                                                    12.0,
+                                                  ),
+                                                  decoration: BoxDecoration(
+                                                    color: AppColors.tileColor,
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          8,
                                                         ),
-                                                        Text(
-                                                          Formatter.formatDateTime(
-                                                            log.createdAt,
+                                                  ),
+                                                  child: Column(
+                                                    crossAxisAlignment:
+                                                        CrossAxisAlignment
+                                                            .start,
+                                                    children: [
+                                                      Row(
+                                                        mainAxisAlignment:
+                                                            MainAxisAlignment
+                                                                .spaceBetween,
+                                                        children: [
+                                                          Text(
+                                                            Formatter.formatDateTime(
+                                                              log.createdAt,
+                                                            ),
+                                                            style: const TextStyle(
+                                                              color: AppColors
+                                                                  .secondaryTextColor,
+                                                              fontSize: 12,
+                                                            ),
                                                           ),
-                                                          style: const TextStyle(
-                                                            color: AppColors
-                                                                .secondaryTextColor,
-                                                            fontSize: 12,
+                                                          OrderStatusBadge(
+                                                            status: log.status,
                                                           ),
-                                                        ),
-                                                      ],
-                                                    ),
-                                                    const SizedBox(height: 8),
-                                                    Padding(
-                                                      padding:
-                                                          const EdgeInsets.only(
-                                                            left: 8.0,
-                                                          ),
-                                                      child: Text(
+                                                        ],
+                                                      ),
+                                                      const SizedBox(height: 8),
+                                                      Text(
                                                         log.rtnMsg,
                                                         style: const TextStyle(
                                                           color: AppColors
@@ -518,29 +519,39 @@ class _SingleOrderDetailsState extends ConsumerState<SingleOrderDetails> {
                                                           fontSize: 14,
                                                         ),
                                                       ),
-                                                    ),
-                                                  ],
-                                                ),
-                                              );
-                                            },
+                                                    ],
+                                                  ),
+                                                );
+                                              },
+                                            ),
                                           ),
-                                        ),
-                                      ],
-                                    ),
-                                  );
-                                },
-                              ),
-                            );
-                          },
-                        );
-                      },
-                    );
-                  },
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(vertical: 8.0),
-                    child: Text(
-                      "運單詳情",
-                      style: TextStyle(color: AppColors.infoColor),
+                                        ],
+                                      ),
+                                    );
+                                  },
+                                ),
+                              );
+                            },
+                          );
+                        },
+                      );
+                    },
+                    icon: const Icon(Icons.local_shipping_outlined, size: 16),
+                    label: const Text("運單詳情"),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.infoColor,
+                      foregroundColor: AppColors.primaryTextColor,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 7,
+                      ),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      shape: const StadiumBorder(),
+                      textStyle: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
                 ),

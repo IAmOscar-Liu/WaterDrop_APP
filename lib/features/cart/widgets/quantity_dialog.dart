@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_ad_ecommerce/constants/colors.dart';
 import 'package:flutter_ad_ecommerce/models/product.dart';
+import 'package:flutter_ad_ecommerce/utils/number_formatter_extension.dart';
 
 class CartItemEditResult {
   final int quantity;
@@ -240,6 +241,7 @@ class _QuantityDialogState extends State<QuantityDialog> {
   Widget _buildVariantOptionRow(ProductVariant variant) {
     final isSelected = _selectedVariant.id == variant.id;
     final stockText = '庫存 ${variant.availableStock}';
+    final priceText = variant.price.toDollarsString(prefix: "NT");
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
@@ -285,13 +287,28 @@ class _QuantityDialogState extends State<QuantityDialog> {
                 ),
               ),
               const SizedBox(width: 12),
-              Text(
-                stockText,
-                style: const TextStyle(
-                  color: AppColors.goldColor,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    priceText,
+                    style: const TextStyle(
+                      color: AppColors.goldColor,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    stockText,
+                    style: const TextStyle(
+                      color: AppColors.secondaryTextColor,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),

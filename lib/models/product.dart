@@ -52,6 +52,8 @@ class ProductVariant {
   final String productId;
   final String? name;
   final String? sku;
+  final double price;
+  final List<String>? images;
   final Map<String, dynamic> optionValues;
   final int availableStock;
   final ProductStatus status;
@@ -67,6 +69,8 @@ class ProductVariant {
     required this.productId,
     this.name,
     this.sku,
+    this.price = 0,
+    this.images,
     this.optionValues = const {},
     this.availableStock = 0,
     this.status = ProductStatus.active,
@@ -84,6 +88,8 @@ class ProductVariant {
       productId: ParseUtils.parseString(map['productId']) ?? "",
       name: ParseUtils.parseString(map['name']),
       sku: ParseUtils.parseString(map['sku']),
+      price: ParseUtils.parseDouble(map['price']) ?? 0,
+      images: _parseStringList(map['images']),
       optionValues: _parseStringDynamicMap(map['optionValues']),
       availableStock:
           ParseUtils.parseInt(map['availableStock']) ??
@@ -130,6 +136,8 @@ class ProductVariant {
     String? productId,
     String? name,
     String? sku,
+    double? price,
+    List<String>? images,
     Map<String, dynamic>? optionValues,
     int? availableStock,
     ProductStatus? status,
@@ -145,6 +153,8 @@ class ProductVariant {
       productId: productId ?? this.productId,
       name: name ?? this.name,
       sku: sku ?? this.sku,
+      price: price ?? this.price,
+      images: images ?? this.images,
       optionValues: optionValues ?? this.optionValues,
       availableStock: availableStock ?? this.availableStock,
       status: status ?? this.status,
@@ -180,6 +190,7 @@ class Product {
   final int availableStock;
   final ProductVariant? variant;
   final String? variantName;
+  final String? variantImage;
 
   Product({
     required this.id,
@@ -203,6 +214,7 @@ class Product {
     this.availableStock = 0,
     this.variant,
     this.variantName,
+    this.variantImage,
   });
 
   // Simple factory for demonstration, could be from JSON in a real app
@@ -215,12 +227,7 @@ class Product {
         }
       }
     }
-    List<String>? images = map['images'] is List
-        ? List.generate(
-            map['images'].length,
-            (index) => ParseUtils.parseString(map['images'][index]) ?? "",
-          ).where((e) => e.isNotEmpty).toList()
-        : null;
+    List<String>? images = _parseStringList(map['images']);
     Advertisement? advertisement = map['advertisement'] is Map
         ? Advertisement.fromApiResponse(map['advertisement'], index: 0)
         : null;
@@ -263,6 +270,7 @@ class Product {
           ? ProductVariant.fromApiResponseMap(map['variant'])
           : null,
       variantName: ParseUtils.parseString(map['variantName']),
+      variantImage: ParseUtils.parseString(map['variantImage']),
     );
   }
 
@@ -294,6 +302,7 @@ class Product {
       'variants': variants.map((variant) => variant.displayName).toList(),
       'variant': variant?.displayName,
       'variantName': variantName,
+      'variantImage': variantImage,
     };
   }
 
@@ -328,6 +337,7 @@ class Product {
     int? availableStock,
     ProductVariant? variant,
     String? variantName,
+    String? variantImage,
   }) {
     return Product(
       id: id ?? this.id,
@@ -351,6 +361,7 @@ class Product {
       availableStock: availableStock ?? this.availableStock,
       variant: variant ?? this.variant,
       variantName: variantName ?? this.variantName,
+      variantImage: variantImage ?? this.variantImage,
     );
   }
 }
@@ -462,11 +473,26 @@ class CartItem {
           : null,
     );
   }
+
+  double get unitPrice {
+    final variantPrice = variant?.price ?? 0;
+    return variantPrice > 0 ? variantPrice : product.price;
+  }
+
+  double get lineTotal => unitPrice * quantity;
 }
 
 Map<String, dynamic> _parseStringDynamicMap(dynamic value) {
   if (value is Map) return Map<String, dynamic>.from(value);
   return {};
+}
+
+List<String>? _parseStringList(dynamic value) {
+  if (value is! List) return null;
+  return List.generate(
+    value.length,
+    (index) => ParseUtils.parseString(value[index]) ?? "",
+  ).where((e) => e.isNotEmpty).toList();
 }
 
 String productStatusTranslation(ProductStatus status) {

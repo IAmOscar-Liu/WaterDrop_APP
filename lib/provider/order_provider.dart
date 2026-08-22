@@ -154,7 +154,7 @@ class OrderNotifier extends _$OrderNotifier {
                   'productId': item.productId,
                   'productVariantId': item.productVariantId,
                   'quantity': item.quantity,
-                  'unitPriceAtSale': item.product.price,
+                  'unitPriceAtSale': item.unitPrice,
                   'productNameAtSale': item.product.name,
                   'variantNameAtSale': item.variant?.name,
                   'variantSkuAtSale': item.variant?.sku,

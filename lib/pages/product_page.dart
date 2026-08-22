@@ -27,8 +27,6 @@ class ProductPage extends ConsumerStatefulWidget {
 }
 
 class _ProductPageState extends ConsumerState<ProductPage> {
-  static const _productsApiKey = 'products';
-
   Category _selectedCategory = Category(id: "all", name: '全部');
   String _textSearch = '';
   int? _minPrice;
@@ -47,7 +45,7 @@ class _ProductPageState extends ConsumerState<ProductPage> {
       if (event.to == Routes.productPage && event.to != event.from) {
         log('[Home] re-enter product page');
         final isOutdated = await ApiCallManager.isOlderThan(
-          _productsApiKey,
+          productListApiCacheKey,
           const Duration(minutes: 10),
         );
         if (isOutdated) {
@@ -65,7 +63,7 @@ class _ProductPageState extends ConsumerState<ProductPage> {
 
   void _loadProducts() {
     Future.delayed(Duration.zero, () async {
-      await ApiCallManager.updateApiCallTimestamp(_productsApiKey);
+      await ApiCallManager.updateApiCallTimestamp(productListApiCacheKey);
       await ref
           .read(productNotifierProvider.notifier)
           .loadProducts(

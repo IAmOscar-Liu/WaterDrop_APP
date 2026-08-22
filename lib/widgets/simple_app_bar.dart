@@ -3,6 +3,7 @@ import 'package:flutter_ad_ecommerce/constants/colors.dart';
 
 class SimpleAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String title;
+  final String? subtitle;
   final List<Widget>? actions;
   final Widget? leading;
   final bool automaticallyImplyLeading;
@@ -16,6 +17,7 @@ class SimpleAppBar extends StatelessWidget implements PreferredSizeWidget {
   const SimpleAppBar({
     super.key,
     required this.title,
+    this.subtitle,
     this.actions,
     this.leading,
     this.automaticallyImplyLeading = true,
@@ -29,18 +31,54 @@ class SimpleAppBar extends StatelessWidget implements PreferredSizeWidget {
 
   @override
   Widget build(BuildContext context) {
+    final subtitleText = subtitle?.trim();
+
     return AppBar(
       backgroundColor: backgroundColor ?? AppColors.appbarBgColor,
       centerTitle: centerTitle,
-      title: Text(
-        title,
-        style:
-            titleTextStyle ??
-            const TextStyle(
-              fontWeight: FontWeight.bold,
-              color: AppColors.primaryTextColor,
+      title: subtitleText == null || subtitleText.isEmpty
+          ? Text(
+              title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style:
+                  titleTextStyle ??
+                  const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.primaryTextColor,
+                  ),
+            )
+          : Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: centerTitle
+                  ? CrossAxisAlignment.center
+                  : CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style:
+                      titleTextStyle ??
+                      const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.primaryTextColor,
+                      ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitleText,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: AppColors.secondaryTextColor,
+                  ),
+                ),
+              ],
             ),
-      ),
       iconTheme:
           iconTheme ??
           IconThemeData(color: foregroundColor ?? AppColors.primaryTextColor),

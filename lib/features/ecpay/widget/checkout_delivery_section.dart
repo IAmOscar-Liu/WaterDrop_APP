@@ -534,6 +534,11 @@ class CheckoutDeliverySection extends StatelessWidget {
             itemBuilder: (context, index) {
               final item = items[index];
               final variantName = item.variant?.name?.trim() ?? "";
+              final productImages = item.product.images ?? const <String>[];
+              final variantImages = item.variant?.images ?? const <String>[];
+              final imageUrl = variantImages.isNotEmpty
+                  ? variantImages.first
+                  : (productImages.isNotEmpty ? productImages.first : null);
               return Padding(
                 padding: const EdgeInsets.symmetric(vertical: 8.0),
                 child: Row(
@@ -547,12 +552,10 @@ class CheckoutDeliverySection extends StatelessWidget {
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(4.0),
                       ),
-                      child:
-                          item.product.images != null &&
-                              item.product.images!.isNotEmpty
+                      child: imageUrl != null
                           ? FadeInImage.assetNetwork(
                               placeholder: "assets/images/photo_loading.gif",
-                              image: item.product.images![0],
+                              image: imageUrl,
                               fit: BoxFit.cover,
                               imageErrorBuilder: (context, error, stackTrace) {
                                 return Image.asset(
@@ -568,33 +571,14 @@ class CheckoutDeliverySection extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  item.product.name,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    color: AppColors.primaryTextColor,
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                item.product.price.toDollarsString(
-                                  prefix: "NT",
-                                ),
-                                style: const TextStyle(
-                                  color: AppColors.primaryTextColor,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ],
+                          Text(
+                            item.product.name,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: AppColors.primaryTextColor,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                           if (variantName.isNotEmpty) ...[
                             const SizedBox(height: 2),
@@ -609,22 +593,34 @@ class CheckoutDeliverySection extends StatelessWidget {
                               ),
                             ),
                           ],
-                          const SizedBox(height: 8.0),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                '數量: ${item.quantity}',
-                                style: const TextStyle(
-                                  color: AppColors.secondaryTextColor,
-                                  fontSize: 14,
-                                ),
-                              ),
-                              if (actionBuilder != null) actionBuilder(item),
-                            ],
-                          ),
+                          if (actionBuilder != null) ...[
+                            const SizedBox(height: 8.0),
+                            actionBuilder(item),
+                          ],
                         ],
                       ),
+                    ),
+                    const SizedBox(width: 8),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(
+                          item.unitPrice.toDollarsString(prefix: "NT"),
+                          style: const TextStyle(
+                            color: AppColors.primaryTextColor,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 8.0),
+                        Text(
+                          '數量: ${item.quantity}',
+                          style: const TextStyle(
+                            color: AppColors.secondaryTextColor,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),

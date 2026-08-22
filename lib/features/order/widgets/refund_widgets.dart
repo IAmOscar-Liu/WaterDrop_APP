@@ -145,10 +145,19 @@ void showRefundItemsBottomSheet(
   );
 }
 
-class _RefundItemCard extends StatelessWidget {
+class _RefundItemCard extends StatefulWidget {
   final RefundItem refundItem;
 
   const _RefundItemCard({required this.refundItem});
+
+  @override
+  State<_RefundItemCard> createState() => _RefundItemCardState();
+}
+
+class _RefundItemCardState extends State<_RefundItemCard> {
+  bool _showLogs = false;
+
+  RefundItem get refundItem => widget.refundItem;
 
   String _refundCoinsText() {
     final coins = refundItem.coins;
@@ -160,10 +169,121 @@ class _RefundItemCard extends StatelessWidget {
     return coins.formatWithCommas();
   }
 
+  Widget _buildLogRow(RefundLog log, bool isLast) {
+    final message = log.message?.trim();
+
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Column(
+            children: [
+              Container(
+                width: 8,
+                height: 8,
+                margin: const EdgeInsets.only(top: 7),
+                decoration: const BoxDecoration(
+                  color: AppColors.infoColor,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              if (!isLast)
+                Expanded(
+                  child: Container(width: 1, color: AppColors.dividerColor),
+                ),
+            ],
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          Formatter.formatDateTime(log.createdAt),
+                          style: const TextStyle(
+                            color: AppColors.secondaryTextColor,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      RefundStatusBadge(status: log.status),
+                    ],
+                  ),
+                  if (message?.isNotEmpty == true) ...[
+                    const SizedBox(height: 4),
+                    Padding(
+                      padding: const EdgeInsets.only(left: 4),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            width: 5,
+                            height: 5,
+                            margin: const EdgeInsets.only(top: 7),
+                            decoration: BoxDecoration(
+                              color: AppColors.secondaryTextColor.withValues(
+                                alpha: 0.8,
+                              ),
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 5),
+                          Expanded(
+                            child: Text(
+                              message!,
+                              style: const TextStyle(
+                                color: AppColors.primaryTextColor,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLogHistory() {
+    final logs = refundItem.logs;
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(top: 8),
+      padding: const EdgeInsets.fromLTRB(10, 10, 10, 0),
+      decoration: BoxDecoration(
+        color: AppColors.containerBgColor,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.borderColor),
+      ),
+      child: Column(
+        children: [
+          for (var index = 0; index < logs.length; index++)
+            _buildLogRow(logs[index], index == logs.length - 1),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final reason = refundItem.reason?.trim();
     final note = refundItem.note?.trim();
+    final hasLogs = refundItem.logs.isNotEmpty;
 
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 8.0),
@@ -216,6 +336,37 @@ class _RefundItemCard extends StatelessWidget {
             label: '最後更新時間:',
             value: Formatter.formatDateTime(refundItem.updatedAt),
           ),
+          if (hasLogs) ...[
+            const SizedBox(height: 4),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: () {
+                  setState(() {
+                    _showLogs = !_showLogs;
+                  });
+                },
+                style: TextButton.styleFrom(
+                  foregroundColor: AppColors.infoColor,
+                  visualDensity: VisualDensity.compact,
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                ),
+                icon: Icon(
+                  _showLogs ? Icons.expand_less : Icons.history,
+                  size: 18,
+                ),
+                label: Text(_showLogs ? '收合記錄' : '查看記錄'),
+              ),
+            ),
+            AnimatedCrossFade(
+              firstChild: const SizedBox.shrink(),
+              secondChild: _buildLogHistory(),
+              crossFadeState: _showLogs
+                  ? CrossFadeState.showSecond
+                  : CrossFadeState.showFirst,
+              duration: const Duration(milliseconds: 180),
+            ),
+          ],
         ],
       ),
     );

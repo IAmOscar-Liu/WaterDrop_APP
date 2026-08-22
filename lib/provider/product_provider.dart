@@ -12,6 +12,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 part 'product_provider.g.dart';
 
 final _customLimit = 10;
+const productListApiCacheKey = 'products';
 
 @Riverpod()
 class ProductNotifier extends _$ProductNotifier {
@@ -87,6 +88,15 @@ class ProductNotifier extends _$ProductNotifier {
       log('Error loading products: $e');
       state = CustomAsyncValue.error('Error loading products: $e');
     }
+  }
+
+  Future<void> refreshProducts() {
+    return loadProducts(
+      categoryId: _categoryId,
+      search: _search,
+      minPrice: _minPrice,
+      maxPrice: _maxPrice,
+    );
   }
 
   Future<void> fetchMoreProducts() async {

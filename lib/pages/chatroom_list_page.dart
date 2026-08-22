@@ -74,6 +74,25 @@ class _ChatroomListPageState extends ConsumerState<ChatroomListPage> {
     }
   }
 
+  String? _buildChatRoomOrderStatusText(ChatRoomOrder? order) {
+    if (order == null) return null;
+    if (order.delivery != null) {
+      final delivery = order.delivery!;
+      return delivery.rtnMsg.isNotEmpty
+          ? delivery.rtnMsg
+          : "訂單${_buildDeliveryStatusText(delivery.status)}";
+    }
+
+    switch (order.orderStatus) {
+      case OrderStatus.paymentProcessing:
+        return "待付款";
+      case OrderStatus.expired:
+        return "交易逾期(未付款)";
+      default:
+        return "交易取消";
+    }
+  }
+
   Widget _buildLayout({required Widget child}) {
     return Scaffold(
       backgroundColor: AppColors.scaffoldBgColor,
@@ -145,6 +164,21 @@ class _ChatroomListPageState extends ConsumerState<ChatroomListPage> {
                                   : chatRoom.product?.name ?? "未知商品";
                               final variantTitle =
                                   chatRoom.product?.variantName?.trim() ?? "";
+                              final productImages =
+                                  chatRoom.product?.images ?? const <String>[];
+                              final variantImage = chatRoom
+                                  .product
+                                  ?.variantImage
+                                  ?.trim();
+                              final imageUrl =
+                                  variantImage != null &&
+                                      variantImage.isNotEmpty
+                                  ? variantImage
+                                  : (productImages.isNotEmpty
+                                        ? productImages.first
+                                        : null);
+                              final orderStatusText =
+                                  _buildChatRoomOrderStatusText(chatRoom.order);
 
                               final chatroomCard = GestureDetector(
                                 onTap:
@@ -193,18 +227,11 @@ class _ChatroomListPageState extends ConsumerState<ChatroomListPage> {
                                                 "assets/icons/appstore.png",
                                                 fit: BoxFit.cover,
                                               )
-                                            : (chatRoom.product?.images !=
-                                                      null &&
-                                                  chatRoom
-                                                      .product!
-                                                      .images!
-                                                      .isNotEmpty)
+                                            : imageUrl != null
                                             ? FadeInImage.assetNetwork(
                                                 placeholder:
                                                     "assets/images/photo_loading.gif",
-                                                image: chatRoom
-                                                    .product!
-                                                    .images![0],
+                                                image: imageUrl,
                                                 fit: BoxFit.cover,
                                                 imageErrorBuilder:
                                                     (
@@ -288,29 +315,16 @@ class _ChatroomListPageState extends ConsumerState<ChatroomListPage> {
                                                 ),
                                               ),
                                             ],
-                                            if (chatRoom.order?.delivery !=
-                                                null) ...[
+                                            if (orderStatusText != null) ...[
                                               const SizedBox(height: 2),
-                                              Builder(
-                                                builder: (context) {
-                                                  final delivery =
-                                                      chatRoom.order!.delivery!;
-                                                  final deliveryText =
-                                                      delivery.rtnMsg.isNotEmpty
-                                                      ? delivery.rtnMsg
-                                                      : "訂單${_buildDeliveryStatusText(delivery.status)}";
-                                                  return Text(
-                                                    deliveryText,
-                                                    style: const TextStyle(
-                                                      color:
-                                                          AppColors.infoColor,
-                                                      fontSize: 12,
-                                                    ),
-                                                    maxLines: 1,
-                                                    overflow:
-                                                        TextOverflow.ellipsis,
-                                                  );
-                                                },
+                                              Text(
+                                                orderStatusText,
+                                                style: const TextStyle(
+                                                  color: AppColors.infoColor,
+                                                  fontSize: 12,
+                                                ),
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
                                               ),
                                             ],
                                             if (chatRoom.lastMessage !=

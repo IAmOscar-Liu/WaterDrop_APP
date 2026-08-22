@@ -29,6 +29,11 @@ class OrderItemList extends StatelessWidget {
       itemCount: items.length,
       itemBuilder: (context, index) {
         final item = items[index];
+        final productImages = item.product?.images ?? const <String>[];
+        final variantImage = item.variantImage?.trim();
+        final imageUrl = variantImage != null && variantImage.isNotEmpty
+            ? variantImage
+            : (productImages.isNotEmpty ? productImages.first : null);
         return Padding(
           padding: const EdgeInsets.symmetric(vertical: 8.0),
           child: Row(
@@ -47,12 +52,10 @@ class OrderItemList extends StatelessWidget {
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(4.0),
                       ),
-                      child:
-                          item.product?.images != null &&
-                              item.product!.images!.isNotEmpty
+                      child: imageUrl != null
                           ? FadeInImage.assetNetwork(
                               placeholder: "assets/images/photo_loading.gif",
-                              image: item.product!.images![0],
+                              image: imageUrl,
                               fit: BoxFit.cover,
                               imageErrorBuilder: (context, error, stackTrace) {
                                 return Image.asset(

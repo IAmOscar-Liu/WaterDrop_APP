@@ -18,10 +18,11 @@ import 'package:flutter_ad_ecommerce/provider/dio_provider.dart';
 import 'package:flutter_ad_ecommerce/provider/message_stats_provider.dart';
 import 'package:flutter_ad_ecommerce/provider/order_provider.dart';
 import 'package:flutter_ad_ecommerce/provider/payment_settings_provider.dart';
+import 'package:flutter_ad_ecommerce/provider/product_provider.dart';
 import 'package:flutter_ad_ecommerce/provider/system_provider.dart';
 import 'package:flutter_ad_ecommerce/router/routes.dart';
+import 'package:flutter_ad_ecommerce/utils/api_call_manager.dart';
 import 'package:flutter_ad_ecommerce/utils/number_formatter_extension.dart';
-import 'package:flutter_ad_ecommerce/utils/parse_utils.dart';
 import 'package:flutter_ad_ecommerce/utils/events.dart';
 import 'package:flutter_ad_ecommerce/widgets/keyboard_dismiss_on_tap.dart';
 import 'package:flutter_ad_ecommerce/widgets/messaging_app_bar.dart';
@@ -557,14 +558,22 @@ class _CartPageState extends ConsumerState<CartPage> {
                                 errorDiscountText != null)
                             ? null
                             : () async {
+                                var shouldRefreshProducts = false;
                                 setState(() {
                                   _isProcessingTransaction = true;
                                 });
+                                final checkedCartItems = cartItems
+                                    .where((item) => item.checked)
+                                    .toList();
+                                final checkoutSubTotal = checkedCartItems.fold(
+                                  0.0,
+                                  (sum, item) => sum + item.lineTotal,
+                                );
                                 final invalidMsg = await _checkoutValidation(
                                   accountInfo,
-                                  cartItems.where((c) => c.checked).toList(),
+                                  checkedCartItems,
                                   totalCheckedItems,
-                                  subTotal,
+                                  checkoutSubTotal.round(),
                                 );
                                 if (invalidMsg != null) {
                                   return showDialog(
@@ -656,15 +665,12 @@ class _CartPageState extends ConsumerState<CartPage> {
                                       Routes.paymentSettingsPage,
                                       extra: {
                                         "shippingFee": shippingFeeResult.data,
-                                        "subTotal": ParseUtils.parseDouble(
-                                          subTotal,
-                                        ),
+                                        "subTotal": checkoutSubTotal,
+                                        "totalPrice": checkoutSubTotal,
                                         "discountCoin": _discountCoin ?? 0,
                                         "userLevelAtSale": accountInfo.level,
                                         "userMaxDiscountAtSale": maxDiscount,
-                                        "cartItems": cartItems
-                                            .where((item) => item.checked)
-                                            .toList(),
+                                        "cartItems": checkedCartItems,
                                       },
                                     )
                                     .then((value) {
@@ -695,6 +701,7 @@ class _CartPageState extends ConsumerState<CartPage> {
                                       if (orderStatus == OrderStatus.paid ||
                                           orderStatus ==
                                               OrderStatus.paymentProcessing) {
+                                        shouldRefreshProducts = true;
                                         return showDialog(
                                           // ignore: use_build_context_synchronously
                                           context: context,
@@ -745,6 +752,17 @@ class _CartPageState extends ConsumerState<CartPage> {
                                                   .notifier,
                                             )
                                             .loadMessageStats(),
+                                        if (shouldRefreshProducts) ...[
+                                          ApiCallManager.updateApiCallTimestamp(
+                                            productListApiCacheKey,
+                                          ),
+                                          ref
+                                              .read(
+                                                productNotifierProvider
+                                                    .notifier,
+                                              )
+                                              .refreshProducts(),
+                                        ],
                                       ]);
                                     })
                                     .then((value) {

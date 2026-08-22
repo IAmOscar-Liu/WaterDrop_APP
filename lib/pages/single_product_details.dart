@@ -133,6 +133,13 @@ class _SingleProductDetailsState extends ConsumerState<SingleProductDetails> {
   bool get _hideAddCollectionButton =>
       widget.extra is Map && widget.extra['hideAddCollectionButton'] == true;
 
+  bool get _isProductActive => _product?.status == ProductStatus.active;
+
+  bool get _showAddCartButton => _isProductActive && !_hideAddCartItemButton;
+
+  bool get _showCollectionButton =>
+      _isProductActive && !_hideAddCollectionButton;
+
   bool get _removeFromCollection =>
       widget.extra is Map && widget.extra['removeFromCollection'] == true;
 
@@ -146,6 +153,12 @@ class _SingleProductDetailsState extends ConsumerState<SingleProductDetails> {
       return product.availableStock;
     }
     return product.stock - product.reserve;
+  }
+
+  double get _displayPrice {
+    final selectedPrice = _selectedVariant?.price ?? 0;
+    if (selectedPrice > 0) return selectedPrice;
+    return _product?.price ?? 0;
   }
 
   bool get _canAddToCart {
@@ -317,9 +330,48 @@ class _SingleProductDetailsState extends ConsumerState<SingleProductDetails> {
     );
   }
 
+  List<String> _getVariantImages(ProductVariant variant) {
+    return variant.images
+            ?.where((image) => image.trim().isNotEmpty)
+            .toList(growable: false) ??
+        const <String>[];
+  }
+
+  void _openVariantImagePreview(ProductVariant variant) {
+    final images = _getVariantImages(variant);
+    if (images.isEmpty) return;
+
+    context.push(Routes.photoView, extra: {"urlImages": images});
+  }
+
+  Widget _buildVariantPreviewButton(ProductVariant variant) {
+    final hasImages = _getVariantImages(variant).isNotEmpty;
+
+    return Container(
+      width: 36,
+      height: 36,
+      decoration: BoxDecoration(
+        color: hasImages ? AppColors.infoColor : AppColors.mutedTextColor,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: IconButton(
+        tooltip: hasImages ? '預覽圖片' : '此規格沒有圖片',
+        onPressed: hasImages ? () => _openVariantImagePreview(variant) : null,
+        icon: const Icon(Icons.image_search_outlined, size: 19),
+        color: Colors.white,
+        disabledColor: AppColors.secondaryTextColor,
+        visualDensity: VisualDensity.compact,
+        padding: EdgeInsets.zero,
+      ),
+    );
+  }
+
   Widget _buildVariantOptionRow(ProductVariant variant) {
     final isSelected = _selectedVariant?.id == variant.id;
     final stockText = '庫存 ${variant.availableStock}';
+    final priceText = variant.price > 0
+        ? variant.price.toDollarsString(prefix: "NT")
+        : (_product?.price ?? 0).toDollarsString(prefix: "NT");
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
@@ -364,15 +416,32 @@ class _SingleProductDetailsState extends ConsumerState<SingleProductDetails> {
                   ),
                 ),
               ),
-              const SizedBox(width: 12),
-              Text(
-                stockText,
-                style: const TextStyle(
-                  color: AppColors.goldColor,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                ),
+              const SizedBox(width: 8),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    priceText,
+                    style: const TextStyle(
+                      color: AppColors.goldColor,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    stockText,
+                    style: const TextStyle(
+                      color: AppColors.secondaryTextColor,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
               ),
+              const SizedBox(width: 8),
+              _buildVariantPreviewButton(variant),
             ],
           ),
         ),
@@ -382,6 +451,9 @@ class _SingleProductDetailsState extends ConsumerState<SingleProductDetails> {
 
   Widget _buildVariantReadOnlyRow(ProductVariant variant) {
     final stockText = '庫存 ${variant.availableStock}';
+    final priceText = variant.price > 0
+        ? variant.price.toDollarsString(prefix: "NT")
+        : (_product?.price ?? 0).toDollarsString(prefix: "NT");
 
     return Container(
       width: double.infinity,
@@ -412,14 +484,31 @@ class _SingleProductDetailsState extends ConsumerState<SingleProductDetails> {
             ),
           ),
           const SizedBox(width: 12),
-          Text(
-            stockText,
-            style: const TextStyle(
-              color: AppColors.secondaryTextColor,
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-            ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                priceText,
+                style: const TextStyle(
+                  color: AppColors.goldColor,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                stockText,
+                style: const TextStyle(
+                  color: AppColors.secondaryTextColor,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
           ),
+          const SizedBox(width: 8),
+          _buildVariantPreviewButton(variant),
         ],
       ),
     );
@@ -483,6 +572,130 @@ class _SingleProductDetailsState extends ConsumerState<SingleProductDetails> {
           fontSize: 13,
           fontWeight: isKey ? FontWeight.w600 : FontWeight.w500,
         ),
+      ),
+    );
+  }
+
+  Widget _buildCategoryBlock() {
+    final categories = _product?.categories ?? const <Category>[];
+    if (categories.isEmpty) return const SizedBox.shrink();
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.only(top: 3),
+          child: Text(
+            '分類',
+            style: TextStyle(
+              color: AppColors.primaryTextColor,
+              fontWeight: FontWeight.bold,
+              fontSize: 16,
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: categories
+                .map(
+                  (category) => _buildMetaLabel(
+                    category.name,
+                    backgroundColor: AppColors.primaryButtonColor,
+                  ),
+                )
+                .toList(),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMetaLabel(
+    String text, {
+    required Color backgroundColor,
+    Color textColor = AppColors.primaryTextColor,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          color: textColor,
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatusStockChips() {
+    return Wrap(
+      alignment: WrapAlignment.end,
+      spacing: 8,
+      runSpacing: 6,
+      children: [
+        _buildMetaLabel(
+          "狀態：${productStatusTranslation(_product!.status)}",
+          backgroundColor: AppColors.secondaryButtonColor,
+        ),
+        _buildMetaLabel(
+          "庫存：$_displayStock",
+          backgroundColor: AppColors.goldColor,
+          textColor: Colors.black,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildProductMetaRow() {
+    final hasCategories = _product?.categories?.isNotEmpty == true;
+    final chips = _buildStatusStockChips();
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.containerBgColor,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.borderColor),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          if (!hasCategories) {
+            return Align(alignment: Alignment.centerLeft, child: chips);
+          }
+
+          if (constraints.maxWidth < 420) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildCategoryBlock(),
+                const SizedBox(height: 12),
+                chips,
+              ],
+            );
+          }
+
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Flexible(flex: 3, child: _buildCategoryBlock()),
+              const SizedBox(width: 12),
+              Flexible(
+                flex: 2,
+                child: Align(alignment: Alignment.topRight, child: chips),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -601,7 +814,7 @@ class _SingleProductDetailsState extends ConsumerState<SingleProductDetails> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        _product!.price.toDollarsString(prefix: "NT"),
+                        _displayPrice.toDollarsString(prefix: "NT"),
                         style: Theme.of(context).textTheme.titleMedium
                             ?.copyWith(
                               fontWeight: FontWeight.bold,
@@ -660,54 +873,19 @@ class _SingleProductDetailsState extends ConsumerState<SingleProductDetails> {
                       ).textTheme.bodyMedium?.copyWith(color: Colors.white),
                     ),
                   const SizedBox(height: 12),
-                  // Meta chips
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 3,
-                    children: [
-                      Chip(
-                        labelPadding: const EdgeInsets.symmetric(horizontal: 4),
-                        label: Builder(
-                          builder: (context) {
-                            final String categoryText =
-                                (_product!.categories == null ||
-                                    _product!.categories!.isEmpty)
-                                ? "N/A"
-                                : _product!.categories!
-                                      .map((c) => c.name)
-                                      .join(", ");
-                            return Text("分類：$categoryText");
-                          },
-                        ),
-                        backgroundColor: AppColors.primaryButtonColor,
-                      ),
-                      Chip(
-                        labelPadding: const EdgeInsets.symmetric(horizontal: 4),
-                        label: Text(
-                          "狀態：${productStatusTranslation(_product!.status)}",
-                        ),
-                        backgroundColor: AppColors.secondaryButtonColor,
-                      ),
-                      Chip(
-                        labelPadding: const EdgeInsets.symmetric(horizontal: 4),
-                        label: Text("庫存：$_displayStock"),
-                        labelStyle: const TextStyle(color: Colors.black),
-                        backgroundColor: AppColors.goldColor,
-                      ),
-                    ],
-                  ),
+                  _buildProductMetaRow(),
                   _buildMetadataTable(),
                   _buildVariantSection(),
                 ],
               ),
             ),
-            if (!_hideAddCartItemButton || !_hideAddCollectionButton)
+            if (_showAddCartButton || _showCollectionButton)
               Padding(
                 padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                 child: Row(
                   mainAxisSize: MainAxisSize.max,
                   children: [
-                    if (!_hideAddCartItemButton)
+                    if (_showAddCartButton)
                       Expanded(
                         child: Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -741,7 +919,7 @@ class _SingleProductDetailsState extends ConsumerState<SingleProductDetails> {
                           ),
                         ),
                       ),
-                    if (!_hideAddCollectionButton)
+                    if (_showCollectionButton)
                       Expanded(
                         child: Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 8),

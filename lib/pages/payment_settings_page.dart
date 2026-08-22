@@ -672,7 +672,8 @@ class _PaymentSettingsPageState extends ConsumerState<PaymentSettingsPage> {
 
     Map<String, double> getOrderSummary() {
       final mGroups = generateGroup();
-      double mSubTotal = widget.extra["subTotal"] ?? 0;
+      double mSubTotal =
+          widget.extra["totalPrice"] ?? widget.extra["subTotal"] ?? 0;
       int mDiscountAmount = ((widget.extra['discountCoin'] ?? 0) / 10).floor();
       double mShippingCost = mGroups.fold(
         0,
@@ -852,7 +853,7 @@ class _PaymentSettingsPageState extends ConsumerState<PaymentSettingsPage> {
                                   .push(
                                     Routes.ecPayPage,
                                     extra: {
-                                      "subTotal": widget.extra["subTotal"],
+                                      "subTotal": result["subTotal"],
                                       "totalAmount": result['totalAmount'],
                                       "discountCoin":
                                           widget.extra['discountCoin'],

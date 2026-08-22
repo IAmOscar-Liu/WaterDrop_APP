@@ -6,8 +6,9 @@ class VariantAtSale {
   final String? name;
   final String? sku;
   final Map<String, dynamic>? optionValues;
+  final double price;
 
-  const VariantAtSale({this.name, this.sku, this.optionValues});
+  const VariantAtSale({this.name, this.sku, this.optionValues, this.price = 0});
 
   factory VariantAtSale.fromApiResponseMap(Map<String, dynamic> map) {
     return VariantAtSale(
@@ -16,6 +17,7 @@ class VariantAtSale {
       optionValues: map['optionValues'] is Map
           ? Map<String, dynamic>.from(map['optionValues'])
           : null,
+      price: ParseUtils.parseDouble(map['price']) ?? 0,
     );
   }
 
@@ -206,6 +208,7 @@ class OrderItem {
   final String? variantSkuAtSale;
   final Map<String, dynamic>? variantOptionValuesAtSale;
   final VariantAtSale? variantAtSale;
+  final String? variantImage;
   final double lineTotal;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -226,6 +229,7 @@ class OrderItem {
     this.variantSkuAtSale,
     this.variantOptionValuesAtSale,
     this.variantAtSale,
+    this.variantImage,
     required this.lineTotal,
     required this.createdAt,
     required this.updatedAt,
@@ -252,6 +256,7 @@ class OrderItem {
       variantAtSale: map['variantAtSale'] is Map
           ? VariantAtSale.fromApiResponseMap(map['variantAtSale'])
           : null,
+      variantImage: ParseUtils.parseString(map['variantImage']),
       lineTotal: ParseUtils.parseDouble(map['lineTotal']) ?? 0,
       createdAt: ParseUtils.parseDateTime(map['createdAt']) ?? DateTime.now(),
       updatedAt: ParseUtils.parseDateTime(map['updatedAt']) ?? DateTime.now(),
@@ -283,6 +288,7 @@ class OrderItem {
     String? variantSkuAtSale,
     Map<String, dynamic>? variantOptionValuesAtSale,
     VariantAtSale? variantAtSale,
+    String? variantImage,
     double? lineTotal,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -303,6 +309,7 @@ class OrderItem {
       variantOptionValuesAtSale:
           variantOptionValuesAtSale ?? this.variantOptionValuesAtSale,
       variantAtSale: variantAtSale ?? this.variantAtSale,
+      variantImage: variantImage ?? this.variantImage,
       lineTotal: lineTotal ?? this.lineTotal,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -314,6 +321,32 @@ class OrderItem {
 
   String get variantDisplayName {
     return variantAtSale?.displayName ?? "";
+  }
+}
+
+class RefundLog {
+  final String id;
+  final String refundItemId;
+  final RefundStatus status;
+  final String? message;
+  final DateTime createdAt;
+
+  const RefundLog({
+    required this.id,
+    required this.refundItemId,
+    required this.status,
+    this.message,
+    required this.createdAt,
+  });
+
+  factory RefundLog.fromApiResponseMap(Map<String, dynamic> map) {
+    return RefundLog(
+      id: ParseUtils.parseString(map['id']) ?? "",
+      refundItemId: ParseUtils.parseString(map['refundItemId']) ?? "",
+      status: RefundStatus.fromWire(ParseUtils.parseString(map['status'])),
+      message: ParseUtils.parseString(map['message']),
+      createdAt: ParseUtils.parseDateTime(map['createdAt']) ?? DateTime.now(),
+    );
   }
 }
 
@@ -331,6 +364,7 @@ class RefundItem {
   final double? returnableCoins;
   final Map<String, dynamic>? metadata;
   final Map<String, dynamic>? summary;
+  final List<RefundLog> logs;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -348,6 +382,7 @@ class RefundItem {
     this.returnableCoins,
     this.metadata,
     this.summary,
+    this.logs = const [],
     required this.createdAt,
     required this.updatedAt,
   });
@@ -367,6 +402,12 @@ class RefundItem {
       returnableCoins: ParseUtils.parseDouble(map['returnableCoins']),
       metadata: map['metadata'] is Map ? map['metadata'] : null,
       summary: map['summary'] is Map ? map['summary'] : null,
+      logs: map['logs'] is List
+          ? List.generate(
+              map['logs'].length,
+              (index) => RefundLog.fromApiResponseMap(map['logs'][index]),
+            )
+          : const [],
       createdAt: ParseUtils.parseDateTime(map['createdAt']) ?? DateTime.now(),
       updatedAt: ParseUtils.parseDateTime(map['updatedAt']) ?? DateTime.now(),
     );
@@ -468,6 +509,7 @@ class DeliveryItem {
   final String? variantSkuAtSale;
   final Map<String, dynamic>? variantOptionValuesAtSale;
   final VariantAtSale? variantAtSale;
+  final String? variantImage;
 
   DeliveryItem({
     required this.id,
@@ -478,6 +520,7 @@ class DeliveryItem {
     this.variantSkuAtSale,
     this.variantOptionValuesAtSale,
     this.variantAtSale,
+    this.variantImage,
   });
 
   factory DeliveryItem.fromApiResponseMap(Map<String, dynamic> map) {
@@ -494,6 +537,7 @@ class DeliveryItem {
       variantAtSale: map['variantAtSale'] is Map
           ? VariantAtSale.fromApiResponseMap(map['variantAtSale'])
           : null,
+      variantImage: ParseUtils.parseString(map['variantImage']),
     );
   }
 
