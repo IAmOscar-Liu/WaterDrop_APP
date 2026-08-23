@@ -8,3 +8,21 @@ String getDioExceptionMessage(DioException e) {
   }
   return "$e";
 }
+
+String translateReferralCodeErrorMessage({
+  required String submittedCode,
+  String? backendMessage,
+  int? statusCode,
+}) {
+  final message = backendMessage?.trim();
+  final notFoundMatch = message == null
+      ? null
+      : RegExp(r'^Referral code "(.+)" not found\.$').firstMatch(message);
+
+  if (statusCode == 404 && notFoundMatch != null) {
+    final referralCode = notFoundMatch.group(1)?.trim();
+    return '找不到推薦碼「${referralCode?.isNotEmpty == true ? referralCode : submittedCode}」';
+  }
+
+  return message?.isNotEmpty == true ? message! : "無法提交推薦碼";
+}

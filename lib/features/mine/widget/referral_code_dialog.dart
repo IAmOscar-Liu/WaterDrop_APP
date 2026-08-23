@@ -67,7 +67,11 @@ class _ReferralCodeDialogState extends ConsumerState<ReferralCodeDialog> {
       Navigator.of(context).pop();
     } on DioException catch (e) {
       setState(() {
-        _asyncError = getDioExceptionMessage(e);
+        _asyncError = translateReferralCodeErrorMessage(
+          submittedCode: _controller.text,
+          backendMessage: getDioExceptionMessage(e),
+          statusCode: e.response?.statusCode,
+        );
       });
     } catch (e) {
       // Handle exceptions during the API call

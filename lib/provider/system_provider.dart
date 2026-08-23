@@ -268,11 +268,23 @@ class SystemNotifier extends _$SystemNotifier {
             .updateGroupId(response.data['data']['groupId']);
         return Result.success("推薦碼提交成功");
       } else {
-        return Result.failure(response.data['message']);
+        return Result.failure(
+          translateReferralCodeErrorMessage(
+            submittedCode: code,
+            backendMessage: ParseUtils.parseString(response.data['message']),
+            statusCode: response.statusCode,
+          ),
+        );
       }
     } on DioException catch (e) {
       log('Error checking referral code: $e');
-      return Result.failure(getDioExceptionMessage(e));
+      return Result.failure(
+        translateReferralCodeErrorMessage(
+          submittedCode: code,
+          backendMessage: ParseUtils.parseString(e.response?.data?['message']),
+          statusCode: e.response?.statusCode,
+        ),
+      );
     } catch (e) {
       log('Error checking referral code: $e');
       return Result.failure("$e");
