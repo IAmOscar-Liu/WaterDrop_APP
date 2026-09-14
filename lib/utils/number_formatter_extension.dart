@@ -16,4 +16,7 @@ extension NumberFormatterExtension on num {
     // Default to 0 decimals for dollar strings unless specified otherwise.
     return "${prefix ?? ""}\$ ${formatWithCommas(decimals: 0)}";
   }
+
+  /// Formats coins with up to two decimals and no unnecessary trailing zeroes.
+  String formatCoinValue() => NumberFormat('#,##0.##').format(this);
 }

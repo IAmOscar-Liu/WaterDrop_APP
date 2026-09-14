@@ -280,8 +280,8 @@ class ChatRoomOrder {
   final String id;
   final OrderStatus orderStatus;
   final String merchantTradeNo;
-  final int totalAmount;
-  final int discountCoin;
+  final double totalAmount;
+  final double discountCoin;
   final ChatRoomOrderDelivery? delivery;
 
   ChatRoomOrder({
@@ -300,8 +300,8 @@ class ChatRoomOrder {
         ParseUtils.parseString(map['orderStatus']),
       ),
       merchantTradeNo: ParseUtils.parseString(map['merchantTradeNo']) ?? "",
-      totalAmount: ParseUtils.parseInt(map['totalAmount']) ?? 0,
-      discountCoin: ParseUtils.parseInt(map['discountCoin']) ?? 0,
+      totalAmount: ParseUtils.parseDouble(map['totalAmount']) ?? 0,
+      discountCoin: ParseUtils.parseDouble(map['discountCoin']) ?? 0,
       delivery: map['delivery'] is Map
           ? ChatRoomOrderDelivery.fromApiResponseMap(map['delivery'])
           : null,

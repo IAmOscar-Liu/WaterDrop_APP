@@ -22,12 +22,16 @@ class ExplorePage extends ConsumerStatefulWidget {
   ConsumerState<ExplorePage> createState() => _ExplorePageState();
 }
 
-class _ExplorePageState extends ConsumerState<ExplorePage> {
+class _ExplorePageState extends ConsumerState<ExplorePage>
+    with WidgetsBindingObserver {
   late StreamSubscription _routeChangeSubscription;
+  Timer? _dailyRefreshTimer;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _scheduleDailyRefresh();
 
     // Future.delayed(Duration.zero, () {
     //   log(
@@ -47,7 +51,10 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
       if (event.to == Routes.explorePage && event.to != event.from) {
         log('[Explore] re-enter explore page');
         final isOutdated = await ApiCallManager.isOutdated('advertisements');
-        if (isOutdated) return _reloadAdDailyStats();
+        if (isOutdated) {
+          _reloadAdDailyStats();
+          return;
+        }
         final system = ref.read(systemNotifierProvider);
         if (!system.isPlayingAdvertisements && system.canWatchMoreVideo) {
           // if (!_isPlayingVideos) {
@@ -59,8 +66,34 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
 
   @override
   void dispose() {
-    super.dispose();
+    WidgetsBinding.instance.removeObserver(this);
+    _dailyRefreshTimer?.cancel();
     _routeChangeSubscription.cancel();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _reloadAdDailyStatsIfOutdated();
+      _scheduleDailyRefresh();
+    }
+  }
+
+  Future<void> _reloadAdDailyStatsIfOutdated() async {
+    final isOutdated = await ApiCallManager.isOutdated('advertisements');
+    if (mounted && isOutdated) _reloadAdDailyStats();
+  }
+
+  void _scheduleDailyRefresh() {
+    _dailyRefreshTimer?.cancel();
+    final now = DateTime.now();
+    final nextRefresh = ApiCallManager.nextDailyRefreshAt(now);
+    _dailyRefreshTimer = Timer(nextRefresh.difference(now), () {
+      if (!mounted) return;
+      _reloadAdDailyStats();
+      _scheduleDailyRefresh();
+    });
   }
 
   void _reloadAdDailyStats() async {
@@ -80,6 +113,20 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
     });
   }
 
+  void _showVideoCompleteFailure() {
+    if (!mounted ||
+        GoRouter.of(context).state.matchedLocation != Routes.explorePage) {
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('廣告回報失敗，正在重新整理廣告列表，請稍後再試。'),
+        backgroundColor: Colors.red,
+        duration: Duration(seconds: 3),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final system = ref.watch(systemNotifierProvider);
@@ -94,6 +141,7 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
 
     if (system.isPlayingAdvertisements) {
       return AdvertisementPageView(
+        onVideoCompleteFailed: _showVideoCompleteFailure,
         onFinishPlayingVideos: () => ref
             .read(systemNotifierProvider.notifier)
             .setDailyVideoStats(isPlayingAdvertisements: false),

@@ -30,6 +30,45 @@ class _MinePageState extends ConsumerState<MinePage> {
     super.initState();
   }
 
+  Future<void> _confirmSignOut() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: AppColors.containerBgColor,
+        title: const Text(
+          '確認登出',
+          style: TextStyle(color: AppColors.primaryTextColor),
+        ),
+        content: const Text(
+          '確定要登出目前的帳號嗎？',
+          style: TextStyle(color: AppColors.secondaryTextColor),
+        ),
+        actions: [
+          OutlinedButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.dangerButtonColor,
+              side: const BorderSide(color: AppColors.dangerButtonColor),
+            ),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.dangerButtonColor,
+              foregroundColor: AppColors.primaryTextColor,
+            ),
+            child: const Text('登出'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      await GoogleAuthService().signOut();
+    }
+  }
+
   Widget _buildQuickActionButton({
     required IconData icon,
     required String label,
@@ -240,9 +279,9 @@ class _MinePageState extends ConsumerState<MinePage> {
             _buildInfoRowWithCopy('推薦碼', accountInfo.referralCode),
             _buildInfoRow(
               '目前金幣',
-              accountInfo.coins.formatWithCommas(decimals: 2),
+              accountInfo.coins.formatCoinValue(),
               warning: accountInfo.coinsExpireSoon != null
-                  ? "${accountInfo.coinsExpireSoon!.formatWithCommas(decimals: 2)} 即將過期"
+                  ? "${accountInfo.coinsExpireSoon!.formatCoinValue()} 即將過期"
                   : null,
             ),
             _buildInfoRow(
@@ -385,7 +424,7 @@ class _MinePageState extends ConsumerState<MinePage> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: GoogleAuthService().signOut,
+                onPressed: _confirmSignOut,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.red,
                   foregroundColor: AppColors.primaryTextColor,

@@ -5,6 +5,7 @@ import 'package:flutter_ad_ecommerce/features/order/widgets/order_detail_rows.da
 import 'package:flutter_ad_ecommerce/features/order/widgets/order_status_badge.dart';
 import 'package:flutter_ad_ecommerce/models/order.dart';
 import 'package:flutter_ad_ecommerce/provider/order_provider.dart';
+import 'package:flutter_ad_ecommerce/utils/coin_utils.dart';
 import 'package:flutter_ad_ecommerce/utils/formatter.dart';
 import 'package:flutter_ad_ecommerce/utils/number_formatter_extension.dart';
 import 'package:flutter_ad_ecommerce/utils/parse_utils.dart';
@@ -121,6 +122,8 @@ void showRefundItemsBottomSheet(
                             ),
                         ],
                       ),
+                      const SizedBox(height: 8),
+                      const _RefundConversionNotice(),
                       const SizedBox(height: 16),
                       Expanded(
                         child: ListView.builder(
@@ -160,14 +163,27 @@ class _RefundItemCardState extends State<_RefundItemCard> {
   RefundItem get refundItem => widget.refundItem;
 
   String _refundCoinsText() {
-    final coins = refundItem.coins;
+    final expectedUnits =
+        CoinUtils.toCoinUnits(refundItem.coins) +
+        CoinUtils.toCoinUnits(refundItem.cashRemainderCoins);
     final returnableCoins = refundItem.returnableCoins;
 
-    if (returnableCoins != null && returnableCoins != coins) {
-      return '${returnableCoins.formatWithCommas()} (${(coins - returnableCoins).formatWithCommas()} 已逾期，無法退還)';
+    if (returnableCoins != null) {
+      final returnableUnits = CoinUtils.toCoinUnits(returnableCoins);
+      final unavailableUnits = expectedUnits - returnableUnits;
+      final value = CoinUtils.fromCoinUnits(returnableUnits).formatCoinValue();
+      if (unavailableUnits > 0) {
+        return '$value (${CoinUtils.fromCoinUnits(unavailableUnits).formatCoinValue()} 已逾期，無法退還)';
+      }
+      return value;
     }
-    return coins.formatWithCommas();
+    return CoinUtils.fromCoinUnits(expectedUnits).formatCoinValue();
   }
+
+  int get _cashRefundAmount =>
+      refundItem.cashRefundAmount ??
+      ((refundItem.paidRefundAmount ?? 0) + refundItem.extraRefundAmount)
+          .floor();
 
   Widget _buildLogRow(RefundLog log, bool isLast) {
     final message = log.message?.trim();
@@ -323,9 +339,8 @@ class _RefundItemCardState extends State<_RefundItemCard> {
           ),
           OrderDetailRow(label: '退貨數量:', value: refundItem.quantity.toString()),
           OrderDetailRow(
-            label: '退款金額:',
-            value: (refundItem.paidRefundAmount + refundItem.extraRefundAmount)
-                .toDollarsString(prefix: "NT"),
+            label: '現金退款:',
+            value: _cashRefundAmount.toDollarsString(prefix: "NT"),
           ),
           OrderDetailRow(label: '退還金幣:', value: _refundCoinsText()),
           if (reason?.isNotEmpty == true)
@@ -586,6 +601,8 @@ class _CreateRefundDialogState extends ConsumerState<_CreateRefundDialog> {
                   style: const TextStyle(color: AppColors.dangerButtonColor),
                 ),
               ],
+              const SizedBox(height: 12),
+              const _RefundConversionNotice(),
             ],
           ),
         ),
@@ -614,6 +631,31 @@ class _CreateRefundDialogState extends ConsumerState<_CreateRefundDialog> {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _RefundConversionNotice extends StatelessWidget {
+  const _RefundConversionNotice();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(Icons.info_outline, color: AppColors.warningColor, size: 16),
+        SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            '退款金額的小數部分將依 NT\$1 = 10 金幣轉換，並合併計入退還金幣。',
+            style: TextStyle(
+              color: AppColors.warningColor,
+              fontSize: 12,
+              height: 1.4,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

@@ -28,33 +28,62 @@ class HomePage extends ConsumerStatefulWidget {
   ConsumerState<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends ConsumerState<HomePage> {
+class _HomePageState extends ConsumerState<HomePage>
+    with WidgetsBindingObserver {
   late StreamSubscription _routeChangeSubscription;
+  Timer? _dailyRefreshTimer;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
 
     _handleInitHomePage();
     _loadTreasureBoxes();
+    _scheduleDailyRefresh();
 
     _routeChangeSubscription = eventBus.on<RouterChangeEvent>().listen((
       event,
     ) async {
       if (event.to == Routes.homePage && event.to != event.from) {
         log('[Home] re-enter home page');
-        final isOutdated = await ApiCallManager.isOutdated('treasure-boxes');
-        if (isOutdated) {
-          _loadTreasureBoxes(keepPreviousData: false);
-        }
+        await _refreshTreasureBoxesIfOutdated();
       }
     });
   }
 
   @override
   void dispose() {
-    super.dispose();
+    WidgetsBinding.instance.removeObserver(this);
+    _dailyRefreshTimer?.cancel();
     _routeChangeSubscription.cancel();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _refreshTreasureBoxesIfOutdated();
+      _scheduleDailyRefresh();
+    }
+  }
+
+  Future<void> _refreshTreasureBoxesIfOutdated() async {
+    final isOutdated = await ApiCallManager.isOutdated('treasure-boxes');
+    if (mounted && isOutdated) {
+      _loadTreasureBoxes(keepPreviousData: false);
+    }
+  }
+
+  void _scheduleDailyRefresh() {
+    _dailyRefreshTimer?.cancel();
+    final now = DateTime.now();
+    final nextRefresh = ApiCallManager.nextDailyRefreshAt(now);
+    _dailyRefreshTimer = Timer(nextRefresh.difference(now), () {
+      if (!mounted) return;
+      _loadTreasureBoxes(keepPreviousData: false);
+      _scheduleDailyRefresh();
+    });
   }
 
   void _handleInitHomePage() {
@@ -203,16 +232,26 @@ class _HomePageState extends ConsumerState<HomePage> {
                                 final result = await ref
                                     .read(treasureBoxNotifierProvider.notifier)
                                     .openBox(box.id);
+                                if (!mounted) return;
                                 if (result.isSuccess) {
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(
                                       content: Text(
                                         result.data == 0
                                             ? '很抱歉，由於您昨天未觀看廣告，無法獲得金幣'
-                                            : '開啟寶箱，獲得${result.data!.formatWithCommas(decimals: 2)}金幣',
+                                            : '開啟寶箱，獲得${result.data!.formatCoinValue()}金幣',
                                       ),
                                       backgroundColor: Colors.green,
                                       duration: const Duration(seconds: 2),
+                                    ),
+                                  );
+                                } else if (result.error != 'processing' &&
+                                    result.error != 'target not available') {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('寶箱開啟失敗，正在重新整理寶箱列表，請稍後再試。'),
+                                      backgroundColor: Colors.red,
+                                      duration: Duration(seconds: 3),
                                     ),
                                   );
                                 }

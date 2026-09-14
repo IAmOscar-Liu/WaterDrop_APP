@@ -14,6 +14,7 @@ import 'package:flutter_ad_ecommerce/models/product.dart';
 import 'package:flutter_ad_ecommerce/provider/account_provider.dart';
 import 'package:flutter_ad_ecommerce/provider/order_provider.dart';
 import 'package:flutter_ad_ecommerce/provider/system_provider.dart';
+import 'package:flutter_ad_ecommerce/utils/parse_utils.dart';
 import 'package:flutter_ad_ecommerce/utils/uri_utils.dart';
 import 'package:flutter_ad_ecommerce/widgets/page_status.dart';
 import 'package:flutter_ad_ecommerce/widgets/simple_app_bar.dart';
@@ -63,7 +64,7 @@ class _ECPayPageState extends ConsumerState<ECPayPage>
     _createOrder(
       subTotal: widget.extra['subTotal'],
       totalAmount: widget.extra['totalAmount'],
-      discountCoin: widget.extra['discountCoin'],
+      discountCoin: ParseUtils.parseDouble(widget.extra['discountCoin']) ?? 0,
       shippingCost: widget.extra['shippingCost'],
       shippingCostDeduction: widget.extra['shippingCostDeduction'],
       transactionFee: widget.extra['transactionFee'],
@@ -88,7 +89,7 @@ class _ECPayPageState extends ConsumerState<ECPayPage>
   Future<void> _createOrder({
     required double subTotal,
     required double totalAmount,
-    required int discountCoin,
+    required double discountCoin,
     required double shippingCost,
     required double shippingCostDeduction,
     required double transactionFee,
@@ -243,6 +244,7 @@ class _ECPayPageState extends ConsumerState<ECPayPage>
       ref
           .read(systemNotifierProvider.notifier)
           .setCurrentOrder(resultOrder.data);
+      await ref.read(accountNotifierProvider.notifier).refreshAccountInfo();
       return;
     }
     // expire order since it's still pending
@@ -256,6 +258,7 @@ class _ECPayPageState extends ConsumerState<ECPayPage>
     } else {
       ref.read(systemNotifierProvider.notifier).setCurrentOrder(null);
     }
+    await ref.read(accountNotifierProvider.notifier).refreshAccountInfo();
   }
 
   void _startCheckoutTimer(Duration duration) {
@@ -309,6 +312,7 @@ class _ECPayPageState extends ConsumerState<ECPayPage>
     }
 
     ref.read(systemNotifierProvider.notifier).setCurrentOrder(orderResult);
+    await ref.read(accountNotifierProvider.notifier).refreshAccountInfo();
 
     // ignore: use_build_context_synchronously
     context.pop();

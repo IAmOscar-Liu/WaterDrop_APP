@@ -1,4 +1,5 @@
 // lib/treasure_box_provider.dart
+import 'dart:async';
 import 'dart:developer';
 
 import 'package:dio/dio.dart';
@@ -24,7 +25,7 @@ class TreasureBoxNotifier extends _$TreasureBoxNotifier {
     return CustomAsyncValue.initial();
   }
 
-  void loadTreasureBoxes({bool keepPreviousData = true}) async {
+  Future<void> loadTreasureBoxes({bool keepPreviousData = true}) async {
     try {
       state = (state.isDone && keepPreviousData)
           ? CustomAsyncValue.fetching(state.data)
@@ -100,11 +101,20 @@ class TreasureBoxNotifier extends _$TreasureBoxNotifier {
             .map((box) => box.id == boxId ? box.copyWith(isOpened: false) : box)
             .toList(),
       );
+      if (e is DioException && e.response?.statusCode == 400) {
+        unawaited(
+          Future.wait([
+            loadTreasureBoxes(keepPreviousData: false),
+            ref.read(accountNotifierProvider.notifier).refreshAccountInfo(),
+          ]),
+        );
+      } else {
+        // Includes the documented 404/410 stale or expired-box responses.
+        unawaited(loadTreasureBoxes(keepPreviousData: false));
+      }
       return Result.failure(
         e is DioException ? getDioExceptionMessage(e) : '$e',
       );
-    } finally {
-      state = CustomAsyncValue.done(state.data!);
     }
   }
 }

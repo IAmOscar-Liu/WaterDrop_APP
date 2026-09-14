@@ -122,7 +122,7 @@ class OrderNotifier extends _$OrderNotifier {
     required String idempotencyKey,
     required double subTotal,
     required double totalAmount,
-    required int discountCoin,
+    required double discountCoin,
     required double shippingCost,
     required double shippingCostDeduction,
     required double transactionFee,

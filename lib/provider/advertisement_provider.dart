@@ -1,5 +1,7 @@
 // lib/provider/advertisement_provider.dart
+import 'dart:async';
 import 'dart:developer';
+import 'dart:math' show min;
 
 import 'package:dio/dio.dart';
 import 'package:flutter_ad_ecommerce/models/advertisement.dart';
@@ -97,6 +99,7 @@ class AdvertisementNotifier extends _$AdvertisementNotifier {
     if (target == null || target.isCompleted) {
       return Result.failure('target not available');
     }
+    final advertisementsBeforeRequest = state.data!;
     try {
       // state = CustomAsyncValue.processing(state.data!);
       state = CustomAsyncValue.processing(
@@ -137,22 +140,41 @@ class AdvertisementNotifier extends _$AdvertisementNotifier {
       if (response.data['data']['isAwarded'] == true) {
         ref.read(treasureBoxNotifierProvider.notifier).loadTreasureBoxes();
       }
+      state = CustomAsyncValue.done(state.data!);
       return Result.success(response.data['data']['isAwarded'] == true);
     } catch (e) {
       log('Failed to mark advertisement as completed: $e');
-      // state = CustomAsyncValue.done(state.data!
-      //     .map(
-      //       (advertisement) => advertisement.id == advertisementId
-      //           ? advertisement.copyWith(isCompleted: false)
-      //           : advertisement,
-      //     )
-      //     .toList());
+      final fallbackLimit = min(20, advertisementsBeforeRequest.length);
+      state = CustomAsyncValue.loading();
+      unawaited(
+        _refreshAdvertisementsAfterCompletionFailure(
+          fallbackLimit: fallbackLimit,
+        ),
+      );
       return Result.failure(
         e is DioException ? getDioExceptionMessage(e) : '$e',
       );
-    } finally {
-      state = CustomAsyncValue.done(state.data!);
     }
+  }
+
+  Future<void> _refreshAdvertisementsAfterCompletionFailure({
+    required int fallbackLimit,
+  }) async {
+    final statsResult = await ref
+        .read(systemNotifierProvider.notifier)
+        .getAdDailyStats();
+    if (statsResult.isFailure) {
+      await loadAdvertisements(limit: fallbackLimit);
+      return;
+    }
+
+    final dailyStats = statsResult.data!;
+    if (!dailyStats.canWatchMoreVideo) {
+      state = CustomAsyncValue.done([]);
+      return;
+    }
+
+    await loadAdvertisements(limit: min(20, dailyStats.remainingVideoCount));
   }
 }
 

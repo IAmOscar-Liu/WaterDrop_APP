@@ -4,7 +4,7 @@
 
 This document lists API contract changes for product variants. It is a frontend handoff for both admin web and the Flutter app.
 
-Phase 3 and Phase 4 code support has been implemented. Phase 5 schema constraints are implemented on the constraints branch; generated database migrations still need to be run per environment.
+Phase 3 and Phase 4 code support has been implemented. Phase 5 schema constraints are implemented on the constraints branch, and the constraint migration has been run locally. Run each phase migration separately per target environment before merging the next branch.
 
 ## Shared Response Schemas
 
@@ -20,6 +20,8 @@ type ProductVariantSummary = {
   productId: string;
   name: string | null;
   sku: string | null;
+  price: number;
+  images: string[] | null;
   optionValues: Record<string, unknown>;
   availableStock: number;
   status: "active" | "inactive";
@@ -34,6 +36,8 @@ type ProductVariantDetail = {
   productId: string;
   name: string | null;
   sku: string | null;
+  price: number;
+  images: string[] | null;
   optionValues: Record<string, unknown>;
   stock: number;
   reserve: number;
@@ -48,7 +52,8 @@ type ProductVariantDetail = {
 
 Notes:
 
-- Product price is shared across variants, so variants do not include `price`.
+- Variant price is authoritative and required.
+- Product responses keep a computed root `price` equal to the minimum eligible variant price.
 - `sku` is optional.
 - `optionValues` is free-form JSON, for example `{ "size": "M", "color": "Black" }`.
 - Variants are never physically deleted by product management. Removed variants become `inactive`.
@@ -56,7 +61,7 @@ Notes:
 
 ### Product List vs Detail
 
-Existing product fields remain. Product list responses add variant summaries:
+Product identity/content fields remain. Product inventory fields live on variants, and product list responses include variant summaries:
 
 ```ts
 type ProductListItem = Product & {
@@ -74,11 +79,9 @@ type ProductDetail = Product & {
 };
 ```
 
-During transition, product-level `stock`, `reserve`, and `sku` may remain for backward compatibility:
+After Phase 6 cleanup, product-level `stock`, `reserve`, and `sku` are removed. Product responses keep `availableStock` as a computed aggregate:
 
 ```ts
-stock = sum(active variants.stock);
-reserve = sum(active variants.reserve);
 availableStock = sum(active variants.stock - variants.reserve);
 ```
 
@@ -93,17 +96,37 @@ type OrderItemWithVariant = OrderItem & {
     name: string | null;
     sku: string | null;
     optionValues: Record<string, unknown> | null;
+    price: number;
   };
+  variantImage: string | null;
 };
 ```
 
-For order, refund, and delivery display, use `variantAtSale`. Order responses should not return the raw snapshot fields (`variantNameAtSale`, `variantSkuAtSale`, `variantOptionValuesAtSale`). Delivery/refund responses also omit the live variant under `product.variant` when `variantAtSale` is present.
+`variantImage` is the current first image of the live variant and is not historical snapshot data. It is `null` when the variant currently has no image.
+
+For order, refund, and delivery display, use `variantAtSale` for historical text and price data, and its sibling `variantImage` for the current variant image. Order responses should not return the raw snapshot fields (`variantNameAtSale`, `variantSkuAtSale`, `variantOptionValuesAtSale`). Delivery/refund responses also omit the live variant under `product.variant` when `variantAtSale` is present.
 
 ```ts
 type PurchasedProductSummary = Product;
 
 type PurchasedProductDetail = Product;
 ```
+
+Refund status history uses this shared shape:
+
+```ts
+type RefundLog = {
+  id: string;
+  refundItemId: string;
+  status: "pending" | "processing" | "completed" | "cancelled";
+  message: string | null;
+  createdAt: string;
+};
+```
+
+Logs are returned newest first. New refunds start with a pending log whose
+message is `申請退貨`. Existing refunds are not backfilled and may have
+`logs: []`.
 
 ## Admin Web APIs
 
@@ -170,9 +193,7 @@ Request body additions:
   name: string;
   description: string;
   price: number;
-  stock?: number;
-  sku?: string | null;
-  variants?: Array<{
+  variants: Array<{
     name?: string | null;
     sku?: string | null;
     optionValues: Record<string, unknown>;
@@ -186,9 +207,11 @@ Request body additions:
 
 Validation:
 
-- During transition, accept either legacy `stock` or `variants`.
-- If only legacy `stock` is provided, backend creates a default variant.
-- If `variants` is provided, every variant requires non-negative integer `stock`.
+- `variants` is required.
+- Simple products must have exactly one active default variant with `name: null` or omitted. Named historical variants may remain only when inactive. The app/admin UI should not show a variant selector for this case.
+- Variant products must have at least two active named variants. The unnamed default variant must be absent or inactive.
+- At most one unnamed default variant row may exist.
+- Every variant requires non-negative integer `stock`.
 - `reserve` is not writable from the API.
 - `optionValues` must be a plain object.
 - Variant `sku` is optional.
@@ -226,9 +249,11 @@ Validation/behavior:
 - Existing variant updates are matched by `id`.
 - Variant rows without `id` are created.
 - Variants are never physically deleted; use `status: "inactive"`.
+- After the update is applied, active variants must be either exactly one unnamed default variant with no active named variants, or at least two named variants with no active unnamed variant.
+- Inactive historical named variants may remain in either mode. The unnamed default may remain inactive in variant mode, but at most one unnamed default row may exist.
 - `reserve` is not writable from the API.
 - If a variant has pending reserved quantity, reducing `stock` below `reserve` fails.
-- If legacy `stock` is provided without `variants`, backend updates the first/default variant for transition compatibility.
+- Top-level product `stock`, `reserve`, and `sku` are no longer accepted.
 
 Response body:
 
@@ -270,6 +295,7 @@ Response body:
 Request query:
 
 - No required variant query changes.
+- `merchantTradeNo?: string` filters by either order or delivery merchant trade number prefix when at least 4 characters are provided.
 - Optional future filter:
   - `variantId?: string`
 
@@ -289,7 +315,9 @@ items: Array<{
     name: string | null;
     sku: string | null;
     optionValues: Record<string, unknown> | null;
+    price: number;
   };
+  variantImage: string | null;
 }>;
 ```
 
@@ -307,12 +335,15 @@ items: Array<
       name: string | null;
       sku: string | null;
       optionValues: Record<string, unknown> | null;
+      price: number;
     };
+    variantImage: string | null;
   }
 >;
 ```
 
 - Use `variantAtSale` for historical display. Do not use `product.variant` or the raw snapshot columns in order responses.
+- Each nested refund includes `logs: RefundLog[]`, ordered newest first.
 
 ### `GET /api/admin/refund/list`
 
@@ -329,14 +360,13 @@ refunds: Array<
   RefundItem & {
     orderItem: OrderItem & {
       product: PurchasedProductSummary;
-      variantNameAtSale: string | null;
-      variantSkuAtSale: string | null;
-      variantOptionValuesAtSale: Record<string, unknown> | null;
       variantAtSale: {
         name: string | null;
         sku: string | null;
         optionValues: Record<string, unknown> | null;
+        price: number;
       };
+      variantImage: string | null;
     };
   }
 >;
@@ -347,17 +377,22 @@ refunds: Array<
 Response body change:
 
 - Same `variantAtSale` format as refund list, but detail may use `PurchasedProductDetail` and include richer order/delivery/user relations.
+- Detail adds `logs: RefundLog[]` at the refund object's root. Refund list rows do not load logs.
 
 ### Admin Refund Status Update
 
 Request body:
 
-- No new required request fields for variant support.
+- Existing refund-item fields remain optional.
+- Add optional `message: string` for a non-empty refund-log message.
 
 Behavior change:
 
 - When a refund is accepted/completed and restocking is required, restock the linked `orderItem.productVariantId`.
 - Restock happens in the same transaction as refund completion.
+- `note` remains the independently mutable refund-item note.
+- A new log is inserted only when status actually changes or a provided `message` differs from the latest log message.
+- Status-only logs use `message: null`; changes to other refund fields alone do not create logs.
 
 ### Admin Chatroom APIs
 
@@ -404,56 +439,13 @@ chatRooms: Array<
       name: string;
       images: string[] | null;
       variantName: string | null;
+      variantImage: string | null;
     } | null;
   }
 >;
 ```
 
 When resolving delivery context for a chat room, backend matches order items by both `productId` and `productVariantId`.
-
-### Admin Delivery Creation / ECPay Logistics Create
-
-Request body change:
-
-Replace product id array usage with paired product+variant selection:
-
-```ts
-{
-  items: Array<{
-    productId: string;
-    variantId: string;
-  }>;
-}
-```
-
-If the actual field name remains `productIds` for compatibility, its element shape should become:
-
-```ts
-productIds: Array<{
-  productId: string;
-  variantId: string;
-}>;
-```
-
-Response body change:
-
-- Delivery list `items` include `variantAtSale`.
-- Delivery detail `items` include `variantAtSale` for historical display and do not include `product.variant`.
-
-### ECPay / Merchant Trade Callback Related Data
-
-`merchantTradeTable` has:
-
-```ts
-productIds: string[];
-variantIds: string[];
-```
-
-Contract:
-
-- Arrays are positionally aligned.
-- `productIds[index]` corresponds to `variantIds[index]`.
-- Backend validates equal array lengths before updating `order_items`.
 
 ## Flutter App APIs
 
@@ -691,7 +683,7 @@ Request body item change:
 }
 ```
 
-Backend should derive/snapshot variant fields from the locked variant row when possible. Flutter can still send display snapshots if the current flow already builds order item snapshots client-side.
+Backend should derive/snapshot variant fields from the locked variant row when possible. Flutter can still send display snapshots if the current flow already builds order item snapshots client-side. Response-only `variantImage` is read from the current live variant and is not sent in the order request.
 
 Validation:
 
@@ -727,6 +719,7 @@ Response body change:
 - Same basic shape as admin order detail, except Flutter does not receive `user` because the caller is the user.
 - The lookup is scoped to the caller's `req.userId`.
 - Use `variantAtSale`; no `product.variant` and no raw variant snapshot columns.
+- Each `items[].refundItems[]` object includes `logs: RefundLog[]`, newest first.
 
 ### `POST /api/refund`
 
@@ -738,6 +731,7 @@ Response/body behavior:
 
 - Refund display data comes from `orderItem.variantAtSale`.
 - Completed/accepted refunds restock the linked variant inventory on the backend.
+- A successfully created refund automatically receives an initial pending log with `message: "申請退貨"`.
 
 ### `POST /api/chatroom/create`
 
@@ -783,19 +777,27 @@ product: {
   name: string;
   images: string[] | null;
   variantName: string | null;
+  variantImage: string | null;
 } | null;
 ```
+
+For both admin and Flutter chatroom lists, `variantImage` is the current first
+image of the selected variant and is `null` when it has no image.
 
 - `order.delivery` matches admin chatroom list and includes `id` and `merchantTradeNo` when a delivery is linked.
 - Product inquiry/order chat rooms are unique by user, account, product, variant, and order context after Phase 5 constraints.
 
 ## Migration Notes For Clients
 
-- Phase 1/read phase: clients can start reading `variants` while still using legacy `stock`.
+- Phase 6 cleanup removes product-level `stock`, `reserve`, and `sku`; clients should read variant inventory and computed `availableStock`.
 - Phase 2/write phase: clients must send `productVariantId` for cart and order item creation.
 - Flutter app notification: cart add/update, cart toggle, and order create now require `productVariantId` together with `productId`.
 - Public product UI should disable or hide variants where `stock - reserve <= 0`.
 - Admin product UI should show inactive variants and use status changes instead of delete actions.
 - Order/refund history UI should prefer `variant*AtSale` snapshots over live variant values.
-- Phase 5 database constraints are still pending in deployed databases until migrations are generated and run. Until the old cart/order unique constraints are replaced, adding two different variants of the same product to one cart/order may still be blocked by the database.
+- Phase 5 database constraints have been run locally.
+- Development/staging rollout order:
+  1. Merge `feat/migration/backfill`, run the additive schema migration, then run `src/back-fill.ts`.
+  2. Merge `feat/constraints`, then run the constraint migration.
+  3. Merge `feat/cleanup`, then run the cleanup migration.
 - Chatroom migration note: after adding nullable `chat_rooms.productVariantId`, rerun `src/back-fill.ts`. It fills product-specific chat rooms from the matching order item variant when possible, otherwise from the product default variant. General support rooms remain null.

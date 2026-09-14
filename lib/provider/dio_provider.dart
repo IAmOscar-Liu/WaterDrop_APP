@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_ad_ecommerce/constants/app_constants.dart';
 import 'package:flutter_ad_ecommerce/provider/system_provider.dart';
 import 'package:flutter_ad_ecommerce/service/google_auth_service.dart';
+import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 // This line is required for the generator to run.
@@ -65,6 +66,7 @@ Dio dio(DioRef ref) {
           print('INTERCEPTOR: Received 401, attempting to refresh token.');
 
           try {
+            final currentTimeZone = await FlutterTimezone.getLocalTimezone();
             final response = await Dio().post(
               "${AppConstants.apiBaseUrl}/api/auth/google",
               data: {
@@ -72,6 +74,7 @@ Dio dio(DioRef ref) {
                 "email": user.email,
                 "name": user.displayName,
                 "picture": user.photoURL,
+                "timezone": currentTimeZone,
                 // "referral_code": "OOR665", // 可選
               },
             );

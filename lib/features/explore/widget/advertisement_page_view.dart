@@ -18,9 +18,14 @@ import 'package:go_router/go_router.dart';
 import 'package:video_player/video_player.dart';
 
 class AdvertisementPageView extends ConsumerStatefulWidget {
-  const AdvertisementPageView({super.key, required this.onFinishPlayingVideos});
+  const AdvertisementPageView({
+    super.key,
+    required this.onFinishPlayingVideos,
+    required this.onVideoCompleteFailed,
+  });
 
   final void Function() onFinishPlayingVideos;
+  final void Function() onVideoCompleteFailed;
 
   @override
   ConsumerState<AdvertisementPageView> createState() =>
@@ -300,6 +305,40 @@ class _AdvertisementPageViewState extends ConsumerState<AdvertisementPageView> {
   //   }
   // }
 
+  Future<void> _markAdvertisementAsCompleted(
+    Advertisement advertisement, {
+    bool showAwardMessage = false,
+  }) async {
+    final onFailure = widget.onVideoCompleteFailed;
+    final result = await ref
+        .read(advertisementNotifierProvider.notifier)
+        .markAdvertisementAsCompleted(advertisement.id);
+
+    if (result.isFailure) {
+      if (result.error == 'processing' ||
+          result.error == 'target not available') {
+        return;
+      }
+      onFailure();
+      return;
+    }
+
+    if (showAwardMessage &&
+        result.data == true &&
+        mounted &&
+        !advertisement.isCompleted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '您已看完${AppConstants.videoCountForClaimingTreasureBox}則廣告，可獲得1個寶箱',
+          ),
+          backgroundColor: Colors.green,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
   void _onVideoPositionChange(String advertisementId) {
     final controller = _controllers[_currentIndex];
     if (controller != null &&
@@ -326,25 +365,7 @@ class _AdvertisementPageViewState extends ConsumerState<AdvertisementPageView> {
                   (requiredDuration.inMilliseconds - 100)) ||
               totalWatchedMilliseconds > 30 * 1000) &&
           (GoRouter.of(context).state.matchedLocation == Routes.explorePage)) {
-        ref
-            .read(advertisementNotifierProvider.notifier)
-            .markAdvertisementAsCompleted(currentProduct.id)
-            .then((result) {
-              if (result.isSuccess &&
-                  result.data == true &&
-                  mounted &&
-                  !currentProduct.isCompleted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      '您已看完${AppConstants.videoCountForClaimingTreasureBox}則廣告，可獲得1個寶箱',
-                    ),
-                    backgroundColor: Colors.green,
-                    duration: const Duration(seconds: 2),
-                  ),
-                );
-              }
-            });
+        _markAdvertisementAsCompleted(currentProduct, showAwardMessage: true);
       }
     }
   }
@@ -637,11 +658,7 @@ class _AdvertisementPageViewState extends ConsumerState<AdvertisementPageView> {
                             // controller.seekTo(value['position'] as Duration);
                             // controller.play();
                             if (value['isCompleted'] == true) {
-                              ref
-                                  .read(advertisementNotifierProvider.notifier)
-                                  .markAdvertisementAsCompleted(
-                                    currentProduct.id,
-                                  );
+                              _markAdvertisementAsCompleted(currentProduct);
                             }
                           });
                     },

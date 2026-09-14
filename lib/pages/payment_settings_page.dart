@@ -16,6 +16,7 @@ import 'package:flutter_ad_ecommerce/provider/dio_provider.dart';
 import 'package:flutter_ad_ecommerce/provider/order_provider.dart';
 import 'package:flutter_ad_ecommerce/provider/system_provider.dart';
 import 'package:flutter_ad_ecommerce/router/routes.dart';
+import 'package:flutter_ad_ecommerce/utils/coin_utils.dart';
 import 'package:flutter_ad_ecommerce/utils/number_formatter_extension.dart';
 import 'package:flutter_ad_ecommerce/utils/parse_utils.dart';
 import 'package:flutter_ad_ecommerce/utils/payment_saved_store_utils.dart';
@@ -407,7 +408,8 @@ class _PaymentSettingsPageState extends ConsumerState<PaymentSettingsPage> {
     double shippingCost = 0.0,
     double shippingCostDeduction = 0.0,
     double transactionFee = 0.0,
-    int discountAmount = 0,
+    double discountAmount = 0,
+    double discountCoin = 0,
     double totalAmount = 0.0,
     double transactionFeeRate = 0.0,
   }) {
@@ -440,7 +442,7 @@ class _PaymentSettingsPageState extends ConsumerState<PaymentSettingsPage> {
           const Divider(color: AppColors.dividerColor),
           _buildSummaryRow('商品總金額', subtotal.toDollarsString(prefix: "NT")),
           _buildSummaryRow(
-            '金幣折抵(${discountAmount * 10}金幣)',
+            '金幣折抵(${discountCoin.formatCoinValue()}金幣)',
             '- ${discountAmount.toDollarsString(prefix: "NT")}',
             valueColor: AppColors.greenColor,
           ),
@@ -674,7 +676,9 @@ class _PaymentSettingsPageState extends ConsumerState<PaymentSettingsPage> {
       final mGroups = generateGroup();
       double mSubTotal =
           widget.extra["totalPrice"] ?? widget.extra["subTotal"] ?? 0;
-      int mDiscountAmount = ((widget.extra['discountCoin'] ?? 0) / 10).floor();
+      final discountCoin =
+          ParseUtils.parseDouble(widget.extra['discountCoin']) ?? 0;
+      final mDiscountAmount = CoinUtils.toTwd(discountCoin);
       double mShippingCost = mGroups.fold(
         0,
         (sum, item) => sum + (item['fee'] ?? 0),
@@ -695,7 +699,7 @@ class _PaymentSettingsPageState extends ConsumerState<PaymentSettingsPage> {
 
       return {
         "subTotal": mSubTotal,
-        "discountAmount": ParseUtils.parseDouble(mDiscountAmount) ?? 0.0,
+        "discountAmount": mDiscountAmount,
         "shippingCost": mShippingCost,
         "shippingCostDeduction": mShippingCostDeduction,
         "transactionFee": mTransactionFee,
@@ -772,7 +776,12 @@ class _PaymentSettingsPageState extends ConsumerState<PaymentSettingsPage> {
 
                     return _buildOrderSummary(
                       subtotal: result["subTotal"]!,
-                      discountAmount: result['discountAmount']!.toInt(),
+                      discountAmount: result['discountAmount']!,
+                      discountCoin:
+                          ParseUtils.parseDouble(
+                            widget.extra['discountCoin'],
+                          ) ??
+                          0,
                       shippingCost: result['shippingCost']!,
                       shippingCostDeduction: result['shippingCostDeduction']!,
                       transactionFee: result['transactionFee']!,

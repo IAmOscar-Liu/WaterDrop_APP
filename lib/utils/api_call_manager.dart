@@ -1,10 +1,12 @@
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:intl/intl.dart';
 
 class ApiCallManager {
+  static const int dailyRefreshHour = 0;
+  static const int dailyRefreshMinute = 2;
+
   // A function to check if you should make the API call.
   // 'apiKey' is a unique identifier for your API endpoint.
-  static Future<bool> isOutdated(String apiKey) async {
+  static Future<bool> isOutdated(String apiKey, {DateTime? now}) async {
     final prefs = await SharedPreferences.getInstance();
 
     // 1. Get the last saved timestamp string
@@ -22,17 +24,57 @@ class ApiCallManager {
       return true;
     }
 
-    final DateTime now = DateTime.now();
+    final currentTime = (now ?? DateTime.now()).toLocal();
+    final latestRefresh = latestDailyRefreshAt(currentTime);
+    final outdated = lastCallTime.toLocal().isBefore(latestRefresh);
+    print(
+      '[$apiKey] lastCallTime: $lastCallTime, '
+      'latestRefresh: $latestRefresh',
+    );
 
-    // 3. Compare the dates (ignoring the time)
-    // We use the 'intl' package to format both dates to 'yyyy-MM-dd'
-    final DateFormat formatter = DateFormat('yyyy-MM-dd');
-    final String lastCallDate = formatter.format(lastCallTime);
-    final String currentDate = formatter.format(now);
-    print("[$apiKey] lastCallDate: $lastCallDate, currentDate: $currentDate");
+    return outdated;
+  }
 
-    // If the dates are different, you can make the call
-    return lastCallDate != currentDate;
+  /// Returns the most recent local daily refresh boundary (00:02).
+  static DateTime latestDailyRefreshAt(DateTime now) {
+    final localNow = now.toLocal();
+    final todayRefresh = DateTime(
+      localNow.year,
+      localNow.month,
+      localNow.day,
+      dailyRefreshHour,
+      dailyRefreshMinute,
+    );
+    if (!localNow.isBefore(todayRefresh)) return todayRefresh;
+
+    return DateTime(
+      localNow.year,
+      localNow.month,
+      localNow.day - 1,
+      dailyRefreshHour,
+      dailyRefreshMinute,
+    );
+  }
+
+  /// Returns the next local 00:02 boundary for scheduling an in-app refresh.
+  static DateTime nextDailyRefreshAt(DateTime now) {
+    final localNow = now.toLocal();
+    final todayRefresh = DateTime(
+      localNow.year,
+      localNow.month,
+      localNow.day,
+      dailyRefreshHour,
+      dailyRefreshMinute,
+    );
+    if (localNow.isBefore(todayRefresh)) return todayRefresh;
+
+    return DateTime(
+      localNow.year,
+      localNow.month,
+      localNow.day + 1,
+      dailyRefreshHour,
+      dailyRefreshMinute,
+    );
   }
 
   static Future<bool> isOlderThan(String apiKey, Duration maxAge) async {

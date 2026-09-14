@@ -53,7 +53,8 @@ class Order {
   final double shippingCostDeduction;
   final double transactionFee;
   final double totalAmount;
-  final int discountCoin;
+  final double discountCoin;
+  final Map<String, double>? coinInfo;
   final OrderStatus orderStatus;
   final OrderPayment orderPayment;
   final double? transactionFeeRateAtSale;
@@ -80,6 +81,7 @@ class Order {
     required this.transactionFee,
     required this.totalAmount,
     required this.discountCoin,
+    this.coinInfo,
     required this.orderStatus,
     required this.orderPayment,
     this.transactionFeeRateAtSale,
@@ -120,7 +122,17 @@ class Order {
           ParseUtils.parseDouble(map['shippingCostDeduction']) ?? 0,
       transactionFee: ParseUtils.parseDouble(map['transactionFee']) ?? 0,
       totalAmount: ParseUtils.parseDouble(map['totalAmount']) ?? 0,
-      discountCoin: ParseUtils.parseInt(map['discountCoin']) ?? 0,
+      discountCoin: ParseUtils.parseDouble(map['discountCoin']) ?? 0,
+      coinInfo: map['coinInfo'] is Map
+          ? Map<String, double>.fromEntries(
+              (map['coinInfo'] as Map).entries.map(
+                (entry) => MapEntry(
+                  entry.key.toString(),
+                  ParseUtils.parseDouble(entry.value) ?? 0,
+                ),
+              ),
+            )
+          : null,
       orderStatus: OrderStatus.fromWire(
         ParseUtils.parseString(map['orderStatus']),
       ),
@@ -153,7 +165,8 @@ class Order {
     double? shippingCostDeduction,
     double? transactionFee,
     double? totalAmount,
-    int? discountCoin,
+    double? discountCoin,
+    Map<String, double>? coinInfo,
     OrderStatus? orderStatus,
     OrderPayment? orderPayment,
     String? userLevelAtSale,
@@ -179,6 +192,7 @@ class Order {
       transactionFee: transactionFee ?? this.transactionFee,
       totalAmount: totalAmount ?? this.totalAmount,
       discountCoin: discountCoin ?? this.discountCoin,
+      coinInfo: coinInfo ?? this.coinInfo,
       orderStatus: orderStatus ?? this.orderStatus,
       orderPayment: orderPayment ?? this.orderPayment,
       userLevelAtSale: userLevelAtSale ?? this.userLevelAtSale,
@@ -358,8 +372,10 @@ class RefundItem {
   final String? reason;
   final String? note;
   final double refundAmount;
-  final double paidRefundAmount;
+  final double? paidRefundAmount;
   final double extraRefundAmount;
+  final int? cashRefundAmount;
+  final double cashRemainderCoins;
   final double coins;
   final double? returnableCoins;
   final Map<String, dynamic>? metadata;
@@ -378,6 +394,8 @@ class RefundItem {
     required this.refundAmount,
     required this.paidRefundAmount,
     required this.extraRefundAmount,
+    this.cashRefundAmount,
+    required this.cashRemainderCoins,
     required this.coins,
     this.returnableCoins,
     this.metadata,
@@ -396,8 +414,11 @@ class RefundItem {
       reason: ParseUtils.parseString(map['reason']),
       note: ParseUtils.parseString(map['note']),
       refundAmount: ParseUtils.parseDouble(map['refundAmount']) ?? 0,
-      paidRefundAmount: ParseUtils.parseDouble(map['paidRefundAmount']) ?? 0,
+      paidRefundAmount: ParseUtils.parseDouble(map['paidRefundAmount']),
       extraRefundAmount: ParseUtils.parseDouble(map['extraRefundAmount']) ?? 0,
+      cashRefundAmount: ParseUtils.parseInt(map['cashRefundAmount']),
+      cashRemainderCoins:
+          ParseUtils.parseDouble(map['cashRemainderCoins']) ?? 0,
       coins: ParseUtils.parseDouble(map['coins']) ?? 0,
       returnableCoins: ParseUtils.parseDouble(map['returnableCoins']),
       metadata: map['metadata'] is Map ? map['metadata'] : null,

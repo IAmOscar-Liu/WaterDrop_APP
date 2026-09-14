@@ -22,6 +22,7 @@ import 'package:flutter_ad_ecommerce/provider/product_provider.dart';
 import 'package:flutter_ad_ecommerce/provider/system_provider.dart';
 import 'package:flutter_ad_ecommerce/router/routes.dart';
 import 'package:flutter_ad_ecommerce/utils/api_call_manager.dart';
+import 'package:flutter_ad_ecommerce/utils/coin_utils.dart';
 import 'package:flutter_ad_ecommerce/utils/number_formatter_extension.dart';
 import 'package:flutter_ad_ecommerce/utils/events.dart';
 import 'package:flutter_ad_ecommerce/widgets/keyboard_dismiss_on_tap.dart';
@@ -41,7 +42,7 @@ class _CartPageState extends ConsumerState<CartPage> {
   late StreamSubscription _routeChangeSubscription;
   // PaymentOption? _selectedOption =
   //     PaymentOption.creditDebitCard; // Default selected option
-  int? _discountCoin;
+  int? _discountCoinUnits;
   bool _isProcessingTransaction = false;
 
   final TextEditingController _discountCoinController = TextEditingController();
@@ -49,16 +50,18 @@ class _CartPageState extends ConsumerState<CartPage> {
   AccountInfo get accountInfo => ref.watch(accountNotifierProvider);
   int get subTotal => ref.watch(cartTotalPriceProvider).round();
   int get totalCheckedItems => ref.watch(cartTotalItemsProvider);
-  int get discountAmount => ((_discountCoin ?? 0) / 10).floor();
+  double? get _discountCoin => _discountCoinUnits == null
+      ? null
+      : CoinUtils.fromCoinUnits(_discountCoinUnits!);
+  double get discountAmount => CoinUtils.toTwd(_discountCoin ?? 0);
   int get maxDiscount => (subTotal * accountInfo.discountRate).floor();
   String? get errorDiscountText =>
-      (_discountCoin != null && _discountCoin! > accountInfo.coins)
-      ? "輸入值不能超過您擁有的金幣 - ${accountInfo.coins}"
-      : (_discountCoin != null && _discountCoin! > maxDiscount * 10)
-      ? '輸入值不能超過最多可折抵數量 - ${maxDiscount * 10}'
-      : (_discountCoin != null &&
-            (_discountCoin! / 10) != (_discountCoin! / 10).floor())
-      ? "輸入值需為10的倍數"
+      (_discountCoinUnits != null &&
+          _discountCoinUnits! > CoinUtils.toCoinUnits(accountInfo.coins))
+      ? "輸入值不能超過您擁有的金幣 - ${accountInfo.coins.formatCoinValue()}"
+      : (_discountCoinUnits != null &&
+            _discountCoinUnits! > CoinUtils.toCoinUnits(maxDiscount * 10))
+      ? '輸入值不能超過最多可折抵數量 - ${(maxDiscount * 10).formatCoinValue()}'
       : null;
 
   @override
@@ -83,11 +86,15 @@ class _CartPageState extends ConsumerState<CartPage> {
   void _updateDiscountCoin() {
     Future.delayed(Duration.zero, () {
       log('cart page - _updateDiscountCoin');
-      final int initialDiscountCoin =
-          (min(accountInfo.coins, maxDiscount * 10) / 10).floor() * 10;
-      _discountCoinController.text = initialDiscountCoin.toString();
+      final initialDiscountCoinUnits = min(
+        CoinUtils.toCoinUnits(accountInfo.coins),
+        CoinUtils.toCoinUnits(maxDiscount * 10),
+      );
+      _discountCoinController.text = CoinUtils.fromCoinUnits(
+        initialDiscountCoinUnits,
+      ).formatCoinValue();
       setState(() {
-        _discountCoin = initialDiscountCoin;
+        _discountCoinUnits = initialDiscountCoinUnits;
       });
     });
   }
@@ -249,7 +256,7 @@ class _CartPageState extends ConsumerState<CartPage> {
               children: [
                 TextSpan(text: "您目前擁有金幣: "),
                 TextSpan(
-                  text: accountInfo.coins.formatWithCommas(decimals: 2),
+                  text: accountInfo.coins.formatCoinValue(),
                   style: TextStyle(color: AppColors.goldColor),
                 ),
               ],
@@ -309,11 +316,17 @@ class _CartPageState extends ConsumerState<CartPage> {
               contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               errorText: errorDiscountText,
             ),
-            keyboardType: TextInputType.number,
-            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            inputFormatters: [
+              TextInputFormatter.withFunction((oldValue, newValue) {
+                return RegExp(r'^\d*\.?\d{0,2}$').hasMatch(newValue.text)
+                    ? newValue
+                    : oldValue;
+              }),
+            ],
             onChanged: (value) {
               setState(() {
-                _discountCoin = int.tryParse(value);
+                _discountCoinUnits = CoinUtils.tryParseCoinUnits(value);
               });
             },
           ),

@@ -13,6 +13,7 @@ import 'package:flutter_ad_ecommerce/provider/account_provider.dart';
 import 'package:flutter_ad_ecommerce/provider/order_provider.dart';
 import 'package:flutter_ad_ecommerce/router/routes.dart';
 import 'package:flutter_ad_ecommerce/utils/formatter.dart';
+import 'package:flutter_ad_ecommerce/utils/coin_utils.dart';
 import 'package:flutter_ad_ecommerce/utils/number_formatter_extension.dart';
 import 'package:flutter_ad_ecommerce/utils/parse_utils.dart';
 import 'package:flutter_ad_ecommerce/utils/result.dart';
@@ -72,10 +73,14 @@ class _SingleOrderDetailsState extends ConsumerState<SingleOrderDetails> {
 
   Future<Result<Order>> _loadSingleOrder(String orderId) async {
     await Future.delayed(Duration.zero);
-
-    return await ref
+    final orderFuture = ref
         .read(orderNotifierProvider.notifier)
         .getOrder(orderId: orderId);
+    await Future.wait([
+      orderFuture,
+      ref.read(accountNotifierProvider.notifier).refreshAccountInfo(),
+    ]);
+    return orderFuture;
   }
 
   Future<void> _refreshOrder() async {
@@ -337,7 +342,7 @@ class _SingleOrderDetailsState extends ConsumerState<SingleOrderDetails> {
     //   (sum, item) => sum + item.lineTotal,
     // );
     final double subtotal = _order!.subTotal;
-    final double discount = _order!.discountCoin / 10;
+    final double discount = CoinUtils.toTwd(_order!.discountCoin);
     final shippingCost = _order!.shippingCost;
     final shippingCostDeduction = _order!.shippingCostDeduction;
     final transactionFee = _order!.transactionFee;

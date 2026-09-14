@@ -4,6 +4,7 @@ import 'package:flutter_ad_ecommerce/models/api_enums.dart';
 import 'package:flutter_ad_ecommerce/models/order.dart'; // Make sure you have this model
 import 'package:flutter_ad_ecommerce/constants/colors.dart'; // Your colors file
 import 'package:flutter_ad_ecommerce/router/routes.dart';
+import 'package:flutter_ad_ecommerce/utils/coin_utils.dart';
 import 'package:flutter_ad_ecommerce/utils/formatter.dart'; // Your formatter for dates
 import 'package:flutter_ad_ecommerce/utils/number_formatter_extension.dart';
 import 'package:go_router/go_router.dart';
@@ -50,8 +51,7 @@ class _OrderCardState extends State<OrderCard> {
     // final double subTotal =
     //     widget.order.totalAmount + (widget.order.discountCoin / 10);
     final double subTotal = widget.order.subTotal;
-    final double discount =
-        widget.order.discountCoin / 10; // Assuming 10 coins = 1 dollar
+    final double discount = CoinUtils.toTwd(widget.order.discountCoin);
     final shippingCost = widget.order.shippingCost;
     final shippingCostDeduction = widget.order.shippingCostDeduction;
     final transactionFee = widget.order.transactionFee;
