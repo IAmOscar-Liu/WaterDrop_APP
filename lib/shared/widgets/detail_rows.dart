@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_ad_ecommerce/constants/colors.dart';
 
-class OrderDetailRow extends StatelessWidget {
+class DetailRow extends StatelessWidget {
   final String label;
   final String value;
   final Widget? trailing;
 
-  const OrderDetailRow({
+  const DetailRow({
     super.key,
     required this.label,
     required this.value,
@@ -60,37 +60,48 @@ class OrderDetailRow extends StatelessWidget {
   }
 }
 
-class OrderSummaryRow extends StatelessWidget {
+class SummaryRow extends StatelessWidget {
   final String label;
   final String value;
   final Color? valueColor;
+  final double _fontSize;
+  final EdgeInsetsGeometry _padding;
 
-  const OrderSummaryRow({
+  const SummaryRow({
     super.key,
     required this.label,
     required this.value,
     this.valueColor,
-  });
+  }) : _fontSize = 16,
+       _padding = const EdgeInsets.symmetric(vertical: 4);
+
+  const SummaryRow.compact({
+    super.key,
+    required this.label,
+    required this.value,
+    this.valueColor,
+  }) : _fontSize = 14,
+       _padding = const EdgeInsets.symmetric(vertical: 2);
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4.0),
+      padding: _padding,
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(
             label,
-            style: const TextStyle(
+            style: TextStyle(
               color: AppColors.secondaryTextColor,
-              fontSize: 16,
+              fontSize: _fontSize,
             ),
           ),
           Text(
             value,
             style: TextStyle(
               color: valueColor ?? AppColors.primaryTextColor,
-              fontSize: 16,
+              fontSize: _fontSize,
               fontWeight: FontWeight.bold,
             ),
           ),

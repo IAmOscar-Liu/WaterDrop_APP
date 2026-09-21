@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_ad_ecommerce/models/product.dart';
 import 'package:flutter_ad_ecommerce/router/routes.dart';
+import 'package:flutter_ad_ecommerce/shared/widgets/initial_image.dart';
 import 'package:flutter_ad_ecommerce/utils/number_formatter_extension.dart';
-import 'package:flutter_ad_ecommerce/widgets/initial_image.dart';
 import 'package:go_router/go_router.dart';
 
 class ProductCard extends StatelessWidget {

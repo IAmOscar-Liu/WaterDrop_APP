@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:developer';
 
 import 'package:dio/dio.dart';
@@ -5,6 +6,8 @@ import 'package:flutter_ad_ecommerce/models/api_enums.dart';
 import 'package:flutter_ad_ecommerce/models/order.dart';
 import 'package:flutter_ad_ecommerce/models/product.dart';
 import 'package:flutter_ad_ecommerce/provider/dio_provider.dart';
+import 'package:flutter_ad_ecommerce/provider/cart_provider.dart';
+import 'package:flutter_ad_ecommerce/provider/product_provider.dart';
 import 'package:flutter_ad_ecommerce/utils/custom_async_value.dart';
 import 'package:flutter_ad_ecommerce/utils/exception_handler.dart';
 import 'package:flutter_ad_ecommerce/utils/parse_utils.dart';
@@ -174,6 +177,26 @@ class OrderNotifier extends _$OrderNotifier {
       log(
         '[DioException] Failed to create order: ${getDioExceptionMessage(e)}',
       );
+      if (e.response?.statusCode == 400) {
+        await Future.wait([
+          ref.read(cartProvider.notifier).loadCartItems(keepPreviousData: true),
+          ref.read(productNotifierProvider.notifier).refreshProducts(),
+        ]);
+        final data = e.response?.data;
+        if (data is Map && data['error'] is List) {
+          return Result.failure(jsonEncode(data));
+        }
+        final message = data is Map
+            ? ParseUtils.parseString(data['message'])
+            : data is String
+            ? data
+            : null;
+        return Result.failure(
+          message?.trim().isNotEmpty == true
+              ? message!.trim()
+              : '無法建立訂單，請確認商品、規格及結帳資料後再試。',
+        );
+      }
       return Result.failure(getDioExceptionMessage(e));
     } catch (e) {
       log('[Exception] Failed to create order: $e');

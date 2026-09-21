@@ -7,10 +7,11 @@ import 'package:flutter_ad_ecommerce/models/message.dart';
 import 'package:flutter_ad_ecommerce/provider/dio_provider.dart';
 import 'package:flutter_ad_ecommerce/provider/message_provider.dart';
 import 'package:flutter_ad_ecommerce/router/routes.dart';
+import 'package:flutter_ad_ecommerce/shared/layouts/app_scaffold.dart';
+import 'package:flutter_ad_ecommerce/shared/widgets/simple_app_bar.dart';
 import 'package:flutter_ad_ecommerce/utils/formatter.dart';
 import 'package:flutter_ad_ecommerce/utils/list_utils.dart';
 import 'package:flutter_ad_ecommerce/utils/result.dart';
-import 'package:flutter_ad_ecommerce/widgets/simple_app_bar.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -91,7 +92,7 @@ class _SingleMessageDetailsState extends ConsumerState<SingleMessageDetails> {
   }
 
   Widget _buildLayout({required Widget child}) {
-    return Scaffold(
+    return AppScaffold(
       backgroundColor: AppColors.primaryColor,
       appBar: SimpleAppBar(title: '訊息詳情'),
       body: child,

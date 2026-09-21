@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_ad_ecommerce/constants/colors.dart';
 import 'package:flutter_ad_ecommerce/models/api_enums.dart';
+import 'package:flutter_ad_ecommerce/shared/widgets/status_badge.dart';
 
 class OrderStatusBadge extends StatelessWidget {
   final DeliveryStatus status;
@@ -23,7 +24,7 @@ class OrderStatusBadge extends StatelessWidget {
       DeliveryStatus.unknown => (text: "未知狀態", color: Colors.grey),
     };
 
-    return _StatusBadge(text: style.text, color: style.color);
+    return StatusBadge(text: style.text, color: style.color);
   }
 }
 
@@ -41,34 +42,6 @@ class RefundStatusBadge extends StatelessWidget {
       RefundStatus.cancelled => (text: "已取消", color: Colors.grey),
     };
 
-    return _StatusBadge(text: style.text, color: style.color);
-  }
-}
-
-class _StatusBadge extends StatelessWidget {
-  final String text;
-  final Color color;
-
-  const _StatusBadge({required this.text, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(left: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        border: Border.all(color: color),
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Text(
-        text,
-        style: TextStyle(
-          color: color,
-          fontSize: 12,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
-    );
+    return StatusBadge(text: style.text, color: style.color);
   }
 }

@@ -2,7 +2,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_ad_ecommerce/constants/colors.dart';
-import 'package:flutter_ad_ecommerce/features/order/widgets/order_detail_rows.dart';
 import 'package:flutter_ad_ecommerce/features/order/widgets/order_item_list.dart';
 import 'package:flutter_ad_ecommerce/features/order/widgets/order_status_badge.dart';
 import 'package:flutter_ad_ecommerce/features/order/widgets/refund_widgets.dart';
@@ -12,12 +11,16 @@ import 'package:flutter_ad_ecommerce/models/order.dart';
 import 'package:flutter_ad_ecommerce/provider/account_provider.dart';
 import 'package:flutter_ad_ecommerce/provider/order_provider.dart';
 import 'package:flutter_ad_ecommerce/router/routes.dart';
-import 'package:flutter_ad_ecommerce/utils/formatter.dart';
+import 'package:flutter_ad_ecommerce/shared/layouts/app_scaffold.dart';
+import 'package:flutter_ad_ecommerce/shared/layouts/draggable_details_sheet.dart';
+import 'package:flutter_ad_ecommerce/shared/widgets/detail_rows.dart';
+import 'package:flutter_ad_ecommerce/shared/widgets/section_panel.dart';
+import 'package:flutter_ad_ecommerce/shared/widgets/simple_app_bar.dart';
 import 'package:flutter_ad_ecommerce/utils/coin_utils.dart';
+import 'package:flutter_ad_ecommerce/utils/formatter.dart';
 import 'package:flutter_ad_ecommerce/utils/number_formatter_extension.dart';
 import 'package:flutter_ad_ecommerce/utils/parse_utils.dart';
 import 'package:flutter_ad_ecommerce/utils/result.dart';
-import 'package:flutter_ad_ecommerce/widgets/simple_app_bar.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -96,7 +99,7 @@ class _SingleOrderDetailsState extends ConsumerState<SingleOrderDetails> {
   }
 
   Widget _buildLayout({required Widget child}) {
-    return Scaffold(
+    return AppScaffold(
       backgroundColor: AppColors.primaryColor,
       appBar: SimpleAppBar(
         title: '訂單詳情',
@@ -232,45 +235,6 @@ class _SingleOrderDetailsState extends ConsumerState<SingleOrderDetails> {
     );
   }
 
-  Widget _buildSection({
-    required String title,
-    required Widget child,
-    Widget? titleIcon,
-    Color? titleColor,
-    Widget? badge,
-  }) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.containerBgColor,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.borderColor, width: 1),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              if (titleIcon != null) ...[titleIcon, const SizedBox(width: 8)],
-              Text(
-                title,
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 18,
-                  color: titleColor ?? AppColors.primaryTextColor,
-                ),
-              ),
-              if (badge != null) badge,
-            ],
-          ),
-          const Divider(color: AppColors.dividerColor),
-          child,
-        ],
-      ),
-    );
-  }
-
   void _viewProductDetails(OrderItem item) {
     final product = item.product;
     if (product == null) return;
@@ -376,25 +340,25 @@ class _SingleOrderDetailsState extends ConsumerState<SingleOrderDetails> {
       }
 
       itemSections.add(
-        _buildSection(
+        SectionPanel(
           title: title,
           badge: OrderStatusBadge(status: delivery.status),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              OrderDetailRow(label: '物流單號:', value: delivery.merchantTradeNo),
-              OrderDetailRow(label: '物流狀態:', value: delivery.rtnMsg ?? 'N/A'),
+              DetailRow(label: '物流單號:', value: delivery.merchantTradeNo),
+              DetailRow(label: '物流狀態:', value: delivery.rtnMsg ?? 'N/A'),
               if (delivery.logisticsType == DeliveryLogisticsType.CVS &&
                   delivery.cvsStoreInfo is Map &&
                   delivery.cvsStoreInfo!["storeName"] is String)
-                OrderDetailRow(
+                DetailRow(
                   label: '取貨門市:',
                   value: delivery.cvsStoreInfo!["storeName"],
                 ),
               if (delivery.logisticsType == DeliveryLogisticsType.CVS &&
                   delivery.cvsStoreInfo is Map &&
                   delivery.cvsStoreInfo!["storeAddress"] is String)
-                OrderDetailRow(
+                DetailRow(
                   label: '取貨地址:',
                   value: delivery.cvsStoreInfo!["storeAddress"],
                 ),
@@ -403,142 +367,65 @@ class _SingleOrderDetailsState extends ConsumerState<SingleOrderDetails> {
                   padding: const EdgeInsets.symmetric(vertical: 8.0),
                   child: FilledButton.icon(
                     onPressed: () {
-                      showModalBottomSheet(
+                      showDraggableDetailsSheet<void>(
                         context: context,
-                        isScrollControlled: true,
-                        backgroundColor: AppColors.primaryColor,
-                        shape: const RoundedRectangleBorder(
-                          borderRadius: BorderRadius.vertical(
-                            top: Radius.circular(16),
+                        headerBuilder: (context) => const Text(
+                          '運單詳情',
+                          style: TextStyle(
+                            color: AppColors.primaryTextColor,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
-                        builder: (BuildContext context) {
-                          final mediaQuery = MediaQuery.of(context);
-                          final maxChildSize =
-                              (mediaQuery.size.height -
-                                  mediaQuery.padding.top -
-                                  kToolbarHeight) /
-                              mediaQuery.size.height;
-                          var sheetSize = 0.5;
-
-                          return StatefulBuilder(
-                            builder: (context, setSheetState) {
-                              return NotificationListener<
-                                DraggableScrollableNotification
-                              >(
-                                onNotification: (notification) {
-                                  if ((notification.extent - sheetSize).abs() >
-                                      0.01) {
-                                    setSheetState(() {
-                                      sheetSize = notification.extent;
-                                    });
-                                  }
-                                  return false;
-                                },
-                                child: DraggableScrollableSheet(
-                                  initialChildSize: 0.5,
-                                  minChildSize: 0.5,
-                                  maxChildSize: maxChildSize
-                                      .clamp(0.5, 1.0)
-                                      .toDouble(),
-                                  expand: false,
-                                  builder: (context, scrollController) {
-                                    return Padding(
-                                      padding: const EdgeInsets.all(16.0),
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
+                        bodyBuilder: (context, scrollController) =>
+                            ListView.builder(
+                              controller: scrollController,
+                              itemCount: delivery.logs.length,
+                              itemBuilder: (context, index) {
+                                final log = delivery.logs[index];
+                                return Container(
+                                  margin: const EdgeInsets.symmetric(
+                                    vertical: 8.0,
+                                  ),
+                                  padding: const EdgeInsets.all(12.0),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.tileColor,
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.spaceBetween,
                                         children: [
-                                          Center(
-                                            child: Icon(
-                                              sheetSize <= 0.51
-                                                  ? Icons.keyboard_arrow_up
-                                                  : Icons.keyboard_arrow_down,
+                                          Text(
+                                            Formatter.formatDateTime(
+                                              log.createdAt,
+                                            ),
+                                            style: const TextStyle(
                                               color:
                                                   AppColors.secondaryTextColor,
+                                              fontSize: 12,
                                             ),
                                           ),
-                                          const SizedBox(height: 8),
-                                          const Text(
-                                            '運單詳情',
-                                            style: TextStyle(
-                                              color: AppColors.primaryTextColor,
-                                              fontSize: 18,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 16),
-                                          Expanded(
-                                            child: ListView.builder(
-                                              controller: scrollController,
-                                              itemCount: delivery.logs.length,
-                                              itemBuilder: (context, index) {
-                                                final log =
-                                                    delivery.logs[index];
-                                                return Container(
-                                                  margin:
-                                                      const EdgeInsets.symmetric(
-                                                        vertical: 8.0,
-                                                      ),
-                                                  padding: const EdgeInsets.all(
-                                                    12.0,
-                                                  ),
-                                                  decoration: BoxDecoration(
-                                                    color: AppColors.tileColor,
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                          8,
-                                                        ),
-                                                  ),
-                                                  child: Column(
-                                                    crossAxisAlignment:
-                                                        CrossAxisAlignment
-                                                            .start,
-                                                    children: [
-                                                      Row(
-                                                        mainAxisAlignment:
-                                                            MainAxisAlignment
-                                                                .spaceBetween,
-                                                        children: [
-                                                          Text(
-                                                            Formatter.formatDateTime(
-                                                              log.createdAt,
-                                                            ),
-                                                            style: const TextStyle(
-                                                              color: AppColors
-                                                                  .secondaryTextColor,
-                                                              fontSize: 12,
-                                                            ),
-                                                          ),
-                                                          OrderStatusBadge(
-                                                            status: log.status,
-                                                          ),
-                                                        ],
-                                                      ),
-                                                      const SizedBox(height: 8),
-                                                      Text(
-                                                        log.rtnMsg,
-                                                        style: const TextStyle(
-                                                          color: AppColors
-                                                              .primaryTextColor,
-                                                          fontSize: 14,
-                                                        ),
-                                                      ),
-                                                    ],
-                                                  ),
-                                                );
-                                              },
-                                            ),
-                                          ),
+                                          OrderStatusBadge(status: log.status),
                                         ],
                                       ),
-                                    );
-                                  },
-                                ),
-                              );
-                            },
-                          );
-                        },
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        log.rtnMsg,
+                                        style: const TextStyle(
+                                          color: AppColors.primaryTextColor,
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
+                            ),
                       );
                     },
                     icon: const Icon(Icons.local_shipping_outlined, size: 16),
@@ -566,18 +453,18 @@ class _SingleOrderDetailsState extends ConsumerState<SingleOrderDetails> {
                   delivery.logisticsType ==
                       DeliveryLogisticsType.homeDelivery) ...[
                 const Divider(color: AppColors.dividerColor),
-                OrderSummaryRow(
+                SummaryRow(
                   label: delivery.feeDeduction > 0 ? '運費' : '運費小計',
                   value: 'NT\$ ${delivery.fee.formatWithCommas()}',
                 ),
                 if (delivery.feeDeduction > 0) ...[
-                  OrderSummaryRow(
+                  SummaryRow(
                     label:
                         '運費減免(${delivery.feeDeduction >= delivery.fee ? '免運費活動中' : '運費優惠活動中'})',
                     value: '- NT\$ ${delivery.feeDeduction.formatWithCommas()}',
                     valueColor: AppColors.greenColor,
                   ),
-                  OrderSummaryRow(
+                  SummaryRow(
                     label: '運費小計',
                     value:
                         'NT\$ ${(delivery.fee - delivery.feeDeduction).formatWithCommas()}',
@@ -598,14 +485,14 @@ class _SingleOrderDetailsState extends ConsumerState<SingleOrderDetails> {
       if (_order!.orderPayment != OrderPayment.Credit &&
           _order!.orderStatus == OrderStatus.paymentProcessing) {
         itemSections.add(
-          _buildSection(
+          SectionPanel(
             title: "待付款商品",
             child: _buildProductList(unassignedItems),
           ),
         );
       } else {
         itemSections.add(
-          _buildSection(
+          SectionPanel(
             title: "運單未建立-請聯絡客服",
             titleIcon: const Icon(Icons.error, color: Colors.red),
             titleColor: Colors.red,
@@ -620,26 +507,23 @@ class _SingleOrderDetailsState extends ConsumerState<SingleOrderDetails> {
         padding: EdgeInsets.only(top: 12, bottom: safeAreaPadding.bottom + 24),
         child: Column(
           children: [
-            _buildSection(
+            SectionPanel(
               title: '訂單資訊',
               child: Column(
                 children: [
                   if (_order!.merchantTradeNo.isNotEmpty)
-                    OrderDetailRow(
-                      label: '訂單編號:',
-                      value: _order!.merchantTradeNo,
-                    ),
-                  OrderDetailRow(
+                    DetailRow(label: '訂單編號:', value: _order!.merchantTradeNo),
+                  DetailRow(
                     label: '訂單日期:',
                     value: Formatter.formatDateTime(
                       _order!.completedAt ?? _order!.createdAt,
                     ),
                   ),
-                  OrderDetailRow(
+                  DetailRow(
                     label: '訂單狀態:',
                     value: _order!.orderStatus.displayName,
                   ),
-                  OrderDetailRow(
+                  DetailRow(
                     label: '付款方式:',
                     value: _order!.orderPayment.displayName,
                     trailing:
@@ -667,32 +551,32 @@ class _SingleOrderDetailsState extends ConsumerState<SingleOrderDetails> {
               ),
             ),
             ...itemSections,
-            _buildSection(
+            SectionPanel(
               title: '訂單摘要',
               child: Column(
                 children: [
-                  OrderSummaryRow(
+                  SummaryRow(
                     label: '商品總金額',
                     value: subtotal.toDollarsString(prefix: "NT"),
                   ),
-                  OrderSummaryRow(
+                  SummaryRow(
                     label: '金幣折抵',
                     value: '- ${discount.toDollarsString(prefix: "NT")}',
                     valueColor: AppColors.greenColor,
                   ),
-                  OrderSummaryRow(
+                  SummaryRow(
                     label: '總運費',
                     value: shippingCost.toDollarsString(prefix: "NT"),
                   ),
                   if (shippingCostDeduction > 0)
-                    OrderSummaryRow(
+                    SummaryRow(
                       label: '運費減免',
                       value:
                           '- ${shippingCostDeduction.toDollarsString(prefix: "NT")}',
                       valueColor: AppColors.greenColor, // Green for discount
                     ),
                   if (!kReleaseMode)
-                    OrderSummaryRow(
+                    SummaryRow(
                       label:
                           '手續費${(_order!.transactionFeeRateAtSale == null || _order!.transactionFeeRateAtSale == 0) ? "" : "(${_order!.transactionFeeRateAtSale! * 100}%)"}',
                       value: transactionFee.floor().toDollarsString(
@@ -700,7 +584,7 @@ class _SingleOrderDetailsState extends ConsumerState<SingleOrderDetails> {
                       ),
                     ),
                   const Divider(color: AppColors.dividerColor),
-                  OrderSummaryRow(
+                  SummaryRow(
                     label: '最終需支付現金',
                     value: _order!.totalAmount.floor().toDollarsString(
                       prefix: "NT",

@@ -139,5 +139,6 @@ double totalOpenedBoxAmount(TotalOpenedBoxAmountRef ref) {
 @riverpod
 int emptyTreasureBoxCount(EmptyTreasureBoxCountRef ref) {
   final treasureBoxes = ref.watch(treasureBoxNotifierProvider).data ?? [];
-  return treasureBoxes.where((box) => !box.isClaimable).length;
+  // Opened boxes become non-claimable after accounting, but are not empty slots.
+  return treasureBoxes.where((box) => !box.isClaimable && !box.isOpened).length;
 }

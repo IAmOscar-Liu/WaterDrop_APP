@@ -4,10 +4,11 @@ import 'package:flutter_ad_ecommerce/models/api_enums.dart';
 import 'package:flutter_ad_ecommerce/models/chatroom.dart';
 import 'package:flutter_ad_ecommerce/provider/chatroom_list_provider.dart';
 import 'package:flutter_ad_ecommerce/router/routes.dart';
+import 'package:flutter_ad_ecommerce/shared/layouts/app_scaffold.dart';
+import 'package:flutter_ad_ecommerce/shared/widgets/initial_image.dart';
+import 'package:flutter_ad_ecommerce/shared/widgets/page_status.dart';
+import 'package:flutter_ad_ecommerce/shared/widgets/simple_app_bar.dart';
 import 'package:flutter_ad_ecommerce/utils/formatter.dart';
-import 'package:flutter_ad_ecommerce/widgets/initial_image.dart';
-import 'package:flutter_ad_ecommerce/widgets/page_status.dart';
-import 'package:flutter_ad_ecommerce/widgets/simple_app_bar.dart';
 import 'package:flutter_masonry_view/flutter_masonry_view.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -94,8 +95,7 @@ class _ChatroomListPageState extends ConsumerState<ChatroomListPage> {
   }
 
   Widget _buildLayout({required Widget child}) {
-    return Scaffold(
-      backgroundColor: AppColors.scaffoldBgColor,
+    return AppScaffold(
       appBar: SimpleAppBar(
         title: '聊天室',
         actions: [
@@ -105,7 +105,8 @@ class _ChatroomListPageState extends ConsumerState<ChatroomListPage> {
           ),
         ],
       ),
-      body: SafeArea(child: child),
+      useSafeArea: true,
+      body: child,
     );
   }
 
@@ -130,23 +131,7 @@ class _ChatroomListPageState extends ConsumerState<ChatroomListPage> {
                       "Failed to load chatRooms: ${chatRoomProvider.error}",
                     )
                   : chatRoomProvider.data!.rooms.isEmpty
-                  ? Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.sentiment_dissatisfied,
-                            size: 48,
-                            color: Colors.white,
-                          ),
-                          SizedBox(height: 12),
-                          Text(
-                            "目前沒有聊天室",
-                            style: TextStyle(color: Colors.white),
-                          ),
-                        ],
-                      ),
-                    )
+                  ? Center(child: EmptyState("目前沒有聊天室"))
                   : SingleChildScrollView(
                       padding: EdgeInsets.only(left: 8, right: 8, bottom: 16),
                       child: Column(

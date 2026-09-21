@@ -2,10 +2,11 @@
 import 'dart:developer';
 
 import 'package:dio/dio.dart';
+import 'package:flutter_ad_ecommerce/models/api_enums.dart';
 import 'package:flutter_ad_ecommerce/models/product.dart';
 import 'package:flutter_ad_ecommerce/provider/dio_provider.dart';
 import 'package:flutter_ad_ecommerce/utils/custom_async_value.dart';
-import 'package:flutter_ad_ecommerce/utils/exception_handler.dart';
+import 'package:flutter_ad_ecommerce/utils/product_availability.dart';
 import 'package:flutter_ad_ecommerce/utils/list_utils.dart';
 import 'package:flutter_ad_ecommerce/utils/result.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -25,6 +26,129 @@ class Cart extends _$Cart {
   @override
   CustomAsyncValue<List<CartItem>> build() {
     return CustomAsyncValue.initial();
+  }
+
+  /// Replaces cached rows with the server cart, then checks selected variants.
+  /// Stop if the reviewed selection or totals changed; never substitute a variant.
+  Future<Result<void>> validateCheckoutItems(List<CartItem> items) async {
+    if (items.isEmpty) return Result.failure('請先選擇要結帳的商品');
+    await loadCartItems(keepPreviousData: true);
+    if (!state.isDone) return Result.failure('無法確認購物車狀態，請稍後再試');
+    final latestItems = state.data ?? <CartItem>[];
+    for (final item in items) {
+      final latest = latestItems.firstWhereOrNull((row) => row.id == item.id);
+      if (latest == null || latest.productVariantId != item.productVariantId) {
+        return Result.failure('所選商品或規格已下架或不存在，購物車已更新，請重新確認。');
+      }
+      if (!latest.checked ||
+          latest.quantity != item.quantity ||
+          latest.unitPrice != item.unitPrice) {
+        return Result.failure('購物車內容已變更，請確認數量、價格及勾選商品後再結帳。');
+      }
+    }
+    final products = <String, Map<String, dynamic>?>{};
+    final unavailable = <String>{};
+    final unavailableItems = <CartItem>[];
+    try {
+      for (final item in items) {
+        if (!products.containsKey(item.productId)) {
+          try {
+            final response = await ref
+                .read(dioProvider)
+                .get('/api/product/${item.productId}');
+            final data = response.data;
+            if (data is! Map ||
+                data['success'] != true ||
+                data['data'] is! Map) {
+              return Result.failure('無法確認商品狀態，請稍後再試');
+            }
+            products[item.productId] = Map<String, dynamic>.from(data['data']);
+          } on DioException catch (e) {
+            if (e.response?.statusCode != 404) rethrow;
+            products[item.productId] = null;
+          }
+        }
+        final product = products[item.productId];
+        if (product == null ||
+            product['status'] != ProductStatus.active.wireValue ||
+            product['deletedAt'] != null) {
+          unavailable.add('「${item.product.name}」已下架或不存在');
+          unavailableItems.add(item);
+          continue;
+        }
+        final variants = product['variants'];
+        final variant = variants is List
+            ? variants.whereType<Map>().firstWhereOrNull(
+                (variant) => variant['id'] == item.productVariantId,
+              )
+            : null;
+        if (variant == null ||
+            variant['status'] != ProductStatus.active.wireValue) {
+          final name = item.variant?.displayName ?? '所選規格';
+          unavailable.add('「${item.product.name} / $name」已下架或不存在');
+          unavailableItems.add(item);
+        }
+      }
+    } catch (e) {
+      log('Failed to validate checkout items: $e');
+      return Result.failure('無法確認商品狀態，請稍後再試');
+    }
+    if (unavailable.isNotEmpty) {
+      final cleanupMessage = await _removeUnavailableCheckoutItems(
+        unavailableItems,
+      );
+      return Result.failure('${unavailable.join('\n')}\n$cleanupMessage');
+    }
+    return Result.success();
+  }
+
+  /// Remove confirmed unavailable selections using the same API as manual removal.
+  /// Refresh once after all attempts and only report success if those rows are gone.
+  Future<String> _removeUnavailableCheckoutItems(List<CartItem> items) async {
+    state = CustomAsyncValue.processing(state.data ?? []);
+    for (final item in items) {
+      try {
+        await _deleteCartItem(item.productId, item.productVariantId);
+      } catch (e) {
+        // The backend may already have removed this row. The final cart response
+        // determines whether cleanup succeeded, including after a 404.
+        log('Failed to remove unavailable cart item ${item.id}: $e');
+      }
+    }
+    await loadCartItems();
+    if (!state.isDone) {
+      return '無法確認購物車更新結果，請重新整理後再試。';
+    }
+    final remaining = state.data ?? <CartItem>[];
+    if (items.any(
+      (removed) => remaining.any(
+        (item) =>
+            item.id == removed.id ||
+            _isSameCartLine(item, removed.productId, removed.productVariantId),
+      ),
+    )) {
+      return '部分無法購買的商品尚未移除，請重試或手動移除後再結帳。';
+    }
+    return '無法購買的商品已從購物車移除，請確認後再結帳。';
+  }
+
+  Future<void> _deleteCartItem(
+    String productId,
+    String productVariantId,
+  ) async {
+    final response = await ref
+        .read(dioProvider)
+        .post(
+          '/api/cart/item',
+          data: {
+            'productId': productId,
+            'productVariantId': productVariantId,
+            'quantity': 0,
+          },
+        );
+    if (response.data is! Map || response.data['success'] != true) {
+      throw Exception('Failed to remove cart item');
+    }
   }
 
   Future<void> loadCartItems({bool? keepPreviousData = false}) async {
@@ -92,13 +216,13 @@ class Cart extends _$Cart {
       );
     } on DioException catch (e) {
       log('Failed to add cart item: $e');
-      return Result.failure(getDioExceptionMessage(e));
+      return Result.failure(productMutationErrorMessage(e));
     } catch (e) {
       log('Failed to add cart item: $e');
       return Result.failure('Error: $e');
     } finally {
       state = CustomAsyncValue.done(state.data ?? []);
-      loadCartItems(keepPreviousData: true);
+      await loadCartItems(keepPreviousData: true);
     }
   }
 
@@ -154,10 +278,12 @@ class Cart extends _$Cart {
       return Result.success(true);
     } catch (e) {
       log('Failed to update item quantity: $e');
-      return Result.failure('$e');
+      return Result.failure(
+        e is DioException ? productMutationErrorMessage(e) : '$e',
+      );
     } finally {
       state = CustomAsyncValue.done(state.data!);
-      loadCartItems(keepPreviousData: true);
+      await loadCartItems(keepPreviousData: true);
     }
   }
 
@@ -231,10 +357,12 @@ class Cart extends _$Cart {
       return Result.success(true);
     } catch (e) {
       log('Failed to update cart item: $e');
-      return Result.failure('$e');
+      return Result.failure(
+        e is DioException ? productMutationErrorMessage(e) : '$e',
+      );
     } finally {
       state = CustomAsyncValue.done(state.data!);
-      loadCartItems(keepPreviousData: true);
+      await loadCartItems(keepPreviousData: true);
     }
   }
 
@@ -288,10 +416,12 @@ class Cart extends _$Cart {
       return Result.success(true);
     } catch (e) {
       log('Failed to toggle item: $e');
-      return Result.failure('$e');
+      return Result.failure(
+        e is DioException ? productMutationErrorMessage(e) : '$e',
+      );
     } finally {
       state = CustomAsyncValue.done(state.data!);
-      loadCartItems(keepPreviousData: true);
+      await loadCartItems(keepPreviousData: true);
     }
   }
 
@@ -325,30 +455,20 @@ class Cart extends _$Cart {
             .toList(),
       );
 
-      final response = await ref
-          .read(dioProvider)
-          .post(
-            "/api/cart/item",
-            data: {
-              "productId": productId,
-              "productVariantId": targetVariantId,
-              "quantity": 0,
-            },
-          );
-      if (response.data['success'] != true) {
-        throw Exception('Request failed');
-      }
+      await _deleteCartItem(productId, targetVariantId);
 
       return Result.success(true);
     } on DioException catch (e) {
       log('Failed to remove item: $e');
-      return Result.failure(getDioExceptionMessage(e));
+      return Result.failure(productMutationErrorMessage(e));
     } catch (e) {
       log('Failed to remove item: $e');
-      return Result.failure('$e');
+      return Result.failure(
+        e is DioException ? productMutationErrorMessage(e) : '$e',
+      );
     } finally {
       state = CustomAsyncValue.done(state.data!);
-      loadCartItems(keepPreviousData: true);
+      await loadCartItems(keepPreviousData: true);
     }
   }
 

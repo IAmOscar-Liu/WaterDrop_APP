@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_ad_ecommerce/constants/colors.dart';
 import 'package:flutter_ad_ecommerce/models/api_enums.dart';
 import 'package:flutter_ad_ecommerce/models/order.dart';
-import 'package:flutter_ad_ecommerce/widgets/initial_image.dart';
+import 'package:flutter_ad_ecommerce/shared/widgets/product_thumbnail.dart';
 import 'package:flutter_ad_ecommerce/utils/number_formatter_extension.dart';
 
 class OrderItemList extends StatelessWidget {
@@ -45,26 +45,10 @@ class OrderItemList extends StatelessWidget {
                     : () => onViewProductDetails(item),
                 child: Stack(
                   children: [
-                    Container(
-                      width: 60,
-                      height: 60,
-                      clipBehavior: Clip.antiAlias,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(4.0),
-                      ),
-                      child: imageUrl != null
-                          ? FadeInImage.assetNetwork(
-                              placeholder: "assets/images/photo_loading.gif",
-                              image: imageUrl,
-                              fit: BoxFit.cover,
-                              imageErrorBuilder: (context, error, stackTrace) {
-                                return Image.asset(
-                                  "assets/images/photo_not_found.jpg",
-                                  fit: BoxFit.cover,
-                                );
-                              },
-                            )
-                          : InitialImage(name: item.productNameAtSale),
+                    ProductThumbnail(
+                      name: item.productNameAtSale,
+                      imageUrl: imageUrl,
+                      size: 60,
                     ),
                     if (item.product?.type == ProductType.refrigeration)
                       const _ProductTypeBadge(label: "冷藏", color: Colors.blue),

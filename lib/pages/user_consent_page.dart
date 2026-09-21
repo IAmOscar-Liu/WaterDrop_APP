@@ -3,7 +3,8 @@ import 'package:flutter_ad_ecommerce/constants/app_constants.dart';
 import 'package:flutter_ad_ecommerce/constants/colors.dart';
 import 'package:flutter_ad_ecommerce/provider/account_provider.dart';
 import 'package:flutter_ad_ecommerce/service/google_auth_service.dart';
-import 'package:flutter_ad_ecommerce/widgets/simple_app_bar.dart';
+import 'package:flutter_ad_ecommerce/shared/layouts/app_scaffold.dart';
+import 'package:flutter_ad_ecommerce/shared/widgets/simple_app_bar.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -21,14 +22,14 @@ class _UserConsentPageState extends ConsumerState<UserConsentPage> {
   Widget _buildLayout({required Widget child}) {
     return PopScope(
       canPop: false,
-      child: Scaffold(
-        backgroundColor: AppColors.scaffoldBgColor,
+      child: AppScaffold(
         appBar: SimpleAppBar(
           title: '用戶同意書',
           automaticallyImplyLeading: false,
           leading: null,
         ),
-        body: SafeArea(child: child),
+        useSafeArea: true,
+        body: child,
       ),
     );
   }

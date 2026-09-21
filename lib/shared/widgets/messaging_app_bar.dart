@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_ad_ecommerce/constants/colors.dart';
 import 'package:flutter_ad_ecommerce/provider/message_stats_provider.dart';
 import 'package:flutter_ad_ecommerce/router/routes.dart';
-import 'package:flutter_ad_ecommerce/widgets/badge_count.dart';
+import 'package:flutter_ad_ecommerce/shared/widgets/badge_count.dart';
+import 'package:flutter_ad_ecommerce/shared/widgets/simple_app_bar.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -61,21 +61,13 @@ class MessagingAppBar extends ConsumerWidget implements PreferredSizeWidget {
       ),
     ];
 
-    return AppBar(
-      backgroundColor: backgroundColor ?? AppColors.appbarBgColor,
+    return SimpleAppBar(
+      title: title,
+      backgroundColor: backgroundColor,
+      foregroundColor: foregroundColor,
       centerTitle: centerTitle,
-      title: Text(
-        title,
-        style:
-            titleTextStyle ??
-            const TextStyle(
-              fontWeight: FontWeight.bold,
-              color: AppColors.primaryTextColor,
-            ),
-      ),
-      iconTheme:
-          iconTheme ??
-          IconThemeData(color: foregroundColor ?? AppColors.primaryTextColor),
+      titleTextStyle: titleTextStyle,
+      iconTheme: iconTheme,
       actions: allActions,
       leading: leading,
       automaticallyImplyLeading: automaticallyImplyLeading,

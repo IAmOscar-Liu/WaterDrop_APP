@@ -9,10 +9,11 @@ import 'package:flutter_ad_ecommerce/provider/account_provider.dart';
 import 'package:flutter_ad_ecommerce/provider/system_provider.dart';
 import 'package:flutter_ad_ecommerce/router/routes.dart';
 import 'package:flutter_ad_ecommerce/service/google_auth_service.dart';
+import 'package:flutter_ad_ecommerce/shared/layouts/app_scaffold.dart';
+import 'package:flutter_ad_ecommerce/shared/widgets/app_version_text.dart';
+import 'package:flutter_ad_ecommerce/shared/widgets/messaging_app_bar.dart';
 import 'package:flutter_ad_ecommerce/utils/formatter.dart';
 import 'package:flutter_ad_ecommerce/utils/number_formatter_extension.dart';
-import 'package:flutter_ad_ecommerce/widgets/app_version_text.dart';
-import 'package:flutter_ad_ecommerce/widgets/messaging_app_bar.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -266,8 +267,7 @@ class _MinePageState extends ConsumerState<MinePage> {
     AccountInfo accountInfo = ref.watch(accountNotifierProvider);
     System system = ref.watch(systemNotifierProvider);
 
-    return Scaffold(
-      backgroundColor: AppColors.scaffoldBgColor,
+    return AppScaffold(
       appBar: MessagingAppBar(title: '會員個人資訊'),
       resizeToAvoidBottomInset: true,
       body: SingleChildScrollView(

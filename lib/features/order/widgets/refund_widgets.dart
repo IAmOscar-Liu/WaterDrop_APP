@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_ad_ecommerce/constants/colors.dart';
-import 'package:flutter_ad_ecommerce/features/order/widgets/order_detail_rows.dart';
 import 'package:flutter_ad_ecommerce/features/order/widgets/order_status_badge.dart';
 import 'package:flutter_ad_ecommerce/models/order.dart';
 import 'package:flutter_ad_ecommerce/provider/order_provider.dart';
+import 'package:flutter_ad_ecommerce/shared/layouts/draggable_details_sheet.dart';
+import 'package:flutter_ad_ecommerce/shared/widgets/detail_rows.dart';
 import 'package:flutter_ad_ecommerce/utils/coin_utils.dart';
 import 'package:flutter_ad_ecommerce/utils/formatter.dart';
 import 'package:flutter_ad_ecommerce/utils/number_formatter_extension.dart';
@@ -31,120 +32,65 @@ void showRefundItemsBottomSheet(
   final refundItems = item.refundItems;
   final canCreateRefund = item.canRefund && item.remainingRefundQuantity > 0;
 
-  showModalBottomSheet(
+  showDraggableDetailsSheet<void>(
     context: context,
-    isScrollControlled: true,
-    backgroundColor: AppColors.primaryColor,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-    ),
-    builder: (context) {
-      final mediaQuery = MediaQuery.of(context);
-      final maxChildSize =
-          (mediaQuery.size.height - mediaQuery.padding.top - kToolbarHeight) /
-          mediaQuery.size.height;
-      var sheetSize = 0.5;
-
-      return StatefulBuilder(
-        builder: (context, setSheetState) {
-          return NotificationListener<DraggableScrollableNotification>(
-            onNotification: (notification) {
-              if ((notification.extent - sheetSize).abs() > 0.01) {
-                setSheetState(() {
-                  sheetSize = notification.extent;
-                });
-              }
-              return false;
-            },
-            child: DraggableScrollableSheet(
-              initialChildSize: 0.5,
-              minChildSize: 0.5,
-              maxChildSize: maxChildSize.clamp(0.5, 1.0).toDouble(),
-              expand: false,
-              builder: (context, scrollController) {
-                return Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Center(
-                        child: Icon(
-                          sheetSize <= 0.51
-                              ? Icons.keyboard_arrow_up
-                              : Icons.keyboard_arrow_down,
-                          color: AppColors.secondaryTextColor,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          const Expanded(
-                            child: Text(
-                              '退貨詳情',
-                              style: TextStyle(
-                                color: AppColors.primaryTextColor,
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                          if (canCreateRefund)
-                            FilledButton(
-                              onPressed: () async {
-                                final created = await onCreateRefund(item);
-                                if (created && context.mounted) {
-                                  Navigator.of(context).pop();
-                                }
-                              },
-                              style: FilledButton.styleFrom(
-                                backgroundColor: AppColors.primaryButtonColor,
-                                foregroundColor: AppColors.primaryTextColor,
-                                padding: EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 6,
-                                ),
-                                minimumSize: Size.zero,
-                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                shape: StadiumBorder(),
-                                textStyle: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              child: const Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(Icons.add, size: 16),
-                                  SizedBox(width: 2),
-                                  Text('新增'),
-                                ],
-                              ),
-                            ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      const _RefundConversionNotice(),
-                      const SizedBox(height: 16),
-                      Expanded(
-                        child: ListView.builder(
-                          controller: scrollController,
-                          itemCount: refundItems.length,
-                          itemBuilder: (context, index) {
-                            return _RefundItemCard(
-                              refundItem: refundItems[index],
-                            );
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              },
+    headerBuilder: (context) => Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Expanded(
+              child: Text(
+                '退貨詳情',
+                style: TextStyle(
+                  color: AppColors.primaryTextColor,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ),
-          );
-        },
-      );
-    },
+            if (canCreateRefund)
+              FilledButton(
+                onPressed: () async {
+                  final created = await onCreateRefund(item);
+                  if (created && context.mounted) {
+                    Navigator.of(context).pop();
+                  }
+                },
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.primaryButtonColor,
+                  foregroundColor: AppColors.primaryTextColor,
+                  padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  shape: StadiumBorder(),
+                  textStyle: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.add, size: 16),
+                    SizedBox(width: 2),
+                    Text('新增'),
+                  ],
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        const _RefundConversionNotice(),
+      ],
+    ),
+    bodyBuilder: (context, scrollController) => ListView.builder(
+      controller: scrollController,
+      itemCount: refundItems.length,
+      itemBuilder: (context, index) {
+        return _RefundItemCard(refundItem: refundItems[index]);
+      },
+    ),
   );
 }
 
@@ -337,17 +283,16 @@ class _RefundItemCardState extends State<_RefundItemCard> {
               ],
             ),
           ),
-          OrderDetailRow(label: '退貨數量:', value: refundItem.quantity.toString()),
-          OrderDetailRow(
+          DetailRow(label: '退貨數量:', value: refundItem.quantity.toString()),
+          DetailRow(
             label: '現金退款:',
             value: _cashRefundAmount.toDollarsString(prefix: "NT"),
           ),
-          OrderDetailRow(label: '退還金幣:', value: _refundCoinsText()),
+          DetailRow(label: '退還金幣:', value: _refundCoinsText()),
           if (reason?.isNotEmpty == true)
-            OrderDetailRow(label: '退貨原因:', value: reason!),
-          if (note?.isNotEmpty == true)
-            OrderDetailRow(label: '備註:', value: note!),
-          OrderDetailRow(
+            DetailRow(label: '退貨原因:', value: reason!),
+          if (note?.isNotEmpty == true) DetailRow(label: '備註:', value: note!),
+          DetailRow(
             label: '最後更新時間:',
             value: Formatter.formatDateTime(refundItem.updatedAt),
           ),

@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_ad_ecommerce/constants/colors.dart';
 import 'package:flutter_ad_ecommerce/provider/system_provider.dart';
-import 'package:flutter_ad_ecommerce/widgets/simple_app_bar.dart';
+import 'package:flutter_ad_ecommerce/shared/layouts/app_scaffold.dart';
+import 'package:flutter_ad_ecommerce/shared/widgets/simple_app_bar.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -303,8 +304,7 @@ class _TextSearchPageState extends ConsumerState<TextSearchPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.scaffoldBgColor,
+    return AppScaffold(
       appBar: SimpleAppBar(title: '關鍵字搜尋'),
       resizeToAvoidBottomInset: true,
       body: GestureDetector(

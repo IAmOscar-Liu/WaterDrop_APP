@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:developer';
 
+import 'package:flutter_ad_ecommerce/utils/product_availability.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_ad_ecommerce/constants/app_constants.dart';
 import 'package:flutter_ad_ecommerce/constants/colors.dart';
@@ -14,10 +16,11 @@ import 'package:flutter_ad_ecommerce/models/product.dart';
 import 'package:flutter_ad_ecommerce/provider/account_provider.dart';
 import 'package:flutter_ad_ecommerce/provider/order_provider.dart';
 import 'package:flutter_ad_ecommerce/provider/system_provider.dart';
+import 'package:flutter_ad_ecommerce/shared/layouts/app_scaffold.dart';
+import 'package:flutter_ad_ecommerce/shared/widgets/page_status.dart';
+import 'package:flutter_ad_ecommerce/shared/widgets/simple_app_bar.dart';
 import 'package:flutter_ad_ecommerce/utils/parse_utils.dart';
 import 'package:flutter_ad_ecommerce/utils/uri_utils.dart';
-import 'package:flutter_ad_ecommerce/widgets/page_status.dart';
-import 'package:flutter_ad_ecommerce/widgets/simple_app_bar.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -220,6 +223,7 @@ class _ECPayPageState extends ConsumerState<ECPayPage>
             },
             orderPayment: orderPayment,
           );
+      if (!mounted) return;
       if (result.isFailure) {
         setState(() {
           _errorMsg = result.error;
@@ -321,8 +325,7 @@ class _ECPayPageState extends ConsumerState<ECPayPage>
   Widget _buildLayout({required Widget child, bool allowPop = true}) {
     return PopScope(
       canPop: allowPop,
-      child: Scaffold(
-        backgroundColor: AppColors.scaffoldBgColor,
+      child: AppScaffold(
         appBar: SimpleAppBar(
           title: '商品結帳',
           // Hide the back button if popping is not allowed
@@ -370,10 +373,10 @@ class _ECPayPageState extends ConsumerState<ECPayPage>
                   ...errors.map((e) {
                     final name = e['productName'] ?? '未知商品';
                     final reason = e['reason'];
-                    String reasonText = reason ?? '未知原因';
-                    if (reason == 'Not found') {
-                      reasonText = '商品已下架';
-                    } else if (reason == 'Insufficient stock') {
+                    String reasonText = orderItemReasonText(
+                      reason?.toString() ?? '未知原因',
+                    );
+                    if (reason == 'Insufficient stock') {
                       reasonText = '庫存不足';
                       if (e['quantity'] != null && e['remaining'] != null) {
                         reasonText +=
@@ -438,23 +441,45 @@ class _ECPayPageState extends ConsumerState<ECPayPage>
 
     return _buildLayout(
       child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text("發生錯誤: $errMsg", style: const TextStyle(color: Colors.white)),
-            const SizedBox(height: 24),
-            ElevatedButton(
-              onPressed: () => context.pop(),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primaryButtonColor,
-                foregroundColor: AppColors.primaryTextColor,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(
+                Icons.warning_amber_rounded,
+                color: AppColors.dangerButtonColor,
+                size: 48,
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                '訂單建立失敗',
+                style: TextStyle(
+                  color: AppColors.primaryTextColor,
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
-              child: const Text("返回"),
-            ),
-          ],
+              const SizedBox(height: 12),
+              Text(
+                errMsg,
+                style: const TextStyle(color: AppColors.primaryTextColor),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+              ElevatedButton(
+                onPressed: () => context.pop(),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primaryButtonColor,
+                  foregroundColor: AppColors.primaryTextColor,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                child: const Text("返回"),
+              ),
+            ],
+          ),
         ),
       ),
     );

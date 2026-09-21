@@ -7,8 +7,8 @@ import 'package:flutter_ad_ecommerce/provider/cart_provider.dart';
 import 'package:flutter_ad_ecommerce/provider/system_provider.dart';
 import 'package:flutter_ad_ecommerce/provider/treasure_box_provider.dart';
 import 'package:flutter_ad_ecommerce/router/routes.dart';
+import 'package:flutter_ad_ecommerce/shared/widgets/badge_count.dart';
 import 'package:flutter_ad_ecommerce/utils/events.dart';
-import 'package:flutter_ad_ecommerce/widgets/badge_count.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 

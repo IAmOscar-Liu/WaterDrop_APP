@@ -3,8 +3,10 @@ import 'package:flutter_ad_ecommerce/constants/colors.dart';
 import 'package:flutter_ad_ecommerce/features/order/widgets/order_card.dart';
 import 'package:flutter_ad_ecommerce/models/order.dart';
 import 'package:flutter_ad_ecommerce/provider/order_provider.dart';
-import 'package:flutter_ad_ecommerce/widgets/messaging_app_bar.dart';
-import 'package:flutter_ad_ecommerce/widgets/page_status.dart';
+import 'package:flutter_ad_ecommerce/shared/layouts/app_scaffold.dart';
+import 'package:flutter_ad_ecommerce/shared/widgets/filter_button.dart';
+import 'package:flutter_ad_ecommerce/shared/widgets/messaging_app_bar.dart';
+import 'package:flutter_ad_ecommerce/shared/widgets/page_status.dart';
 import 'package:flutter_masonry_view/flutter_masonry_view.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:visibility_detector/visibility_detector.dart';
@@ -32,29 +34,24 @@ class _OrderPageState extends ConsumerState<OrderPage> {
   }
 
   Widget _buildOrderButton() {
-    return ElevatedButton.icon(
+    return FilterButton(
+      isSelected: true,
       onPressed: () {
         setState(() {
           _order = _order == "asc" ? "desc" : "asc";
         });
         _loadOrders();
       },
-      style: ElevatedButton.styleFrom(
-        foregroundColor: AppColors.primaryTextColor,
-        backgroundColor: AppColors.navbarIndicatorColor,
-        shape: const StadiumBorder(),
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-      ),
       icon: const Icon(Icons.sort, size: 18),
-      label: Text(_order == "asc" ? "由前到後" : "由後到前"),
+      child: Text(_order == "asc" ? "由前到後" : "由後到前"),
     );
   }
 
   Widget _buildLayout({required Widget child}) {
-    return Scaffold(
-      backgroundColor: AppColors.scaffoldBgColor,
+    return AppScaffold(
       appBar: MessagingAppBar(title: '訂單記錄'),
-      body: SafeArea(child: child),
+      useSafeArea: true,
+      body: child,
     );
   }
 

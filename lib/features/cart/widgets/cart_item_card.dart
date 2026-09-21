@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_ad_ecommerce/constants/colors.dart';
 import 'package:flutter_ad_ecommerce/models/api_enums.dart';
 import 'package:flutter_ad_ecommerce/models/product.dart';
-import 'package:flutter_ad_ecommerce/constants/colors.dart';
 import 'package:flutter_ad_ecommerce/provider/account_provider.dart';
 import 'package:flutter_ad_ecommerce/provider/collection_provider.dart';
 import 'package:flutter_ad_ecommerce/router/routes.dart';
+import 'package:flutter_ad_ecommerce/shared/widgets/product_thumbnail.dart';
 import 'package:flutter_ad_ecommerce/utils/number_formatter_extension.dart';
-import 'package:flutter_ad_ecommerce/widgets/initial_image.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart'; // Assuming you have a colors.dart
 
@@ -90,28 +90,10 @@ class CartItemCard extends ConsumerWidget {
                   onTap: () => _viewProductDetails(context),
                   child: Stack(
                     children: [
-                      Container(
-                        width: 80,
-                        height: 80,
-                        clipBehavior: Clip.antiAlias,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(4.0),
-                        ),
-                        child: imageUrl != null
-                            ? FadeInImage.assetNetwork(
-                                placeholder: "assets/images/photo_loading.gif",
-                                image: imageUrl,
-                                fit: BoxFit.cover,
-                                imageErrorBuilder: (context, error, stackTrace) {
-                                  // This builder is used if the network image fails to load.
-                                  return Image.asset(
-                                    "assets/images/photo_not_found.jpg",
-                                    width: double.infinity,
-                                    fit: BoxFit.cover,
-                                  );
-                                },
-                              )
-                            : InitialImage(name: product.name),
+                      ProductThumbnail(
+                        name: product.name,
+                        imageUrl: imageUrl,
+                        size: 80,
                       ),
                       if (product.type == ProductType.refrigeration)
                         Positioned(

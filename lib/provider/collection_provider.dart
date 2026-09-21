@@ -6,6 +6,7 @@ import 'package:flutter_ad_ecommerce/provider/dio_provider.dart';
 import 'package:flutter_ad_ecommerce/utils/custom_async_value.dart';
 import 'package:flutter_ad_ecommerce/utils/exception_handler.dart';
 import 'package:flutter_ad_ecommerce/utils/parse_utils.dart';
+import 'package:flutter_ad_ecommerce/utils/product_availability.dart';
 import 'package:flutter_ad_ecommerce/utils/result.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -27,6 +28,48 @@ class CollectionNotifier extends _$CollectionNotifier {
 
   void reset() {
     state = CustomAsyncValue.initial();
+  }
+
+  /// Checks the unfiltered collection list without changing the visible list's
+  /// search, pagination, or loading state. This only checks visible membership:
+  /// inactive products are hidden by the API even when still saved.
+  Future<Result<bool>> isProductCollected(String productId) async {
+    final dio = ref.read(dioProvider);
+    try {
+      var page = 1;
+      while (true) {
+        final response = await dio.get(
+          '/api/collection/list',
+          queryParameters: {'page': page, 'limit': _customLimit},
+        );
+        final data = response.data;
+        if (data is! Map ||
+            data['success'] != true ||
+            data['data'] is! Map ||
+            data['data']['collections'] is! List) {
+          return Result.failure('無法讀取收藏狀態，請重試');
+        }
+        final collections = data['data']['collections'] as List;
+        if (collections.any((entry) {
+          if (entry is! Map) return false;
+          final product = entry['product'];
+          return entry['productId'] == productId ||
+              (product is Map && product['id'] == productId);
+        })) {
+          return Result.success(true);
+        }
+        if (collections.isEmpty) return Result.success(false);
+        final totalPages = ParseUtils.parseInt(data['data']['totalPages']);
+        if (totalPages == null || totalPages < 1) {
+          return Result.failure('無法讀取收藏狀態，請重試');
+        }
+        if (page >= totalPages) return Result.success(false);
+        page++;
+      }
+    } catch (e) {
+      log('Failed to read collection membership: $e');
+      return Result.failure('無法讀取收藏狀態，請重試');
+    }
   }
 
   Future<void> loadCollections({
@@ -136,6 +179,7 @@ class CollectionNotifier extends _$CollectionNotifier {
     String? productName,
   }) async {
     if (state.isProcessing) return Result.failure("processing");
+    final keepAlive = ref.keepAlive();
 
     try {
       state = CustomAsyncValue.processing(
@@ -151,19 +195,23 @@ class CollectionNotifier extends _$CollectionNotifier {
       }
 
       return Result.success(
-        productName != null ? "「$productName」已加入我的收藏" : "商品已加入購物車",
+        productName != null ? "「$productName」已加入我的收藏" : "商品已加入我的收藏",
       );
     } catch (e) {
       log('Failed to add collection: $e');
+      if (e is DioException && isProductAvailabilityError(e)) {
+        await loadCollections(search: _search);
+      }
       return Result.failure(
         e is DioException
-            ? getDioExceptionMessage(e)
+            ? productMutationErrorMessage(e)
             : 'Failed to add collection: $e',
       );
     } finally {
       state = CustomAsyncValue.done(
         state.data == null ? CollectionPagination.zero() : state.data!,
       );
+      keepAlive.close();
     }
   }
 
@@ -172,6 +220,7 @@ class CollectionNotifier extends _$CollectionNotifier {
     String? productName,
   }) async {
     if (state.isProcessing) return Result.failure("processing");
+    final keepAlive = ref.keepAlive();
 
     try {
       state = CustomAsyncValue.processing(
@@ -190,16 +239,27 @@ class CollectionNotifier extends _$CollectionNotifier {
         productName != null ? "「$productName」已移除我的收藏" : "商品已移除我的收藏",
       );
     } catch (e) {
-      log('Failed to add collection: $e');
+      log('Failed to remove collection: $e');
+      if (e is DioException &&
+          e.response?.statusCode == 404 &&
+          getDioExceptionMessage(e) == 'Collection not found') {
+        // Product deletion may have already removed the saved record.
+        // Refresh cached results and let the caller clear its saved state.
+        await loadCollections(search: _search);
+        return Result.success('此商品已不在我的收藏中');
+      }
       return Result.failure(
         e is DioException
             ? getDioExceptionMessage(e)
-            : 'Failed to add collection: $e',
+            : 'Failed to remove collection: $e',
       );
     } finally {
-      state = CustomAsyncValue.done(
-        state.data == null ? CollectionPagination.zero() : state.data!,
-      );
+      if (state.isProcessing) {
+        state = CustomAsyncValue.done(
+          state.data == null ? CollectionPagination.zero() : state.data!,
+        );
+      }
+      keepAlive.close();
     }
   }
 }

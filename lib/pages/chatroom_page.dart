@@ -2,17 +2,16 @@ import 'dart:async';
 import 'dart:developer';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_ad_ecommerce/constants/colors.dart';
 import 'package:flutter_ad_ecommerce/features/chatroom/widget/chat_input_widget.dart';
 import 'package:flutter_ad_ecommerce/features/chatroom/widget/chat_message_widget.dart';
 import 'package:flutter_ad_ecommerce/models/api_enums.dart';
 import 'package:flutter_ad_ecommerce/models/chatroom.dart';
 import 'package:flutter_ad_ecommerce/provider/chat_message_provider.dart';
 import 'package:flutter_ad_ecommerce/provider/system_provider.dart';
+import 'package:flutter_ad_ecommerce/shared/layouts/app_scaffold.dart';
+import 'package:flutter_ad_ecommerce/shared/widgets/page_status.dart';
+import 'package:flutter_ad_ecommerce/shared/widgets/simple_app_bar.dart';
 import 'package:flutter_ad_ecommerce/utils/parse_utils.dart';
-import 'package:flutter_ad_ecommerce/widgets/keyboard_dismiss_on_tap.dart';
-import 'package:flutter_ad_ecommerce/widgets/page_status.dart';
-import 'package:flutter_ad_ecommerce/widgets/simple_app_bar.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -164,11 +163,11 @@ class _ChatroomPageState extends ConsumerState<ChatroomPage> {
       onPopInvokedWithResult: (didPop, result) {
         ref.read(systemNotifierProvider.notifier).setCurrentChatRoomId(null);
       },
-      child: Scaffold(
-        backgroundColor: AppColors.scaffoldBgColor,
+      child: AppScaffold(
         resizeToAvoidBottomInset: true,
         appBar: SimpleAppBar(title: _appBarTitle, subtitle: _appBarSubtitle),
-        body: KeyboardDismissOnTap(child: child),
+        dismissKeyboardOnTap: true,
+        body: child,
       ),
     );
   }

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_ad_ecommerce/constants/colors.dart';
 import 'package:flutter_ad_ecommerce/router/routes.dart';
+import 'package:flutter_ad_ecommerce/shared/layouts/app_scaffold.dart';
 import 'package:flutter_ad_ecommerce/utils/events.dart';
 import 'package:go_router/go_router.dart';
 
@@ -67,12 +68,12 @@ class _RootLayoutState extends State<RootLayout> {
   @override
   Widget build(BuildContext context) {
     if (widget.isLoading) {
-      return Scaffold(
+      return AppScaffold(
         backgroundColor: AppColors.primaryColor,
         body: Center(child: CircularProgressIndicator()),
       );
     } else if (widget.error != null) {
-      return Scaffold(
+      return AppScaffold(
         backgroundColor: AppColors.primaryColor,
         body: Center(
           child: Text(

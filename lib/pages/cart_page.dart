@@ -1,5 +1,3 @@
-import 'dart:async';
-import 'dart:developer';
 import 'dart:math' show min;
 
 import 'package:flutter/foundation.dart';
@@ -21,13 +19,14 @@ import 'package:flutter_ad_ecommerce/provider/payment_settings_provider.dart';
 import 'package:flutter_ad_ecommerce/provider/product_provider.dart';
 import 'package:flutter_ad_ecommerce/provider/system_provider.dart';
 import 'package:flutter_ad_ecommerce/router/routes.dart';
+import 'package:flutter_ad_ecommerce/shared/layouts/app_scaffold.dart';
+import 'package:flutter_ad_ecommerce/shared/widgets/app_panel.dart';
+import 'package:flutter_ad_ecommerce/shared/widgets/messaging_app_bar.dart';
+import 'package:flutter_ad_ecommerce/shared/widgets/page_status.dart';
+import 'package:flutter_ad_ecommerce/shared/widgets/receiver_info_panel.dart';
 import 'package:flutter_ad_ecommerce/utils/api_call_manager.dart';
 import 'package:flutter_ad_ecommerce/utils/coin_utils.dart';
 import 'package:flutter_ad_ecommerce/utils/number_formatter_extension.dart';
-import 'package:flutter_ad_ecommerce/utils/events.dart';
-import 'package:flutter_ad_ecommerce/widgets/keyboard_dismiss_on_tap.dart';
-import 'package:flutter_ad_ecommerce/widgets/messaging_app_bar.dart';
-import 'package:flutter_ad_ecommerce/widgets/page_status.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -39,10 +38,10 @@ class CartPage extends ConsumerStatefulWidget {
 }
 
 class _CartPageState extends ConsumerState<CartPage> {
-  late StreamSubscription _routeChangeSubscription;
-  // PaymentOption? _selectedOption =
-  //     PaymentOption.creditDebitCard; // Default selected option
+  static const int _discountCoinStepUnits = 10 * CoinUtils.unitsPerCoin;
+
   int? _discountCoinUnits;
+  bool _hasInitializedDiscountCoin = false;
   bool _isProcessingTransaction = false;
 
   final TextEditingController _discountCoinController = TextEditingController();
@@ -55,47 +54,46 @@ class _CartPageState extends ConsumerState<CartPage> {
       : CoinUtils.fromCoinUnits(_discountCoinUnits!);
   double get discountAmount => CoinUtils.toTwd(_discountCoin ?? 0);
   int get maxDiscount => (subTotal * accountInfo.discountRate).floor();
-  String? get errorDiscountText =>
-      (_discountCoinUnits != null &&
-          _discountCoinUnits! > CoinUtils.toCoinUnits(accountInfo.coins))
-      ? "輸入值不能超過您擁有的金幣 - ${accountInfo.coins.formatCoinValue()}"
-      : (_discountCoinUnits != null &&
-            _discountCoinUnits! > CoinUtils.toCoinUnits(maxDiscount * 10))
-      ? '輸入值不能超過最多可折抵數量 - ${(maxDiscount * 10).formatCoinValue()}'
-      : null;
-
-  @override
-  void initState() {
-    super.initState();
-    _updateDiscountCoin();
-    _routeChangeSubscription = eventBus.on<RouterChangeEvent>().listen((event) {
-      if (event.to == Routes.cartPage && event.to != event.from) {
-        // log('[Cart] re-enter cart page');
-        _updateDiscountCoin();
-      }
-    });
+  String? get errorDiscountText {
+    if (_discountCoinController.text.isEmpty) return null;
+    final units = _discountCoinUnits;
+    if (units == null || units % _discountCoinStepUnits != 0) {
+      return '折抵金幣必須為 10 的倍數';
+    }
+    if (units > CoinUtils.toCoinUnits(accountInfo.coins)) {
+      return '輸入值不能超過您擁有的金幣 - ${accountInfo.coins.formatCoinValue()}';
+    }
+    if (units > CoinUtils.toCoinUnits(maxDiscount * 10)) {
+      return '輸入值不能超過最多可折抵數量 - ${(maxDiscount * 10).formatCoinValue()}';
+    }
+    return null;
   }
 
   @override
   void dispose() {
     _discountCoinController.dispose();
-    _routeChangeSubscription.cancel();
     super.dispose();
   }
 
-  void _updateDiscountCoin() {
-    Future.delayed(Duration.zero, () {
-      log('cart page - _updateDiscountCoin');
-      final initialDiscountCoinUnits = min(
-        CoinUtils.toCoinUnits(accountInfo.coins),
-        CoinUtils.toCoinUnits(maxDiscount * 10),
-      );
+  int get _maximumDiscountCoinUnits {
+    final account = ref.read(accountNotifierProvider);
+    final subtotal = ref.read(cartTotalPriceProvider).round();
+    final maxDiscount = (subtotal * account.discountRate).floor();
+    final availableUnits = min(
+      CoinUtils.toCoinUnits(account.coins),
+      CoinUtils.toCoinUnits(maxDiscount * 10),
+    );
+    return availableUnits ~/ _discountCoinStepUnits * _discountCoinStepUnits;
+  }
+
+  void _useMaximumDiscountCoin() {
+    final units = _maximumDiscountCoinUnits;
+    setState(() {
       _discountCoinController.text = CoinUtils.fromCoinUnits(
-        initialDiscountCoinUnits,
-      ).formatCoinValue();
-      setState(() {
-        _discountCoinUnits = initialDiscountCoinUnits;
-      });
+        units,
+      ).toInt().toString();
+      _discountCoinUnits = units;
+      _hasInitializedDiscountCoin = true;
     });
   }
 
@@ -128,116 +126,9 @@ class _CartPageState extends ConsumerState<CartPage> {
     );
   }
 
-  Widget _buildReceiverInfo() {
-    return Container(
-      margin: EdgeInsets.symmetric(horizontal: 16.0),
-      padding: EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.containerBgColor,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.borderColor, width: 1),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            "寄貨資料",
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 18,
-              color: AppColors.primaryTextColor,
-            ),
-          ),
-          Divider(color: AppColors.dividerColor),
-          Row(
-            children: [
-              Icon(
-                Icons.person_outline,
-                size: 18,
-                color: AppColors.primaryTextColor,
-              ),
-              SizedBox(width: 6),
-              Text(
-                "收件人資訊",
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.primaryTextColor,
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: 8),
-          Text(
-            "姓名：${accountInfo.name.isEmpty ? "尚未填寫" : accountInfo.name}",
-            style: TextStyle(color: AppColors.secondaryTextColor),
-          ),
-          Text(
-            "地址：${(accountInfo.address == null || accountInfo.address!.isEmpty) ? "尚未填寫" : accountInfo.address}",
-            style: TextStyle(color: AppColors.secondaryTextColor),
-          ),
-          Text(
-            "手機號碼：${(accountInfo.phone == null || accountInfo.phone!.isEmpty) ? "尚未填寫" : accountInfo.phone}",
-            style: TextStyle(color: AppColors.secondaryTextColor),
-          ),
-          SizedBox(height: 16),
-          Row(
-            children: [
-              Icon(
-                Icons.account_balance_outlined,
-                size: 18,
-                color: AppColors.primaryTextColor,
-              ),
-              SizedBox(width: 6),
-              Text(
-                "帳戶資訊",
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.primaryTextColor,
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: 8),
-          Text(
-            "銀行：${(accountInfo.bankCode == null || accountInfo.bankCode!.isEmpty || accountInfo.bankName == null || accountInfo.bankName!.isEmpty) ? "尚未填寫" : "${accountInfo.bankCode} ${accountInfo.bankName}"}",
-            style: TextStyle(color: AppColors.secondaryTextColor),
-          ),
-          Text(
-            "銀行帳號：${(accountInfo.bankAccount == null || accountInfo.bankAccount!.isEmpty) ? "尚未填寫" : accountInfo.bankAccount}",
-            style: TextStyle(color: AppColors.secondaryTextColor),
-          ),
-          SizedBox(height: 12),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(
-                Icons.info_outline,
-                size: 16,
-                color: AppColors.mutedTextColor,
-              ),
-              SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  "如需修改，請至「我的」→「帳號設定與支援」→「寄貨資料」頁面進行變更",
-                  style: TextStyle(color: AppColors.mutedTextColor),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildPayment() {
-    return Container(
+    return AppPanel(
       margin: EdgeInsets.symmetric(horizontal: 16.0),
-      padding: EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.containerBgColor,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.borderColor, width: 1),
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -298,6 +189,10 @@ class _CartPageState extends ConsumerState<CartPage> {
             style: TextStyle(color: AppColors.primaryTextColor),
             decoration: InputDecoration(
               labelText: '請輸入要折抵的金幣數量',
+              helperText: _discountCoinController.text.isEmpty
+                  ? '請輸入 10 的倍數，例如 120、130'
+                  : null,
+              helperStyle: TextStyle(color: AppColors.infoColor),
               labelStyle: TextStyle(color: AppColors.secondaryTextColor),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
@@ -316,19 +211,38 @@ class _CartPageState extends ConsumerState<CartPage> {
               contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               errorText: errorDiscountText,
             ),
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            keyboardType: TextInputType.number,
             inputFormatters: [
               TextInputFormatter.withFunction((oldValue, newValue) {
-                return RegExp(r'^\d*\.?\d{0,2}$').hasMatch(newValue.text)
+                return RegExp(r'^\d*$').hasMatch(newValue.text)
                     ? newValue
                     : oldValue;
               }),
             ],
             onChanged: (value) {
               setState(() {
+                _hasInitializedDiscountCoin = true;
                 _discountCoinUnits = CoinUtils.tryParseCoinUnits(value);
               });
             },
+          ),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              onPressed:
+                  _isProcessingTransaction ||
+                      _discountCoinUnits == _maximumDiscountCoinUnits
+                  ? null
+                  : _useMaximumDiscountCoin,
+              style: TextButton.styleFrom(
+                foregroundColor: AppColors.infoColor,
+                disabledForegroundColor: AppColors.secondaryTextColor,
+                minimumSize: const Size(0, 28),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: const Text('使用最高可折抵金幣'),
+            ),
           ),
         ],
       ),
@@ -336,14 +250,8 @@ class _CartPageState extends ConsumerState<CartPage> {
   }
 
   Widget _buildOrderInfo() {
-    return Container(
+    return AppPanel(
       margin: EdgeInsets.symmetric(horizontal: 16.0),
-      padding: EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.containerBgColor,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.borderColor, width: 1),
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -405,11 +313,11 @@ class _CartPageState extends ConsumerState<CartPage> {
   }
 
   Widget _buildLayout({required Widget child}) {
-    return Scaffold(
-      backgroundColor: AppColors.scaffoldBgColor,
+    return AppScaffold(
       appBar: MessagingAppBar(title: '我的購物車'),
       resizeToAvoidBottomInset: true,
-      body: KeyboardDismissOnTap(child: child),
+      dismissKeyboardOnTap: true,
+      body: child,
     );
   }
 
@@ -419,6 +327,11 @@ class _CartPageState extends ConsumerState<CartPage> {
     int mTotalItems,
     int mSubTotal,
   ) async {
+    final availability = await ref
+        .read(cartProvider.notifier)
+        .validateCheckoutItems(mCartItems);
+    if (availability.isFailure) return availability.error;
+
     if (mAccountInfo.name.isEmpty) {
       return "收件人姓名未填寫";
     }
@@ -469,6 +382,23 @@ class _CartPageState extends ConsumerState<CartPage> {
     }
 
     final List<CartItem> cartItems = cartData.data ?? [];
+
+    // Prefill only when the first selection is ready. Navigation and later
+    // balance/cart updates must not overwrite a deliberate choice, even zero.
+    if (!_hasInitializedDiscountCoin &&
+        !_isProcessingTransaction &&
+        cartData.isDone &&
+        totalCheckedItems > 0) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted &&
+            !_hasInitializedDiscountCoin &&
+            !_isProcessingTransaction &&
+            ref.read(cartProvider).isDone &&
+            ref.read(cartTotalItemsProvider) > 0) {
+          _useMaximumDiscountCoin();
+        }
+      });
+    }
 
     return _buildLayout(
       child: cartItems.isEmpty
@@ -556,7 +486,7 @@ class _CartPageState extends ConsumerState<CartPage> {
                   ),
                   if (totalCheckedItems > 0) ...[
                     SizedBox(height: 12),
-                    _buildReceiverInfo(),
+                    ReceiverInfoPanel(accountInfo: accountInfo),
                     SizedBox(height: 12),
                     _buildPayment(),
                     SizedBox(height: 12),
@@ -588,6 +518,7 @@ class _CartPageState extends ConsumerState<CartPage> {
                                   totalCheckedItems,
                                   checkoutSubTotal.round(),
                                 );
+                                if (!mounted) return;
                                 if (invalidMsg != null) {
                                   return showDialog(
                                     // ignore: use_build_context_synchronously
@@ -598,12 +529,16 @@ class _CartPageState extends ConsumerState<CartPage> {
                                           0xFF262A33,
                                         ),
                                         title: Text(
-                                          "資料有誤",
+                                          "無法結帳",
                                           style: TextStyle(color: Colors.white),
                                         ),
-                                        content: Text(
-                                          invalidMsg,
-                                          style: TextStyle(color: Colors.white),
+                                        content: SingleChildScrollView(
+                                          child: Text(
+                                            invalidMsg,
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                            ),
+                                          ),
                                         ),
                                         actions: [
                                           TextButton(
@@ -620,17 +555,32 @@ class _CartPageState extends ConsumerState<CartPage> {
                                       );
                                     },
                                   ).then((value) {
+                                    if (!mounted) return;
                                     setState(() {
                                       _isProcessingTransaction = false;
                                     });
                                   });
+                                }
+                                final refreshedItems = ref
+                                    .read(cartProvider)
+                                    .data!;
+                                for (
+                                  var i = 0;
+                                  i < checkedCartItems.length;
+                                  i++
+                                ) {
+                                  checkedCartItems[i] = refreshedItems
+                                      .firstWhere(
+                                        (item) =>
+                                            item.id == checkedCartItems[i].id,
+                                      );
                                 }
                                 final shippingFeeResult = await ref
                                     .read(
                                       paymentSettingsNotifierProvider.notifier,
                                     )
                                     .loadShippingFee(
-                                      cartItems
+                                      checkedCartItems
                                           .map((item) => item.product.sellerId)
                                           .toSet()
                                           .toList(),
@@ -779,11 +729,16 @@ class _CartPageState extends ConsumerState<CartPage> {
                                       ]);
                                     })
                                     .then((value) {
-                                      _updateDiscountCoin();
+                                      if (!mounted) return;
                                       ref
                                           .read(systemNotifierProvider.notifier)
                                           .setCurrentOrder(null);
                                       setState(() {
+                                        if (shouldRefreshProducts) {
+                                          _discountCoinController.clear();
+                                          _discountCoinUnits = null;
+                                          _hasInitializedDiscountCoin = false;
+                                        }
                                         _isProcessingTransaction = false;
                                       });
                                     });
@@ -791,6 +746,8 @@ class _CartPageState extends ConsumerState<CartPage> {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.primaryButtonColor,
                           foregroundColor: AppColors.primaryTextColor,
+                          disabledBackgroundColor: AppColors.borderColor,
+                          disabledForegroundColor: AppColors.secondaryTextColor,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),

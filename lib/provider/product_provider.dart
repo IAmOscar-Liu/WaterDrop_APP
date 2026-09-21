@@ -40,6 +40,7 @@ class ProductNotifier extends _$ProductNotifier {
     int? minPrice,
     int? maxPrice,
   }) async {
+    final keepAlive = ref.keepAlive();
     try {
       _page = 1;
       _limit = _customLimit;
@@ -54,6 +55,7 @@ class ProductNotifier extends _$ProductNotifier {
           .get(
             "/api/product/list",
             queryParameters: {
+              "status": "active",
               "page": _page,
               "limit": _limit,
               "categoryId": _categoryId,
@@ -87,6 +89,8 @@ class ProductNotifier extends _$ProductNotifier {
     } catch (e) {
       log('Error loading products: $e');
       state = CustomAsyncValue.error('Error loading products: $e');
+    } finally {
+      keepAlive.close();
     }
   }
 
@@ -111,6 +115,7 @@ class ProductNotifier extends _$ProductNotifier {
           .get(
             "/api/product/list",
             queryParameters: {
+              "status": "active",
               "page": _page,
               "limit": _limit,
               "categoryId": _categoryId,

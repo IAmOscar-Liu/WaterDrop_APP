@@ -183,6 +183,7 @@ class Product {
   final List<Category>? categories;
   final Seller? seller;
   final ProductStatus status;
+  final DateTime? deletedAt;
   final DateTime? createdAt;
   final DateTime? updatedAt; // Made optional
   final Map<String, dynamic>? metadata; // New optional property for metadata
@@ -207,6 +208,7 @@ class Product {
     this.categories,
     this.seller,
     required this.status,
+    this.deletedAt,
     this.createdAt,
     this.updatedAt,
     this.metadata,
@@ -257,6 +259,7 @@ class Product {
       categories: categories,
       seller: seller,
       status: ProductStatus.fromWire(ParseUtils.parseString(map['status'])),
+      deletedAt: ParseUtils.parseDateTime(map['deletedAt']),
       createdAt: ParseUtils.parseDateTime(map['createdAt']),
       updatedAt: ParseUtils.parseDateTime(map['updatedAt']),
       metadata: map['metadata'] is Map
@@ -273,6 +276,8 @@ class Product {
       variantImage: ParseUtils.parseString(map['variantImage']),
     );
   }
+
+  bool get isPurchasable => status == ProductStatus.active && deletedAt == null;
 
   List<ProductVariant> get activeVariants =>
       variants.where((variant) => variant.isActive).toList();
@@ -295,6 +300,7 @@ class Product {
       'type': type.wireValue,
       'allowHomeDelivery': allowHomeDelivery,
       'status': status.wireValue,
+      'deletedAt': deletedAt?.toIso8601String(),
       'createdAt': createdAt.toString(),
       'update': updatedAt.toString(),
       'metadata': metadata,
@@ -330,6 +336,7 @@ class Product {
     List<Category>? categories,
     Seller? seller,
     ProductStatus? status,
+    DateTime? deletedAt,
     DateTime? createdAt,
     DateTime? updatedAt, // Made optional
     Map<String, dynamic>? metadata, // New optional property for metadata
@@ -354,6 +361,7 @@ class Product {
       categories: categories ?? this.categories,
       seller: seller ?? this.seller,
       status: status ?? this.status,
+      deletedAt: deletedAt ?? this.deletedAt,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       metadata: metadata ?? this.metadata,

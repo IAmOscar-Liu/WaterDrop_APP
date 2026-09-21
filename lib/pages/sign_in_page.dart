@@ -1,10 +1,11 @@
 // ignore_for_file: use_build_context_synchronously
 
+import 'package:flutter_ad_ecommerce/shared/layouts/app_scaffold.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_ad_ecommerce/constants/app_constants.dart';
 import 'package:flutter_ad_ecommerce/service/google_auth_service.dart';
 import 'package:flutter_ad_ecommerce/constants/colors.dart';
-import 'package:flutter_ad_ecommerce/widgets/app_version_text.dart';
+import 'package:flutter_ad_ecommerce/shared/widgets/app_version_text.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class SignInPage extends StatefulWidget {
@@ -84,7 +85,7 @@ class _SignInPageState extends State<SignInPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return AppScaffold(
       backgroundColor: AppColors.primaryColor,
       body: SafeArea(
         child: Padding(

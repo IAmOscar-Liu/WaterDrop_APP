@@ -11,7 +11,7 @@ import 'package:flutter_ad_ecommerce/constants/colors.dart';
 import 'package:flutter_ad_ecommerce/features/ecpay/widget/checkout_delivery_section.dart';
 import 'package:flutter_ad_ecommerce/models/account_info.dart';
 import 'package:flutter_ad_ecommerce/utils/uri_utils.dart';
-import 'package:flutter_ad_ecommerce/widgets/page_status.dart';
+import 'package:flutter_ad_ecommerce/shared/widgets/page_status.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 

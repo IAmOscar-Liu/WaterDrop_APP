@@ -4,8 +4,10 @@ import 'package:flutter_ad_ecommerce/models/api_enums.dart';
 import 'package:flutter_ad_ecommerce/models/logistics_info.dart';
 import 'package:flutter_ad_ecommerce/models/payment_settings.dart';
 import 'package:flutter_ad_ecommerce/models/product.dart';
+import 'package:flutter_ad_ecommerce/shared/widgets/app_panel.dart';
+import 'package:flutter_ad_ecommerce/shared/widgets/detail_rows.dart';
+import 'package:flutter_ad_ecommerce/shared/widgets/product_thumbnail.dart';
 import 'package:flutter_ad_ecommerce/utils/number_formatter_extension.dart';
-import 'package:flutter_ad_ecommerce/widgets/initial_image.dart';
 
 enum LogisticsSubType {
   // B2C
@@ -99,47 +101,25 @@ class CheckoutDeliverySection extends StatelessWidget {
     final double feeDeduction = defaultFee - (customFee ?? 0);
     final double finalFee = customFee ?? 0;
 
-    Widget buildSummaryRow(String label, String value, {Color? valueColor}) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 2.0),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              label,
-              style: const TextStyle(
-                color: AppColors.secondaryTextColor,
-                fontSize: 14,
-              ),
-            ),
-            Text(
-              value,
-              style: TextStyle(
-                color: valueColor ?? AppColors.primaryTextColor,
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
       child: Column(
         children: [
-          buildSummaryRow(
-            feeDeduction > 0 ? '運費' : '運費小計',
-            defaultFee.toDollarsString(prefix: "NT"),
+          SummaryRow.compact(
+            label: feeDeduction > 0 ? '運費' : '運費小計',
+            value: defaultFee.toDollarsString(prefix: "NT"),
           ),
           if (feeDeduction > 0) ...[
-            buildSummaryRow(
-              '運費減免(${feeDeduction >= defaultFee ? '免運費活動中' : '運費優惠活動中'})',
-              '- ${feeDeduction.toDollarsString(prefix: "NT")}',
+            SummaryRow.compact(
+              label:
+                  '運費減免(${feeDeduction >= defaultFee ? '免運費活動中' : '運費優惠活動中'})',
+              value: '- ${feeDeduction.toDollarsString(prefix: "NT")}',
               valueColor: AppColors.greenColor,
             ),
-            buildSummaryRow('運費小計', finalFee.toDollarsString(prefix: "NT")),
+            SummaryRow.compact(
+              label: '運費小計',
+              value: finalFee.toDollarsString(prefix: "NT"),
+            ),
           ],
         ],
       ),
@@ -516,14 +496,8 @@ class CheckoutDeliverySection extends StatelessWidget {
     List<CartItem> items, {
     Widget Function(CartItem)? actionBuilder,
   }) {
-    return Container(
+    return AppPanel(
       margin: const EdgeInsets.symmetric(vertical: 8.0),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.containerBgColor,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.borderColor, width: 1),
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -545,26 +519,10 @@ class CheckoutDeliverySection extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // Product Image
-                    Container(
-                      width: 60,
-                      height: 60,
-                      clipBehavior: Clip.antiAlias,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(4.0),
-                      ),
-                      child: imageUrl != null
-                          ? FadeInImage.assetNetwork(
-                              placeholder: "assets/images/photo_loading.gif",
-                              image: imageUrl,
-                              fit: BoxFit.cover,
-                              imageErrorBuilder: (context, error, stackTrace) {
-                                return Image.asset(
-                                  "assets/images/photo_not_found.jpg",
-                                  fit: BoxFit.cover,
-                                );
-                              },
-                            )
-                          : InitialImage(name: item.product.name),
+                    ProductThumbnail(
+                      name: item.product.name,
+                      imageUrl: imageUrl,
+                      size: 60,
                     ),
                     const SizedBox(width: 12.0),
                     Expanded(

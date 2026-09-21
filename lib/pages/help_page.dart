@@ -1,11 +1,12 @@
 // help_page.dart
+import 'package:flutter_ad_ecommerce/shared/layouts/app_scaffold.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_ad_ecommerce/constants/colors.dart';
 import 'package:flutter_ad_ecommerce/provider/account_provider.dart';
 import 'package:flutter_ad_ecommerce/provider/system_provider.dart';
 import 'package:flutter_ad_ecommerce/router/routes.dart';
-import 'package:flutter_ad_ecommerce/widgets/page_status.dart';
-import 'package:flutter_ad_ecommerce/widgets/simple_app_bar.dart';
+import 'package:flutter_ad_ecommerce/shared/widgets/page_status.dart';
+import 'package:flutter_ad_ecommerce/shared/widgets/simple_app_bar.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -194,8 +195,7 @@ class _HelpPageState extends ConsumerState<HelpPage> {
         : <String, dynamic>{};
     final supportEnabled = support['enabled'] != false;
 
-    return Scaffold(
-      backgroundColor: AppColors.scaffoldBgColor,
+    return AppScaffold(
       appBar: SimpleAppBar(title: _readString(page, 'title', '客服/幫助中心')),
       floatingActionButton: supportEnabled
           ? FloatingActionButton.extended(

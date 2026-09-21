@@ -3,16 +3,19 @@ import 'dart:developer';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_ad_ecommerce/constants/colors.dart';
-import 'package:flutter_ad_ecommerce/models/api_enums.dart';
 import 'package:flutter_ad_ecommerce/models/product.dart';
+import 'package:flutter_ad_ecommerce/models/api_enums.dart';
 import 'package:flutter_ad_ecommerce/provider/cart_provider.dart';
 import 'package:flutter_ad_ecommerce/provider/collection_provider.dart';
 import 'package:flutter_ad_ecommerce/provider/dio_provider.dart';
 import 'package:flutter_ad_ecommerce/router/routes.dart';
+import 'package:flutter_ad_ecommerce/shared/layouts/app_scaffold.dart';
+import 'package:flutter_ad_ecommerce/shared/widgets/initial_image.dart';
+import 'package:flutter_ad_ecommerce/shared/widgets/selection_option_tile.dart';
+import 'package:flutter_ad_ecommerce/shared/widgets/simple_app_bar.dart';
 import 'package:flutter_ad_ecommerce/utils/number_formatter_extension.dart';
 import 'package:flutter_ad_ecommerce/utils/result.dart';
-import 'package:flutter_ad_ecommerce/widgets/initial_image.dart';
-import 'package:flutter_ad_ecommerce/widgets/simple_app_bar.dart';
+import 'package:flutter_ad_ecommerce/utils/product_availability.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -31,23 +34,31 @@ class _SingleProductDetailsState extends ConsumerState<SingleProductDetails> {
   ProductVariant? _selectedVariant;
   bool _isLoading = true;
   dynamic _error;
+  bool? _isCollected;
+  bool _isCheckingCollection = false;
+  bool _isUpdatingCollection = false;
+  String? _collectionStatusError;
 
   @override
   void initState() {
     super.initState();
+    _isCollected = _openedFromCollection ? true : null;
     if (widget.extra is Map && widget.extra['product'] != null) {
       setState(() {
         _isLoading = false;
         _setProduct(widget.extra['product']);
       });
+      _loadCollectionMembership();
     } else if (widget.extra is Map && widget.extra['productId'] is String) {
       Future.delayed(Duration.zero, () {
         _loadSingleProduct(widget.extra['productId']).then((value) {
+          if (!mounted) return;
           if (value.isSuccess) {
             setState(() {
               _isLoading = false;
               _setProduct(value.data!);
             });
+            _loadCollectionMembership();
           } else {
             setState(() {
               _isLoading = false;
@@ -65,17 +76,35 @@ class _SingleProductDetailsState extends ConsumerState<SingleProductDetails> {
     }
   }
 
-  void _setProduct(Product product) {
+  void _setProduct(Product product, {bool selectDefault = true}) {
+    final previousId = _selectedVariant?.id;
     _product = product;
-    final availableVariants = product.availableVariants;
-    if (availableVariants.length == 1) {
-      _selectedVariant = availableVariants.first;
-    } else if (_selectedVariant != null &&
-        !availableVariants.any(
-          (variant) => variant.id == _selectedVariant!.id,
-        )) {
-      _selectedVariant = null;
+    final variants = product.availableVariants;
+    _selectedVariant = null;
+    if (!product.isPurchasable) return;
+    for (final variant in variants) {
+      if (variant.id == previousId) _selectedVariant = variant;
     }
+    if (previousId == null && selectDefault && variants.length == 1) {
+      _selectedVariant = variants.first;
+    }
+  }
+
+  Future<void> _refreshUnavailableProduct() async {
+    final id = _product?.id;
+    if (id == null) return;
+    setState(() => _isLoading = true);
+    final result = await _loadSingleProduct(id);
+    if (!mounted) return;
+    setState(() {
+      _isLoading = false;
+      if (result.isSuccess) {
+        _setProduct(result.data!, selectDefault: false);
+      } else {
+        _selectedVariant = null;
+        _error = '商品目前無法使用，請返回後重新整理。';
+      }
+    });
   }
 
   Future<Result<Product>> _loadSingleProduct(String productId) async {
@@ -117,7 +146,7 @@ class _SingleProductDetailsState extends ConsumerState<SingleProductDetails> {
   }
 
   Widget _buildLayout({required Widget child}) {
-    return Scaffold(
+    return AppScaffold(
       backgroundColor: AppColors.primaryColor,
       appBar: SimpleAppBar(title: '商品介紹'),
       body: child,
@@ -133,14 +162,14 @@ class _SingleProductDetailsState extends ConsumerState<SingleProductDetails> {
   bool get _hideAddCollectionButton =>
       widget.extra is Map && widget.extra['hideAddCollectionButton'] == true;
 
-  bool get _isProductActive => _product?.status == ProductStatus.active;
+  bool get _isProductActive => _product?.isPurchasable == true;
 
   bool get _showAddCartButton => _isProductActive && !_hideAddCartItemButton;
 
   bool get _showCollectionButton =>
-      _isProductActive && !_hideAddCollectionButton;
+      !_hideAddCollectionButton && (_isCollected != false || _isProductActive);
 
-  bool get _removeFromCollection =>
+  bool get _openedFromCollection =>
       widget.extra is Map && widget.extra['removeFromCollection'] == true;
 
   int get _displayStock {
@@ -189,40 +218,67 @@ class _SingleProductDetailsState extends ConsumerState<SingleProductDetails> {
     return value.toString();
   }
 
-  void updateCollection(Product product, {bool isRemoval = false}) {
-    final updateFuture = isRemoval
-        ? ref
-              .read(collectionNotifierProvider.notifier)
-              .removeCollection(_product!.id, productName: _product!.name)
-        : ref
-              .read(collectionNotifierProvider.notifier)
-              .addCollection(_product!.id, productName: _product!.name);
-
-    updateFuture.then((result) {
-      if (!mounted) return;
-      final message = result.isSuccess ? result.data : result.error;
-      if (message == null) return;
-      ScaffoldMessenger.of(
-        // ignore: use_build_context_synchronously
-        context,
-      ).showSnackBar(
-        SnackBar(
-          content: Text(message),
-          backgroundColor: Colors.green,
-          duration: const Duration(seconds: 2),
-        ),
-      );
-      if (isRemoval) {
-        // ignore: use_build_context_synchronously
-        context.pop({'reload': true});
+  Future<void> _loadCollectionMembership() async {
+    final product = _product;
+    if (product == null || _hideAddCollectionButton || _isCollected != null) {
+      return;
+    }
+    setState(() {
+      _isCheckingCollection = true;
+      _collectionStatusError = null;
+    });
+    final result = await ref
+        .read(collectionNotifierProvider.notifier)
+        .isProductCollected(product.id);
+    if (!mounted) return;
+    setState(() {
+      _isCheckingCollection = false;
+      if (result.isSuccess) {
+        _isCollected = result.data;
+      } else {
+        _collectionStatusError = result.error;
       }
     });
+    if (result.isFailure) {
+      _showSnackBar(result.error ?? '無法讀取收藏狀態，請重試', isError: true);
+    }
+  }
+
+  Future<void> _updateCollection() async {
+    final product = _product;
+    if (product == null || _isCollected == null || _isUpdatingCollection) {
+      return;
+    }
+    final isRemoval = _isCollected!;
+    setState(() => _isUpdatingCollection = true);
+    final notifier = ref.read(collectionNotifierProvider.notifier);
+    final result = isRemoval
+        ? await notifier.removeCollection(product.id, productName: product.name)
+        : await notifier.addCollection(product.id, productName: product.name);
+    if (!mounted) return;
+    setState(() {
+      _isUpdatingCollection = false;
+      if (result.isSuccess) _isCollected = !isRemoval;
+    });
+    _showSnackBar(
+      result.isSuccess
+          ? (result.data ?? (isRemoval ? '商品已移除我的收藏' : '商品已加入我的收藏'))
+          : (result.error ?? '無法更新收藏，請重試'),
+      isError: result.isFailure,
+    );
+    if (result.isFailure && result.error == productUnavailableMessage) {
+      await _refreshUnavailableProduct();
+      if (!mounted) return;
+    }
+    if (result.isSuccess && isRemoval && _openedFromCollection) {
+      context.pop({'reload': true});
+    }
   }
 
   Future<void> _addSelectedVariantToCart() async {
     final product = _product;
     final selectedVariant = _selectedVariant;
-    if (product == null) return;
+    if (product == null || !product.isPurchasable) return;
     if (selectedVariant == null) {
       _showSnackBar('請先選擇商品規格', isError: true);
       return;
@@ -243,6 +299,9 @@ class _SingleProductDetailsState extends ConsumerState<SingleProductDetails> {
     final message = result.isSuccess ? result.data : result.error;
     if (message == null) return;
     _showSnackBar(message, isError: result.isFailure);
+    if (result.isFailure && result.error == productUnavailableMessage) {
+      await _refreshUnavailableProduct();
+    }
   }
 
   void _showSnackBar(String message, {bool isError = false}) {
@@ -257,7 +316,10 @@ class _SingleProductDetailsState extends ConsumerState<SingleProductDetails> {
   }
 
   Widget _buildVariantSection() {
-    final variants = _availableVariants;
+    final readOnly = !_isProductActive || _hideAddCartItemButton;
+    final variants = _isProductActive
+        ? _availableVariants
+        : (_product?.variants ?? const <ProductVariant>[]);
     if (variants.isEmpty) {
       return _buildVariantContainer(
         child: const Text(
@@ -267,11 +329,12 @@ class _SingleProductDetailsState extends ConsumerState<SingleProductDetails> {
       );
     }
 
-    if (_isSingleUnnamedDefaultVariant(variants)) {
+    if (_isSingleUnnamedDefaultVariant(variants) &&
+        (readOnly || _selectedVariant != null)) {
       return const SizedBox.shrink();
     }
 
-    if (_hideAddCartItemButton) {
+    if (readOnly) {
       return _buildVariantContainer(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -291,7 +354,9 @@ class _SingleProductDetailsState extends ConsumerState<SingleProductDetails> {
       );
     }
 
-    if (variants.length <= 1) return const SizedBox.shrink();
+    if (variants.length <= 1 && _selectedVariant != null) {
+      return const SizedBox.shrink();
+    }
 
     return _buildVariantContainer(
       child: Column(
@@ -373,79 +438,14 @@ class _SingleProductDetailsState extends ConsumerState<SingleProductDetails> {
         ? variant.price.toDollarsString(prefix: "NT")
         : (_product?.price ?? 0).toDollarsString(prefix: "NT");
 
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(8),
-        onTap: () => setState(() => _selectedVariant = variant),
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-          decoration: BoxDecoration(
-            color: isSelected
-                ? AppColors.navbarIndicatorColor.withValues(alpha: 0.18)
-                : AppColors.tileColor,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color: isSelected
-                  ? AppColors.selectedBorderColor
-                  : AppColors.borderColor,
-            ),
-          ),
-          child: Row(
-            children: [
-              Icon(
-                isSelected
-                    ? Icons.radio_button_checked
-                    : Icons.radio_button_unchecked,
-                color: isSelected
-                    ? AppColors.infoColor
-                    : AppColors.secondaryTextColor,
-                size: 22,
-              ),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  variant.displayName,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: AppColors.primaryTextColor,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    priceText,
-                    style: const TextStyle(
-                      color: AppColors.goldColor,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    stockText,
-                    style: const TextStyle(
-                      color: AppColors.secondaryTextColor,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(width: 8),
-              _buildVariantPreviewButton(variant),
-            ],
-          ),
-        ),
-      ),
+    return SelectionOptionTile(
+      title: variant.displayName,
+      primaryText: priceText,
+      secondaryText: stockText,
+      isSelected: isSelected,
+      onTap: () => setState(() => _selectedVariant = variant),
+      detailsSpacing: 8,
+      trailing: _buildVariantPreviewButton(variant),
     );
   }
 
@@ -702,6 +702,7 @@ class _SingleProductDetailsState extends ConsumerState<SingleProductDetails> {
 
   @override
   Widget build(BuildContext context) {
+    final collectionState = ref.watch(collectionNotifierProvider);
     if (_isLoading || _product == null) {
       return _buildLayout(
         child: Center(
@@ -925,16 +926,13 @@ class _SingleProductDetailsState extends ConsumerState<SingleProductDetails> {
                           padding: const EdgeInsets.symmetric(horizontal: 8),
                           child: ElevatedButton(
                             onPressed:
-                                ref
-                                    .watch(collectionNotifierProvider)
-                                    .isProcessing
+                                _isCheckingCollection ||
+                                    _isUpdatingCollection ||
+                                    collectionState.isProcessing
                                 ? null
-                                : () {
-                                    updateCollection(
-                                      _product!,
-                                      isRemoval: _removeFromCollection,
-                                    );
-                                  },
+                                : _collectionStatusError != null
+                                ? _loadCollectionMembership
+                                : _updateCollection,
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.orangeAccent,
                               foregroundColor: AppColors.primaryTextColor,
@@ -948,12 +946,22 @@ class _SingleProductDetailsState extends ConsumerState<SingleProductDetails> {
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
                                 Icon(
-                                  _removeFromCollection
+                                  _isCollected == true
                                       ? Icons.bookmark_remove
                                       : Icons.bookmark_add,
                                 ),
                                 SizedBox(width: 12),
-                                Text(_removeFromCollection ? "移除收藏" : "加入收藏"),
+                                Flexible(
+                                  child: Text(
+                                    _isCheckingCollection
+                                        ? '讀取收藏狀態中…'
+                                        : _collectionStatusError != null
+                                        ? '重試讀取收藏狀態'
+                                        : _isCollected == true
+                                        ? '移除收藏'
+                                        : '加入收藏',
+                                  ),
+                                ),
                               ],
                             ),
                           ),

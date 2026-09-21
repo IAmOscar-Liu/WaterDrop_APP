@@ -5,8 +5,9 @@ import 'package:flutter_ad_ecommerce/constants/app_constants.dart';
 import 'package:flutter_ad_ecommerce/constants/colors.dart';
 import 'package:flutter_ad_ecommerce/models/order.dart';
 import 'package:flutter_ad_ecommerce/provider/system_provider.dart';
+import 'package:flutter_ad_ecommerce/shared/layouts/app_scaffold.dart';
+import 'package:flutter_ad_ecommerce/shared/widgets/simple_app_bar.dart';
 import 'package:flutter_ad_ecommerce/utils/uri_utils.dart';
-import 'package:flutter_ad_ecommerce/widgets/simple_app_bar.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -16,7 +17,7 @@ class TradeDocumentPage extends ConsumerWidget {
   final Delivery delivery;
 
   Widget _buildLayout({required Widget child}) {
-    return Scaffold(
+    return AppScaffold(
       backgroundColor: AppColors.primaryColor,
       appBar: SimpleAppBar(title: '檢視托運單'),
       body: child,

@@ -1,9 +1,10 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_ad_ecommerce/constants/colors.dart'; // Your colors file
 import 'package:flutter_ad_ecommerce/models/api_enums.dart';
 import 'package:flutter_ad_ecommerce/models/order.dart'; // Make sure you have this model
-import 'package:flutter_ad_ecommerce/constants/colors.dart'; // Your colors file
 import 'package:flutter_ad_ecommerce/router/routes.dart';
+import 'package:flutter_ad_ecommerce/shared/widgets/detail_rows.dart';
 import 'package:flutter_ad_ecommerce/utils/coin_utils.dart';
 import 'package:flutter_ad_ecommerce/utils/formatter.dart'; // Your formatter for dates
 import 'package:flutter_ad_ecommerce/utils/number_formatter_extension.dart';
@@ -19,33 +20,6 @@ class OrderCard extends StatefulWidget {
 }
 
 class _OrderCardState extends State<OrderCard> {
-  // Helper method to build summary rows, inspired by IMG_0040.PNG
-  Widget _buildSummaryRow(String label, String value, {Color? valueColor}) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4.0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            label,
-            style: const TextStyle(
-              color: AppColors.secondaryTextColor,
-              fontSize: 16,
-            ),
-          ),
-          Text(
-            value,
-            style: TextStyle(
-              color: valueColor ?? AppColors.primaryTextColor,
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     // final double subTotal =
@@ -98,28 +72,38 @@ class _OrderCardState extends State<OrderCard> {
             const SizedBox(height: 8),
 
             // Order Summary Footer
-            _buildSummaryRow('商品總金額', subTotal.toDollarsString(prefix: "NT")),
-            _buildSummaryRow(
-              '金幣折抵',
-              '- ${discount.toDollarsString(prefix: "NT")}',
+            SummaryRow(
+              label: '商品總金額',
+              value: subTotal.toDollarsString(prefix: "NT"),
+            ),
+            SummaryRow(
+              label: '金幣折抵',
+              value: '- ${discount.toDollarsString(prefix: "NT")}',
               valueColor: AppColors.greenColor, // Green for discount
             ),
-            _buildSummaryRow('總運費', shippingCost.toDollarsString(prefix: "NT")),
+            SummaryRow(
+              label: '總運費',
+              value: shippingCost.toDollarsString(prefix: "NT"),
+            ),
             if (shippingCostDeduction > 0)
-              _buildSummaryRow(
-                '運費減免',
-                '- ${shippingCostDeduction.toDollarsString(prefix: "NT")}',
+              SummaryRow(
+                label: '運費減免',
+                value:
+                    '- ${shippingCostDeduction.toDollarsString(prefix: "NT")}',
                 valueColor: AppColors.greenColor, // Green for discount
               ),
             if (!kReleaseMode)
-              _buildSummaryRow(
-                '手續費${transactionFeeRateAtSale == 0 ? "" : "(${transactionFeeRateAtSale * 100}%)"}',
-                transactionFee.floor().toDollarsString(prefix: "NT"),
+              SummaryRow(
+                label:
+                    '手續費${transactionFeeRateAtSale == 0 ? "" : "(${transactionFeeRateAtSale * 100}%)"}',
+                value: transactionFee.floor().toDollarsString(prefix: "NT"),
               ),
             const Divider(color: AppColors.dividerColor, height: 16),
-            _buildSummaryRow(
-              '最終需支付現金',
-              widget.order.totalAmount.floor().toDollarsString(prefix: "NT"),
+            SummaryRow(
+              label: '最終需支付現金',
+              value: widget.order.totalAmount.floor().toDollarsString(
+                prefix: "NT",
+              ),
               valueColor: AppColors.goldColor, // Gold for final amount
             ),
             const SizedBox(height: 16),

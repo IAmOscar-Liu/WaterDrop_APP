@@ -1,5 +1,6 @@
 // ignore_for_file: use_build_context_synchronously
 
+import 'package:flutter_ad_ecommerce/shared/layouts/app_scaffold.dart';
 import 'dart:async';
 import 'dart:developer';
 import 'dart:io';
@@ -16,8 +17,8 @@ import 'package:flutter_ad_ecommerce/router/routes.dart';
 import 'package:flutter_ad_ecommerce/utils/api_call_manager.dart';
 import 'package:flutter_ad_ecommerce/utils/number_formatter_extension.dart';
 import 'package:flutter_ad_ecommerce/utils/events.dart';
-import 'package:flutter_ad_ecommerce/widgets/badge_count.dart';
-import 'package:flutter_ad_ecommerce/widgets/page_status.dart';
+import 'package:flutter_ad_ecommerce/shared/widgets/badge_count.dart';
+import 'package:flutter_ad_ecommerce/shared/widgets/page_status.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -109,7 +110,7 @@ class _HomePageState extends ConsumerState<HomePage>
   }
 
   Widget _buildLayout({required Widget child}) {
-    return Scaffold(backgroundColor: AppColors.scaffoldBgColor, body: child);
+    return AppScaffold(body: child);
   }
 
   @override

@@ -2,18 +2,20 @@ import 'dart:async';
 import 'dart:developer';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_ad_ecommerce/constants/colors.dart';
 import 'package:flutter_ad_ecommerce/features/explore/widget/price_range_dialog.dart';
 import 'package:flutter_ad_ecommerce/features/explore/widget/product_card.dart';
 import 'package:flutter_ad_ecommerce/models/product.dart';
 import 'package:flutter_ad_ecommerce/provider/product_category_provider.dart';
 import 'package:flutter_ad_ecommerce/provider/product_provider.dart';
 import 'package:flutter_ad_ecommerce/router/routes.dart';
+import 'package:flutter_ad_ecommerce/shared/layouts/app_scaffold.dart';
+import 'package:flutter_ad_ecommerce/shared/widgets/filter_button.dart';
+import 'package:flutter_ad_ecommerce/shared/widgets/messaging_app_bar.dart';
+import 'package:flutter_ad_ecommerce/shared/widgets/page_status.dart';
+import 'package:flutter_ad_ecommerce/shared/widgets/search_filter_button.dart';
 import 'package:flutter_ad_ecommerce/utils/api_call_manager.dart';
 import 'package:flutter_ad_ecommerce/utils/events.dart';
 import 'package:flutter_ad_ecommerce/utils/number_formatter_extension.dart';
-import 'package:flutter_ad_ecommerce/widgets/messaging_app_bar.dart';
-import 'package:flutter_ad_ecommerce/widgets/page_status.dart';
 import 'package:flutter_masonry_view/flutter_masonry_view.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -82,86 +84,29 @@ class _ProductPageState extends ConsumerState<ProductPage> {
     required bool isSelected,
     required void Function(Category) onSelect,
   }) {
-    return isSelected
-        ? ElevatedButton(
-            onPressed: () => onSelect(category),
-            style: ElevatedButton.styleFrom(
-              foregroundColor: AppColors.primaryTextColor,
-              backgroundColor: AppColors.navbarIndicatorColor,
-              shape: StadiumBorder(),
-              padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-            ),
-            child: Text(category.name),
-          )
-        : OutlinedButton(
-            onPressed: () => onSelect(category),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.secondaryTextColor,
-              side: BorderSide(color: AppColors.borderColor),
-              shape: StadiumBorder(),
-              padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-            ),
-            child: Text(category.name),
-          );
+    return FilterButton(
+      isSelected: isSelected,
+      onPressed: () => onSelect(category),
+      child: Text(category.name),
+    );
   }
 
-  Widget _buildSearchButton({required void Function(String) onSelect}) {
-    return _textSearch.isNotEmpty
-        ? ElevatedButton.icon(
-            onPressed: () => onSelect(_textSearch),
-            style: ElevatedButton.styleFrom(
-              foregroundColor: AppColors.primaryTextColor,
-              backgroundColor: AppColors.navbarIndicatorColor,
-              shape: const StadiumBorder(),
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-            ),
-            icon: const Icon(Icons.search, size: 18),
-            label: Text("搜尋：$_textSearch"),
-          )
-        : OutlinedButton.icon(
-            onPressed: () => onSelect(_textSearch),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.secondaryTextColor,
-              side: BorderSide(color: AppColors.borderColor),
-              shape: const StadiumBorder(),
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-            ),
-            icon: const Icon(Icons.search, size: 18),
-            label: const Text("關鍵字搜尋"),
-          );
-  }
-
-  Widget _buildPriceRangeButton({required void Function() onPressed}) {
-    return (_minPrice != null || _maxPrice != null)
-        ? ElevatedButton.icon(
-            onPressed: onPressed,
-            style: ElevatedButton.styleFrom(
-              foregroundColor: AppColors.primaryTextColor,
-              backgroundColor: AppColors.navbarIndicatorColor,
-              shape: const StadiumBorder(),
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-            ),
-            icon: const Icon(Icons.paid, size: 18),
-            label: Text(
-              "價格：${_minPrice == null ? "無限制" : _minPrice!.toDollarsString(prefix: "NT")} ~ ${_maxPrice == null ? "無限制" : _maxPrice!.toDollarsString(prefix: "NT")}",
-            ),
-          )
-        : OutlinedButton.icon(
-            onPressed: onPressed,
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.secondaryTextColor,
-              side: BorderSide(color: AppColors.borderColor),
-              shape: const StadiumBorder(),
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-            ),
-            icon: const Icon(Icons.paid, size: 18),
-            label: const Text("價格搜尋"),
-          );
+  Widget _buildPriceRangeButton({required VoidCallback onPressed}) {
+    final isSelected = _minPrice != null || _maxPrice != null;
+    return FilterButton(
+      isSelected: isSelected,
+      onPressed: onPressed,
+      icon: const Icon(Icons.paid, size: 18),
+      child: Text(
+        isSelected
+            ? "價格：${_minPrice == null ? "無限制" : _minPrice!.toDollarsString(prefix: "NT")} ~ ${_maxPrice == null ? "無限制" : _maxPrice!.toDollarsString(prefix: "NT")}"
+            : "價格搜尋",
+      ),
+    );
   }
 
   Widget _buildLayout({required Widget child}) {
-    return Scaffold(
-      backgroundColor: AppColors.scaffoldBgColor,
+    return AppScaffold(
       appBar: MessagingAppBar(title: '市集'),
       body: child,
     );
@@ -277,7 +222,10 @@ class _ProductPageState extends ConsumerState<ProductPage> {
                   return Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      _buildSearchButton(onSelect: onSelectTextSearch),
+                      SearchFilterButton(
+                        query: _textSearch,
+                        onSelect: onSelectTextSearch,
+                      ),
                       const SizedBox(width: 8),
                       _buildPriceRangeButton(onPressed: onSelectPriceRange),
                     ],
@@ -291,23 +239,7 @@ class _ProductPageState extends ConsumerState<ProductPage> {
                       "Failed to load products: ${productProvider.error}",
                     )
                   : productProvider.data!.products.isEmpty
-                  ? Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.sentiment_dissatisfied,
-                            size: 48,
-                            color: Colors.white,
-                          ),
-                          SizedBox(height: 12),
-                          Text(
-                            "很抱歉，找不到您想要的相關商品",
-                            style: TextStyle(color: Colors.white),
-                          ),
-                        ],
-                      ),
-                    )
+                  ? Center(child: EmptyState("很抱歉，找不到您想要的相關商品"))
                   : SingleChildScrollView(
                       padding: EdgeInsets.only(left: 8, right: 8, bottom: 16),
                       child: Column(

@@ -1,12 +1,14 @@
 // account_delivery_page.dart
 
+import 'package:flutter_ad_ecommerce/shared/layouts/app_scaffold.dart';
+import 'package:flutter_ad_ecommerce/shared/widgets/app_panel.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_ad_ecommerce/constants/app_constants.dart';
 import 'package:flutter_ad_ecommerce/constants/colors.dart';
 import 'package:flutter_ad_ecommerce/provider/account_provider.dart';
 import 'package:flutter_ad_ecommerce/provider/system_provider.dart';
-import 'package:flutter_ad_ecommerce/widgets/keyboard_dismiss_on_tap.dart';
-import 'package:flutter_ad_ecommerce/widgets/simple_app_bar.dart';
+import 'package:flutter_ad_ecommerce/shared/widgets/keyboard_dismiss_on_tap.dart';
+import 'package:flutter_ad_ecommerce/shared/widgets/simple_app_bar.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 class AccountDeliveryPage extends ConsumerStatefulWidget {
@@ -214,14 +216,8 @@ class _AccountDeliveryPageState extends ConsumerState<AccountDeliveryPage> {
   }
 
   Widget _buildDeliveryInfo() {
-    return Container(
+    return AppPanel(
       margin: const EdgeInsets.symmetric(horizontal: 16.0),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.containerBgColor,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.borderColor, width: 1),
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -301,14 +297,8 @@ class _AccountDeliveryPageState extends ConsumerState<AccountDeliveryPage> {
         ? _selectedBankCode
         : null;
 
-    return Container(
+    return AppPanel(
       margin: const EdgeInsets.symmetric(horizontal: 16.0),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.containerBgColor,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.borderColor, width: 1),
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -560,8 +550,7 @@ class _AccountDeliveryPageState extends ConsumerState<AccountDeliveryPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.scaffoldBgColor,
+    return AppScaffold(
       appBar: const SimpleAppBar(title: '寄貨資料'),
       body: SafeArea(
         child: KeyboardDismissOnTap(

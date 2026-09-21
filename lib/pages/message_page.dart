@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_ad_ecommerce/constants/colors.dart';
 import 'package:flutter_ad_ecommerce/features/message/widgets/message_card.dart';
 import 'package:flutter_ad_ecommerce/models/api_enums.dart';
 import 'package:flutter_ad_ecommerce/models/message.dart';
@@ -7,8 +6,11 @@ import 'package:flutter_ad_ecommerce/provider/message_provider.dart';
 import 'package:flutter_ad_ecommerce/provider/message_stats_provider.dart';
 import 'package:flutter_ad_ecommerce/provider/system_provider.dart';
 import 'package:flutter_ad_ecommerce/router/routes.dart';
-import 'package:flutter_ad_ecommerce/widgets/page_status.dart';
-import 'package:flutter_ad_ecommerce/widgets/simple_app_bar.dart';
+import 'package:flutter_ad_ecommerce/shared/layouts/app_scaffold.dart';
+import 'package:flutter_ad_ecommerce/shared/widgets/filter_button.dart';
+import 'package:flutter_ad_ecommerce/shared/widgets/page_status.dart';
+import 'package:flutter_ad_ecommerce/shared/widgets/search_filter_button.dart';
+import 'package:flutter_ad_ecommerce/shared/widgets/simple_app_bar.dart';
 import 'package:flutter_masonry_view/flutter_masonry_view.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -92,78 +94,20 @@ class _MessagePageState extends ConsumerState<MessagePage> {
             ],
           )
         : Text(type.label);
-    return isSelected
-        ? ElevatedButton(
-            onPressed: () => onSelect(type),
-            style: ElevatedButton.styleFrom(
-              foregroundColor: AppColors.primaryTextColor,
-              backgroundColor: AppColors.navbarIndicatorColor,
-              shape: StadiumBorder(),
-              padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-            ),
-            child: buttonChild,
-          )
-        : OutlinedButton(
-            onPressed: () => onSelect(type),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.secondaryTextColor,
-              side: BorderSide(color: AppColors.borderColor),
-              shape: StadiumBorder(),
-              padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-            ),
-            child: buttonChild,
-          );
+    return FilterButton(
+      isSelected: isSelected,
+      onPressed: () => onSelect(type),
+      child: buttonChild,
+    );
   }
 
-  Widget _buildSearchButton({required void Function(String) onSelect}) {
-    return _textSearch.isNotEmpty
-        ? ElevatedButton.icon(
-            onPressed: () => onSelect(_textSearch),
-            style: ElevatedButton.styleFrom(
-              foregroundColor: AppColors.primaryTextColor,
-              backgroundColor: AppColors.navbarIndicatorColor,
-              shape: const StadiumBorder(),
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-            ),
-            icon: const Icon(Icons.search, size: 18),
-            label: Text("搜尋：$_textSearch"),
-          )
-        : OutlinedButton.icon(
-            onPressed: () => onSelect(_textSearch),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.secondaryTextColor,
-              side: BorderSide(color: AppColors.borderColor),
-              shape: const StadiumBorder(),
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-            ),
-            icon: const Icon(Icons.search, size: 18),
-            label: const Text("關鍵字搜尋"),
-          );
-  }
-
-  Widget _buildOnlyUnreadButton({required void Function(bool) onSelect}) {
-    return _onlyUnread
-        ? ElevatedButton.icon(
-            onPressed: () => onSelect(false),
-            style: ElevatedButton.styleFrom(
-              foregroundColor: AppColors.primaryTextColor,
-              backgroundColor: AppColors.navbarIndicatorColor,
-              shape: const StadiumBorder(),
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-            ),
-            icon: const Icon(Icons.check, size: 18),
-            label: Text("僅顯示未讀"),
-          )
-        : OutlinedButton.icon(
-            onPressed: () => onSelect(true),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.secondaryTextColor,
-              side: BorderSide(color: AppColors.borderColor),
-              shape: const StadiumBorder(),
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-            ),
-            label: const Text("僅顯示未讀"),
-          );
+  Widget _buildOnlyUnreadButton({required ValueChanged<bool> onSelect}) {
+    return FilterButton(
+      isSelected: _onlyUnread,
+      onPressed: () => onSelect(!_onlyUnread),
+      icon: _onlyUnread ? const Icon(Icons.check, size: 18) : null,
+      child: const Text("僅顯示未讀"),
+    );
   }
 
   void _handleMarkAsRead(String messageId) async {
@@ -208,8 +152,7 @@ class _MessagePageState extends ConsumerState<MessagePage> {
       onPopInvokedWithResult: (didPop, result) {
         ref.read(systemNotifierProvider.notifier).setIsInMessagePage(false);
       },
-      child: Scaffold(
-        backgroundColor: AppColors.scaffoldBgColor,
+      child: AppScaffold(
         appBar: SimpleAppBar(
           title: '訊息中心',
           actions: [
@@ -219,7 +162,8 @@ class _MessagePageState extends ConsumerState<MessagePage> {
             ),
           ],
         ),
-        body: SafeArea(child: child),
+        useSafeArea: true,
+        body: child,
       ),
     );
   }
@@ -345,7 +289,10 @@ class _MessagePageState extends ConsumerState<MessagePage> {
                   return Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      _buildSearchButton(onSelect: onSelectTextSearch),
+                      SearchFilterButton(
+                        query: _textSearch,
+                        onSelect: onSelectTextSearch,
+                      ),
                       const SizedBox(width: 8),
                       _buildOnlyUnreadButton(
                         onSelect: (onlyUnread) {

@@ -1,5 +1,9 @@
 // ignore_for_file: constant_identifier_names
 
+import 'package:flutter_ad_ecommerce/shared/layouts/app_scaffold.dart';
+import 'package:flutter_ad_ecommerce/shared/widgets/app_panel.dart';
+import 'package:flutter_ad_ecommerce/shared/widgets/receiver_info_panel.dart';
+import 'package:flutter_ad_ecommerce/shared/widgets/detail_rows.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_ad_ecommerce/constants/app_constants.dart';
@@ -20,8 +24,8 @@ import 'package:flutter_ad_ecommerce/utils/coin_utils.dart';
 import 'package:flutter_ad_ecommerce/utils/number_formatter_extension.dart';
 import 'package:flutter_ad_ecommerce/utils/parse_utils.dart';
 import 'package:flutter_ad_ecommerce/utils/payment_saved_store_utils.dart';
-import 'package:flutter_ad_ecommerce/widgets/page_status.dart';
-import 'package:flutter_ad_ecommerce/widgets/simple_app_bar.dart';
+import 'package:flutter_ad_ecommerce/shared/widgets/page_status.dart';
+import 'package:flutter_ad_ecommerce/shared/widgets/simple_app_bar.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -172,8 +176,7 @@ class _PaymentSettingsPageState extends ConsumerState<PaymentSettingsPage> {
   Widget _buildLayout({required Widget child, bool allowPop = true}) {
     return PopScope(
       canPop: allowPop,
-      child: Scaffold(
-        backgroundColor: AppColors.scaffoldBgColor,
+      child: AppScaffold(
         appBar: SimpleAppBar(
           title: '結帳設定',
           // Hide the back button if popping is not allowed
@@ -186,143 +189,9 @@ class _PaymentSettingsPageState extends ConsumerState<PaymentSettingsPage> {
     );
   }
 
-  Widget _buildReceiverInfo() {
-    final accountInfo = ref.watch(accountNotifierProvider);
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16.0),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.containerBgColor,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.borderColor, width: 1),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            "寄貨資料",
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 18,
-              color: AppColors.primaryTextColor,
-            ),
-          ),
-          const Divider(color: AppColors.dividerColor),
-          const Row(
-            children: [
-              Icon(
-                Icons.person_outline,
-                size: 18,
-                color: AppColors.primaryTextColor,
-              ),
-              SizedBox(width: 6),
-              Text(
-                "收件人資訊",
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.primaryTextColor,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            "姓名：${accountInfo.name.isEmpty ? "尚未填寫" : accountInfo.name}",
-            style: const TextStyle(color: AppColors.secondaryTextColor),
-          ),
-          Text(
-            "地址：${(accountInfo.address == null || accountInfo.address!.isEmpty) ? "尚未填寫" : accountInfo.address}",
-            style: const TextStyle(color: AppColors.secondaryTextColor),
-          ),
-          Text(
-            "手機號碼：${(accountInfo.phone == null || accountInfo.phone!.isEmpty) ? "尚未填寫" : accountInfo.phone}",
-            style: const TextStyle(color: AppColors.secondaryTextColor),
-          ),
-          const SizedBox(height: 16),
-          const Row(
-            children: [
-              Icon(
-                Icons.account_balance_outlined,
-                size: 18,
-                color: AppColors.primaryTextColor,
-              ),
-              SizedBox(width: 6),
-              Text(
-                "帳戶資訊",
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.primaryTextColor,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            "銀行：${(accountInfo.bankCode == null || accountInfo.bankCode!.isEmpty || accountInfo.bankName == null || accountInfo.bankName!.isEmpty) ? "尚未填寫" : "${accountInfo.bankCode} ${accountInfo.bankName}"}",
-            style: const TextStyle(color: AppColors.secondaryTextColor),
-          ),
-          Text(
-            "銀行帳號：${(accountInfo.bankAccount == null || accountInfo.bankAccount!.isEmpty) ? "尚未填寫" : accountInfo.bankAccount}",
-            style: const TextStyle(color: AppColors.secondaryTextColor),
-          ),
-          const SizedBox(height: 12),
-          const Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(
-                Icons.info_outline,
-                size: 16,
-                color: AppColors.mutedTextColor,
-              ),
-              SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  "如需修改，請至「我的」→「帳號設定與支援」→「寄貨資料」頁面進行變更",
-                  style: TextStyle(color: AppColors.mutedTextColor),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSummaryRow(String label, String value, {Color? valueColor}) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4.0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            label,
-            style: const TextStyle(
-              color: AppColors.secondaryTextColor,
-              fontSize: 16,
-            ),
-          ),
-          Text(
-            value,
-            style: TextStyle(
-              color: valueColor ?? AppColors.primaryTextColor,
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildPaymentMethodSection() {
-    return Container(
+    return AppPanel(
       margin: const EdgeInsets.symmetric(horizontal: 16.0),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.containerBgColor,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.borderColor, width: 1),
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -420,14 +289,8 @@ class _PaymentSettingsPageState extends ConsumerState<PaymentSettingsPage> {
     // final double totalAmount =
     //     subtotal - discountAmount + shippingCost + transactionFee;
 
-    return Container(
+    return AppPanel(
       margin: const EdgeInsets.symmetric(horizontal: 16.0),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.containerBgColor,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.borderColor, width: 1),
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -440,28 +303,35 @@ class _PaymentSettingsPageState extends ConsumerState<PaymentSettingsPage> {
             ),
           ),
           const Divider(color: AppColors.dividerColor),
-          _buildSummaryRow('商品總金額', subtotal.toDollarsString(prefix: "NT")),
-          _buildSummaryRow(
-            '金幣折抵(${discountCoin.formatCoinValue()}金幣)',
-            '- ${discountAmount.toDollarsString(prefix: "NT")}',
+          SummaryRow(
+            label: '商品總金額',
+            value: subtotal.toDollarsString(prefix: "NT"),
+          ),
+          SummaryRow(
+            label: '金幣折抵(${discountCoin.formatCoinValue()}金幣)',
+            value: '- ${discountAmount.toDollarsString(prefix: "NT")}',
             valueColor: AppColors.greenColor,
           ),
-          _buildSummaryRow('總運費', shippingCost.toDollarsString(prefix: "NT")),
+          SummaryRow(
+            label: '總運費',
+            value: shippingCost.toDollarsString(prefix: "NT"),
+          ),
           if (shippingCostDeduction > 0)
-            _buildSummaryRow(
-              '運費減免',
-              '- ${shippingCostDeduction.toDollarsString(prefix: "NT")}',
+            SummaryRow(
+              label: '運費減免',
+              value: '- ${shippingCostDeduction.toDollarsString(prefix: "NT")}',
               valueColor: AppColors.greenColor,
             ),
           if (!kReleaseMode)
-            _buildSummaryRow(
-              '手續費${transactionFeeRate == 0 ? "" : "(${transactionFeeRate * 100}%)"}',
-              transactionFee.floor().toDollarsString(prefix: "NT"),
+            SummaryRow(
+              label:
+                  '手續費${transactionFeeRate == 0 ? "" : "(${transactionFeeRate * 100}%)"}',
+              value: transactionFee.floor().toDollarsString(prefix: "NT"),
             ),
           const Divider(color: AppColors.dividerColor),
-          _buildSummaryRow(
-            "最終需支付現金",
-            totalAmount.floor().toDollarsString(prefix: "NT"),
+          SummaryRow(
+            label: "最終需支付現金",
+            value: totalAmount.floor().toDollarsString(prefix: "NT"),
             valueColor: AppColors.goldColor,
           ),
         ],
@@ -725,7 +595,9 @@ class _PaymentSettingsPageState extends ConsumerState<PaymentSettingsPage> {
             padding: const EdgeInsets.only(top: 24, bottom: 36),
             child: Column(
               children: [
-                _buildReceiverInfo(),
+                ReceiverInfoPanel(
+                  accountInfo: ref.watch(accountNotifierProvider),
+                ),
                 const SizedBox(height: 12),
                 // _buildOrderSummary(),
                 // const SizedBox(height: 12),

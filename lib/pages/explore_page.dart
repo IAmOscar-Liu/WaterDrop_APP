@@ -8,10 +8,11 @@ import 'package:flutter_ad_ecommerce/features/explore/widget/advertisement_page_
 import 'package:flutter_ad_ecommerce/provider/advertisement_provider.dart';
 import 'package:flutter_ad_ecommerce/provider/system_provider.dart';
 import 'package:flutter_ad_ecommerce/router/routes.dart';
+import 'package:flutter_ad_ecommerce/shared/layouts/app_scaffold.dart';
+import 'package:flutter_ad_ecommerce/shared/widgets/messaging_app_bar.dart';
+import 'package:flutter_ad_ecommerce/shared/widgets/page_status.dart';
 import 'package:flutter_ad_ecommerce/utils/api_call_manager.dart';
 import 'package:flutter_ad_ecommerce/utils/events.dart';
-import 'package:flutter_ad_ecommerce/widgets/messaging_app_bar.dart';
-import 'package:flutter_ad_ecommerce/widgets/page_status.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -133,10 +134,7 @@ class _ExplorePageState extends ConsumerState<ExplorePage>
     final advertisementProvider = ref.watch(advertisementNotifierProvider);
 
     if (system.isLoadingDailyStats || advertisementProvider.isLoading) {
-      return Scaffold(
-        backgroundColor: AppColors.scaffoldBgColor,
-        body: PageLoading('載入廣告中......'),
-      );
+      return AppScaffold(body: PageLoading('載入廣告中......'));
     }
 
     if (system.isPlayingAdvertisements) {
@@ -148,8 +146,7 @@ class _ExplorePageState extends ConsumerState<ExplorePage>
       );
     }
 
-    return Scaffold(
-      backgroundColor: AppColors.scaffoldBgColor,
+    return AppScaffold(
       appBar: MessagingAppBar(title: "廣告"),
       body: Center(
         child: Column(

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_ad_ecommerce/constants/colors.dart';
 import 'package:flutter_ad_ecommerce/models/product.dart';
+import 'package:flutter_ad_ecommerce/shared/widgets/selection_option_tile.dart';
 import 'package:flutter_ad_ecommerce/utils/number_formatter_extension.dart';
 
 class CartItemEditResult {
@@ -243,77 +244,12 @@ class _QuantityDialogState extends State<QuantityDialog> {
     final stockText = '庫存 ${variant.availableStock}';
     final priceText = variant.price.toDollarsString(prefix: "NT");
 
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(8),
-        onTap: () => setState(() => _selectedVariant = variant),
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-          decoration: BoxDecoration(
-            color: isSelected
-                ? AppColors.navbarIndicatorColor.withValues(alpha: 0.18)
-                : AppColors.tileColor,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color: isSelected
-                  ? AppColors.selectedBorderColor
-                  : AppColors.borderColor,
-            ),
-          ),
-          child: Row(
-            children: [
-              Icon(
-                isSelected
-                    ? Icons.radio_button_checked
-                    : Icons.radio_button_unchecked,
-                color: isSelected
-                    ? AppColors.infoColor
-                    : AppColors.secondaryTextColor,
-                size: 22,
-              ),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  variant.displayName,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: AppColors.primaryTextColor,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    priceText,
-                    style: const TextStyle(
-                      color: AppColors.goldColor,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    stockText,
-                    style: const TextStyle(
-                      color: AppColors.secondaryTextColor,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
+    return SelectionOptionTile(
+      title: variant.displayName,
+      primaryText: priceText,
+      secondaryText: stockText,
+      isSelected: isSelected,
+      onTap: () => setState(() => _selectedVariant = variant),
     );
   }
 }
