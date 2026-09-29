@@ -5,6 +5,7 @@ Source file paths and commands in these documents are relative to the project ro
 
 ## API Contracts and Backend Handoffs
 
+- [Flutter pagination sizes and exceptions](PAGINATION.md)
 - [Flutter API enum fields](FLUTTER_API_ENUMS.md)
 - [Product variants API changes](PRODUCT_VARIANTS_API_CHANGES.md)
 - [Inactive product and variant API update](FLUTTER_INACTIVE_PRODUCT_VARIANT_UPDATE_2026-09-17.md)

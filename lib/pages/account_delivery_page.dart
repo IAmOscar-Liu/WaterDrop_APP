@@ -3,7 +3,6 @@
 import 'package:flutter_ad_ecommerce/shared/layouts/app_scaffold.dart';
 import 'package:flutter_ad_ecommerce/shared/widgets/app_panel.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_ad_ecommerce/constants/app_constants.dart';
 import 'package:flutter_ad_ecommerce/constants/colors.dart';
 import 'package:flutter_ad_ecommerce/provider/account_provider.dart';
 import 'package:flutter_ad_ecommerce/provider/system_provider.dart';

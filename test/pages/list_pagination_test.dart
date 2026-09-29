@@ -49,6 +49,7 @@ void main() {
                   );
                   return;
                 }
+                expect(options.queryParameters['limit'], 20);
                 final page = options.queryParameters['page'] as int;
                 requestedPages.add(page);
                 handler.resolve(
@@ -58,9 +59,9 @@ void main() {
                       'success': true,
                       'data': {
                         scenario.field: List.generate(
-                          10,
+                          20,
                           (index) => {
-                            'id': 'row-${(page - 1) * 10 + index}',
+                            'id': 'row-${(page - 1) * 20 + index}',
                             'title': 'Notification $index',
                             'body': 'Message body',
                             'isRead': true,
@@ -68,9 +69,9 @@ void main() {
                             'updatedAt': '2026-09-29T00:00:00Z',
                           },
                         ),
-                        'total': 20,
+                        'total': 40,
                         'page': page,
-                        'limit': 10,
+                        'limit': 20,
                         'totalPages': 2,
                       },
                     },
@@ -96,7 +97,7 @@ void main() {
         await tester.scrollUntilVisible(
           find.byWidgetPredicate(
             (widget) =>
-                widget is Padding && widget.key == const ValueKey('row-9'),
+                widget is Padding && widget.key == const ValueKey('row-19'),
           ),
           300,
           scrollable: scrollable,
@@ -106,7 +107,7 @@ void main() {
         await tester.scrollUntilVisible(
           find.byWidgetPredicate(
             (widget) =>
-                widget is Padding && widget.key == const ValueKey('row-19'),
+                widget is Padding && widget.key == const ValueKey('row-39'),
           ),
           300,
           scrollable: scrollable,

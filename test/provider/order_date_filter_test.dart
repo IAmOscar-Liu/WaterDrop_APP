@@ -23,7 +23,7 @@ class PendingRequest {
             ],
             'total': 21,
             'page': options.queryParameters['page'],
-            'limit': 10,
+            'limit': 20,
             'totalPages': totalPages,
           },
         },
@@ -103,7 +103,7 @@ void main() {
       expect(first.options.path, '/api/order/list');
       expect(first.options.queryParameters, {
         'page': 1,
-        'limit': 10,
+        'limit': 20,
         'order': 'asc',
         'startDate': '2026-08-31T16:00:00.000Z',
         'endDate': '2026-09-29T16:00:00.000Z',
@@ -127,7 +127,7 @@ void main() {
       final cleared = await nextRequest();
       expect(cleared.options.queryParameters, {
         'page': 1,
-        'limit': 10,
+        'limit': 20,
         'order': 'desc',
       });
       cleared.succeed('all');

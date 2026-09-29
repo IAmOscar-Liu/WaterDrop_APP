@@ -1,6 +1,7 @@
 import 'dart:developer';
 
 import 'package:dio/dio.dart';
+import 'package:flutter_ad_ecommerce/constants/app_constants.dart';
 import 'package:flutter_ad_ecommerce/models/chatroom.dart';
 import 'package:flutter_ad_ecommerce/models/chatroom_list.dart';
 import 'package:flutter_ad_ecommerce/provider/dio_provider.dart';
@@ -11,7 +12,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'chatroom_list_provider.g.dart';
 
-final _chatroomLimit = 10;
+const _chatroomLimit = AppConstants.paginationPageSize;
 
 @Riverpod(
   keepAlive: true,

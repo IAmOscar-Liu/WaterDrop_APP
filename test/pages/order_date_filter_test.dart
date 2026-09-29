@@ -51,7 +51,7 @@ void main() {
                       'orders': [],
                       'total': 0,
                       'page': 1,
-                      'limit': 10,
+                      'limit': 20,
                       'totalPages': 0,
                     },
                   },
@@ -120,7 +120,7 @@ void main() {
     await openPage(tester);
     expect(requests.single.queryParameters, {
       'page': 1,
-      'limit': 10,
+      'limit': 20,
       'order': 'desc',
     });
     expect(find.text('訂單是空的'), findsOneWidget);
@@ -166,7 +166,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(requests.last.queryParameters, {
       'page': 1,
-      'limit': 10,
+      'limit': 20,
       'order': 'asc',
     });
     expect(find.text('選擇日期區間'), findsOneWidget);
@@ -232,7 +232,7 @@ void main() {
         await tester.pumpAndSettle();
         expect(requests.last.queryParameters, {
           'page': 1,
-          'limit': 10,
+          'limit': 20,
           'order': 'desc',
           if (startOnly) 'startDate': selectedDate.toUtc().toIso8601String(),
           if (!startOnly)
@@ -318,7 +318,7 @@ void main() {
               'orders': [],
               'total': 0,
               'page': 1,
-              'limit': 10,
+              'limit': 20,
               'totalPages': 0,
             },
           },

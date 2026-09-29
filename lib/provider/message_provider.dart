@@ -2,6 +2,7 @@
 import 'dart:developer';
 
 import 'package:dio/dio.dart';
+import 'package:flutter_ad_ecommerce/constants/app_constants.dart';
 import 'package:flutter_ad_ecommerce/models/api_enums.dart';
 import 'package:flutter_ad_ecommerce/models/message.dart';
 import 'package:flutter_ad_ecommerce/provider/dio_provider.dart';
@@ -14,7 +15,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'message_provider.g.dart';
 
-final _customLimit = 10;
+const _customLimit = AppConstants.paginationPageSize;
 
 @Riverpod(keepAlive: true)
 class MessageNotifier extends _$MessageNotifier {
@@ -174,13 +175,7 @@ class MessageNotifier extends _$MessageNotifier {
       ref.read(messageStatsNotifierProvider.notifier).loadMessageStats();
       final refreshedMessages = await _handleUpdateAftermath();
 
-      state = CustomAsyncValue.done(
-        state.data!.copyWith(
-          messages: refreshedMessages,
-          total: refreshedMessages.length,
-          totalPages: (refreshedMessages.length / _limit).ceil(),
-        ),
-      );
+      state = CustomAsyncValue.done(refreshedMessages);
       return Result.success(true);
     } catch (e) {
       log('Failed to mark message as read: $e');
@@ -238,13 +233,7 @@ class MessageNotifier extends _$MessageNotifier {
       ref.read(messageStatsNotifierProvider.notifier).loadMessageStats();
       final refreshedMessages = await _handleUpdateAftermath();
 
-      state = CustomAsyncValue.done(
-        state.data!.copyWith(
-          messages: refreshedMessages,
-          total: refreshedMessages.length,
-          totalPages: (refreshedMessages.length / _limit).ceil(),
-        ),
-      );
+      state = CustomAsyncValue.done(refreshedMessages);
       return Result.success(true);
     } catch (e) {
       log('Failed to delete message: $e');
@@ -265,33 +254,45 @@ class MessageNotifier extends _$MessageNotifier {
     }
   }
 
-  Future<List<Message>> _handleUpdateAftermath() async {
+  Future<MessagePagination> _handleUpdateAftermath() async {
     if (state.data == null) throw Exception('no data');
 
-    // refetch messages with current filters
-    final response = await ref
-        .read(dioProvider)
-        .get(
-          "/api/notification/list",
-          queryParameters: {
-            "page": 1,
-            "limit": _page * _limit,
-            "search": _search,
-            "types": _type == null ? null : [_type!.wireValue],
-            "onlyUnread": _onlyUnread == true,
-          },
-        );
-    final data = response.data;
-    if (data['success'] != true || data['data']?['notifications'] is! List) {
-      throw Exception("Failed to get response data");
+    // Refresh the loaded pages without increasing the size of any request.
+    final loadedPages = _page;
+    final messages = <Message>[];
+    MessagePagination? refreshed;
+    for (var page = 1; page <= loadedPages; page++) {
+      final response = await ref
+          .read(dioProvider)
+          .get(
+            '/api/notification/list',
+            queryParameters: {
+              'page': page,
+              'limit': _limit,
+              'search': _search,
+              'types': _type == null ? null : [_type!.wireValue],
+              'onlyUnread': _onlyUnread == true,
+            },
+          );
+      final data = response.data;
+      if (data['success'] != true || data['data']?['notifications'] is! List) {
+        throw Exception('Failed to get response data');
+      }
+      final payload = data['data'];
+      messages.addAll([
+        for (final map in payload['notifications'])
+          Message.fromApiResponseMap(map),
+      ]);
+      refreshed = MessagePagination(
+        messages: messages,
+        total: ParseUtils.parseInt(payload['total']) ?? messages.length,
+        page: page,
+        limit: ParseUtils.parseInt(payload['limit']) ?? _limit,
+        totalPages: ParseUtils.parseInt(payload['totalPages']) ?? 1,
+      );
+      if (page >= refreshed.totalPages) break;
     }
-    final messages = List.generate(data['data']['notifications'].length, (
-      index,
-    ) {
-      final map = data['data']['notifications'][index];
-      return Message.fromApiResponseMap(map);
-    });
-
-    return messages;
+    _page = refreshed!.page;
+    return refreshed;
   }
 }

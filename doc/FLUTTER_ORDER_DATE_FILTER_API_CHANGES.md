@@ -15,7 +15,7 @@ Authentication: `Authorization: Bearer <token>` (existing app user token).
 | Query       | Contract                                                                                                 |
 | ----------- | -------------------------------------------------------------------------------------------------------- |
 | `page`      | Existing page number; default `1`. Flutter should send positive integers.                                |
-| `limit`     | Existing page size; default `10`. No new page-size cap.                                                  |
+| `limit`     | Backend default `10`; Flutter explicitly requests `20` (see [pagination settings](PAGINATION.md)). No new page-size cap. |
 | `order`     | Send `asc` or `desc`; default `desc`. Existing behavior is retained: only `asc` selects ascending order. |
 | `startDate` | Optional ISO 8601 timestamp with `Z` or numeric offset `±HH:MM`. Inclusive lower bound.                  |
 | `endDate`   | Optional ISO 8601 timestamp with `Z` or numeric offset `±HH:MM`. Exclusive upper bound.                  |
@@ -46,7 +46,7 @@ For an inclusive local date selection, construct the first selected day's local 
 Example for **September 1–29, 2026 in Asia/Taipei**:
 
 ```http
-GET /api/order/list?page=1&limit=10&order=desc&startDate=2026-08-31T16%3A00%3A00.000Z&endDate=2026-09-29T16%3A00%3A00.000Z
+GET /api/order/list?page=1&limit=20&order=desc&startDate=2026-08-31T16%3A00%3A00.000Z&endDate=2026-09-29T16%3A00%3A00.000Z
 Authorization: Bearer <token>
 ```
 
@@ -58,7 +58,7 @@ final endExclusiveLocal = DateTime(lastDay.year, lastDay.month, lastDay.day + 1)
 
 final query = <String, dynamic>{
   'page': 1,
-  'limit': 10,
+  'limit': 20,
   'order': 'desc',
   'startDate': startLocal.toUtc().toIso8601String(),
   'endDate': endExclusiveLocal.toUtc().toIso8601String(),
@@ -79,7 +79,7 @@ The success envelope and order objects are unchanged:
     "orders": [],
     "total": 0,
     "page": 1,
-    "limit": 10,
+    "limit": 20,
     "totalPages": 0
   }
 }

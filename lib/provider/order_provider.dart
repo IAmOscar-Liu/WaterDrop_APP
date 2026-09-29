@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:developer';
 
 import 'package:dio/dio.dart';
+import 'package:flutter_ad_ecommerce/constants/app_constants.dart';
 import 'package:flutter_ad_ecommerce/models/api_enums.dart';
 import 'package:flutter_ad_ecommerce/models/order.dart';
 import 'package:flutter_ad_ecommerce/models/product.dart';
@@ -18,7 +19,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 // It tells build_runner to generate a part file for this file.
 part 'order_provider.g.dart';
 
-final _orderLimit = 10;
+const _orderLimit = AppConstants.paginationPageSize;
 
 @Riverpod(keepAlive: true)
 class OrderNotifier extends _$OrderNotifier {

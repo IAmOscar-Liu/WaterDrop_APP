@@ -2,6 +2,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_ad_ecommerce/app_flavor.dart';
 
 class AppConstants {
+  static const paginationPageSize = 20;
+
   static const _apiBaseUrlOverride = String.fromEnvironment('API_BASE_URL');
 
   static String get apiBaseUrl {
