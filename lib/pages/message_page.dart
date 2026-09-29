@@ -11,7 +11,6 @@ import 'package:flutter_ad_ecommerce/shared/widgets/filter_button.dart';
 import 'package:flutter_ad_ecommerce/shared/widgets/page_status.dart';
 import 'package:flutter_ad_ecommerce/shared/widgets/search_filter_button.dart';
 import 'package:flutter_ad_ecommerce/shared/widgets/simple_app_bar.dart';
-import 'package:flutter_masonry_view/flutter_masonry_view.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:visibility_detector/visibility_detector.dart';
@@ -327,85 +326,87 @@ class _MessagePageState extends ConsumerState<MessagePage> {
                         ],
                       ),
                     )
-                  : SingleChildScrollView(
-                      padding: EdgeInsets.only(left: 8, right: 8, bottom: 16),
-                      child: Column(
-                        children: [
-                          MasonryView(
-                            listOfItem: messages,
-                            itemPadding: 2,
-                            numberOfColumn: 1,
-                            itemBuilder: (item) {
-                              final Message message = item;
+                  : ListView.builder(
+                      padding: const EdgeInsets.only(
+                        left: 8,
+                        right: 8,
+                        bottom: 16,
+                      ),
+                      itemCount: messages.length + 1,
+                      itemBuilder: (context, index) {
+                        if (index == messages.length) {
+                          return messageProvider.isFetching
+                              ? const Center(child: CircularProgressIndicator())
+                              : const SizedBox.shrink();
+                        }
+                        final message = messages[index];
 
-                              final messageCard = Dismissible(
-                                key: Key(message.id),
-                                direction: DismissDirection.endToStart,
-                                background: Container(
-                                  margin: const EdgeInsets.symmetric(
-                                    vertical: 4.0,
-                                    horizontal: 16.0,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: Colors.red,
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  alignment: Alignment.centerRight,
-                                  padding: const EdgeInsets.only(right: 20.0),
-                                  child: const Icon(
-                                    Icons.delete,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                                onDismissed: (direction) async {
-                                  if (!messageProvider.isProcessing) {
-                                    _handleDeleteMessage(message.id);
-                                  }
-                                },
-                                child: MessageCard(
-                                  message: message,
-                                  onTap: () async {
-                                    if (!messageProvider.isProcessing &&
-                                        !message.isRead) {
-                                      _handleMarkAsRead(message.id);
-                                    }
-                                    context
-                                        .push(
-                                          Routes.singleMessageDetails,
-                                          extra: {"message": message},
-                                        )
-                                        .then((value) {
-                                          if (value is Map &&
-                                              value['reload'] == true) {
-                                            _loadMessages(loadStats: true);
-                                          }
-                                        });
-                                  },
-                                ),
-                              );
-
-                              if (message.id == messages.last.id) {
-                                return VisibilityDetector(
-                                  key: Key(message.id),
-                                  onVisibilityChanged: (visibilityInfo) {
-                                    if (visibilityInfo.visibleFraction > 0.2) {
-                                      ref
-                                          .read(
-                                            messageNotifierProvider.notifier,
-                                          )
-                                          .fetchMoreMessages();
-                                    }
-                                  },
-                                  child: messageCard,
-                                );
+                        final messageCard = Dismissible(
+                          key: Key(message.id),
+                          direction: DismissDirection.endToStart,
+                          background: Container(
+                            margin: const EdgeInsets.symmetric(
+                              vertical: 4.0,
+                              horizontal: 16.0,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.red,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            alignment: Alignment.centerRight,
+                            padding: const EdgeInsets.only(right: 20.0),
+                            child: const Icon(
+                              Icons.delete,
+                              color: Colors.white,
+                            ),
+                          ),
+                          onDismissed: (direction) async {
+                            if (!messageProvider.isProcessing) {
+                              _handleDeleteMessage(message.id);
+                            }
+                          },
+                          child: MessageCard(
+                            message: message,
+                            onTap: () async {
+                              if (!messageProvider.isProcessing &&
+                                  !message.isRead) {
+                                _handleMarkAsRead(message.id);
                               }
-                              return messageCard;
+                              context
+                                  .push(
+                                    Routes.singleMessageDetails,
+                                    extra: {"message": message},
+                                  )
+                                  .then((value) {
+                                    if (value is Map &&
+                                        value['reload'] == true) {
+                                      _loadMessages(loadStats: true);
+                                    }
+                                  });
                             },
                           ),
-                          if (messageProvider.isFetching)
-                            Center(child: CircularProgressIndicator()),
-                        ],
-                      ),
+                        );
+
+                        Widget card = messageCard;
+                        if (index == messages.length - 1) {
+                          card = VisibilityDetector(
+                            key: Key(message.id),
+                            onVisibilityChanged: (visibilityInfo) {
+                              if (visibilityInfo.visibleFraction > 0.2) {
+                                ref
+                                    .read(messageNotifierProvider.notifier)
+                                    .fetchMoreMessages();
+                              }
+                            },
+                            child: card,
+                          );
+                        }
+                        return Padding(
+                          key: ValueKey(message.id),
+                          padding: const EdgeInsets.all(2),
+                          child: card,
+                        );
+                      },
                     ),
             ),
           ],

@@ -280,7 +280,7 @@ class _MinePageState extends ConsumerState<MinePage> {
             _buildInfoRow(
               '目前金幣',
               accountInfo.coins.formatCoinValue(),
-              warning: accountInfo.coinsExpireSoon != null
+              warning: (accountInfo.coinsExpireSoon ?? 0) > 0
                   ? "${accountInfo.coinsExpireSoon!.formatCoinValue()} 即將過期"
                   : null,
             ),

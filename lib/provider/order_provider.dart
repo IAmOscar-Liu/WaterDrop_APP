@@ -20,104 +20,96 @@ part 'order_provider.g.dart';
 
 final _orderLimit = 10;
 
-@Riverpod(
-  keepAlive: true,
-) // `keepAlive: true` makes the provider persist across hot restarts
+@Riverpod(keepAlive: true)
 class OrderNotifier extends _$OrderNotifier {
   int _page = 1;
-  int _limit = _orderLimit;
-  String? _order;
+  String _order = 'desc';
+  DateTime? _startDate;
+  DateTime? _endDate;
+  int _queryGeneration = 0;
 
   @override
   CustomAsyncValue<OrderPagination> build() {
+    ref.onDispose(() => _queryGeneration++);
     return CustomAsyncValue.initial();
   }
 
-  Future<void> loadOrders({String? order}) async {
-    try {
-      _page = 1;
-      _limit = _orderLimit;
-      _order = order;
+  Map<String, dynamic> _queryParameters(int page) => {
+    'page': page,
+    'limit': _orderLimit,
+    'order': _order,
+    if (_startDate != null) 'startDate': _startDate!.toIso8601String(),
+    if (_endDate != null) 'endDate': _endDate!.toIso8601String(),
+  };
 
-      state = CustomAsyncValue.loading();
+  OrderPagination _parsePage(dynamic responseData, int requestedPage) {
+    if (responseData['success'] != true ||
+        responseData['data']?['orders'] is! List) {
+      throw Exception('Failed to get response data');
+    }
+    final data = responseData['data'];
+    return OrderPagination(
+      orders: [for (final map in data['orders']) Order.fromApiResponseMap(map)],
+      total: ParseUtils.parseInt(data['total']) ?? _orderLimit,
+      page: ParseUtils.parseInt(data['page']) ?? requestedPage,
+      limit: ParseUtils.parseInt(data['limit']) ?? _orderLimit,
+      totalPages: ParseUtils.parseInt(data['totalPages']) ?? 1,
+    );
+  }
+
+  /// Replaces the active query. [startDate] is inclusive; [endDate] is exclusive.
+  /// Bounds are stored in UTC. Omitting them clears the date filter.
+  Future<void> loadOrders({
+    String? order,
+    DateTime? startDate,
+    DateTime? endDate,
+  }) async {
+    final generation = ++_queryGeneration;
+    _page = 1;
+    _order = order == 'asc' ? 'asc' : 'desc';
+    _startDate = startDate?.toUtc();
+    _endDate = endDate?.toUtc();
+    state = CustomAsyncValue.loading();
+    try {
       final response = await ref
           .read(dioProvider)
-          .get(
-            "/api/order/list",
-            queryParameters: {
-              "page": _page,
-              "limit": _limit,
-              "order": _order == "asc" ? "asc" : "desc",
-            },
-          );
-
-      final data = response.data;
-      if (data['success'] != true || data['data']?['orders'] is! List) {
-        throw Exception("Failed to get response data");
-      }
-      final orders = List.generate(data['data']['orders'].length, (index) {
-        final map = data['data']['orders'][index];
-        return Order.fromApiResponseMap(map);
-      });
-      state = CustomAsyncValue.done(
-        OrderPagination(
-          orders: orders,
-          total: ParseUtils.parseInt(data['data']['total']) ?? _limit,
-          page: ParseUtils.parseInt(data['data']['page']) ?? 1,
-          limit: ParseUtils.parseInt(data['data']['limit']) ?? _limit,
-          totalPages: ParseUtils.parseInt(data['data']['totalPages']) ?? 1,
-        ),
-      );
-    } on DioException catch (e) {
-      log('Error loading orders: $e');
-      state = CustomAsyncValue.error(getDioExceptionMessage(e));
+          .get("/api/order/list", queryParameters: _queryParameters(1));
+      if (generation != _queryGeneration) return;
+      state = CustomAsyncValue.done(_parsePage(response.data, 1));
     } catch (e) {
+      if (generation != _queryGeneration) return;
       log('Error loading orders: $e');
-      state = CustomAsyncValue.error('Error loading orders: $e');
+      state = CustomAsyncValue.error(
+        e is DioException ? getDioExceptionMessage(e) : '無法載入訂單，請稍後再試',
+      );
     }
   }
 
-  Future<void> fetchMoreOrders() async {
+  /// Returns a readable error on failure, retaining the last successful page.
+  Future<String?> fetchMoreOrders() async {
     if (!state.isDone || _page >= (state.data?.totalPages ?? double.infinity)) {
-      return;
+      return null;
     }
-    _page++;
+    final generation = _queryGeneration;
+    final nextPage = _page + 1;
+    final previousData = state.data!;
     try {
-      state = CustomAsyncValue.fetching(state.data);
+      state = CustomAsyncValue.fetching(previousData);
       final response = await ref
           .read(dioProvider)
-          .get(
-            "/api/order/list",
-            queryParameters: {"page": _page, "limit": _limit, "order": _order},
-          );
-
-      final data = response.data;
-      if (data['success'] != true || data['data']?['orders'] is! List) {
-        throw Exception("Failed to get response data");
-      }
-      final orders = List.generate(data['data']['orders'].length, (index) {
-        final map = data['data']['orders'][index];
-        return Order.fromApiResponseMap(map);
-      });
-
+          .get("/api/order/list", queryParameters: _queryParameters(nextPage));
+      if (generation != _queryGeneration) return null;
+      final page = _parsePage(response.data, nextPage);
+      _page = nextPage;
       state = CustomAsyncValue.done(
-        OrderPagination(
-          orders: [...(state.data?.orders ?? []), ...orders],
-          total: ParseUtils.parseInt(data['data']['total']) ?? _limit,
-          page: ParseUtils.parseInt(data['data']['page']) ?? 1,
-          limit: ParseUtils.parseInt(data['data']['limit']) ?? _limit,
-          totalPages: ParseUtils.parseInt(data['data']['totalPages']) ?? 1,
-        ),
+        page.copyWith(orders: [...previousData.orders, ...page.orders]),
       );
+      return null;
     } catch (e) {
+      if (generation != _queryGeneration) return null;
       log('Error loading orders: $e');
-      state = state.data != null
-          ? CustomAsyncValue.done(state.data!)
-          : CustomAsyncValue.error(
-              e is DioException
-                  ? getDioExceptionMessage(e)
-                  : 'Error loading orders: $e',
-            );
+      state = CustomAsyncValue.done(previousData);
+      return e is DioException ? getDioExceptionMessage(e) : '無法載入更多訂單，請稍後再試';
     }
   }
 

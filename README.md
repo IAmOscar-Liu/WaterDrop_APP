@@ -1,5 +1,9 @@
 # Flutter AD Ecommerce
 
+## Documentation
+
+API contracts, backend handoffs, and implementation plans are organized in [doc/](doc/README.md).
+
 ## Environments
 
 This project currently supports `dev` and `stg` flavors.

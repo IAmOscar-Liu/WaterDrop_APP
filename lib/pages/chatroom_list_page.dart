@@ -9,7 +9,6 @@ import 'package:flutter_ad_ecommerce/shared/widgets/initial_image.dart';
 import 'package:flutter_ad_ecommerce/shared/widgets/page_status.dart';
 import 'package:flutter_ad_ecommerce/shared/widgets/simple_app_bar.dart';
 import 'package:flutter_ad_ecommerce/utils/formatter.dart';
-import 'package:flutter_masonry_view/flutter_masonry_view.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:visibility_detector/visibility_detector.dart';
@@ -132,255 +131,229 @@ class _ChatroomListPageState extends ConsumerState<ChatroomListPage> {
                     )
                   : chatRoomProvider.data!.rooms.isEmpty
                   ? Center(child: EmptyState("目前沒有聊天室"))
-                  : SingleChildScrollView(
-                      padding: EdgeInsets.only(left: 8, right: 8, bottom: 16),
-                      child: Column(
-                        children: [
-                          MasonryView(
-                            listOfItem: chatRooms,
-                            itemPadding: 2,
-                            numberOfColumn: 1,
-                            itemBuilder: (item) {
-                              final Chatroom chatRoom = item;
-                              final bool isSupportChat =
-                                  chatRoom.accountId == null;
-                              final String chatTitle = isSupportChat
-                                  ? "水滴客服"
-                                  : chatRoom.product?.name ?? "未知商品";
-                              final variantTitle =
-                                  chatRoom.product?.variantName?.trim() ?? "";
-                              final productImages =
-                                  chatRoom.product?.images ?? const <String>[];
-                              final variantImage = chatRoom
-                                  .product
-                                  ?.variantImage
-                                  ?.trim();
-                              final imageUrl =
-                                  variantImage != null &&
-                                      variantImage.isNotEmpty
-                                  ? variantImage
-                                  : (productImages.isNotEmpty
-                                        ? productImages.first
-                                        : null);
-                              final orderStatusText =
-                                  _buildChatRoomOrderStatusText(chatRoom.order);
+                  : ListView.builder(
+                      padding: const EdgeInsets.only(
+                        left: 8,
+                        right: 8,
+                        bottom: 16,
+                      ),
+                      itemCount: chatRooms.length + 1,
+                      itemBuilder: (context, index) {
+                        if (index == chatRooms.length) {
+                          return chatRoomProvider.isFetching
+                              ? const Center(child: CircularProgressIndicator())
+                              : const SizedBox.shrink();
+                        }
+                        final chatRoom = chatRooms[index];
+                        final bool isSupportChat = chatRoom.accountId == null;
+                        final String chatTitle = isSupportChat
+                            ? "水滴客服"
+                            : chatRoom.product?.name ?? "未知商品";
+                        final variantTitle =
+                            chatRoom.product?.variantName?.trim() ?? "";
+                        final productImages =
+                            chatRoom.product?.images ?? const <String>[];
+                        final variantImage = chatRoom.product?.variantImage
+                            ?.trim();
+                        final imageUrl =
+                            variantImage != null && variantImage.isNotEmpty
+                            ? variantImage
+                            : (productImages.isNotEmpty
+                                  ? productImages.first
+                                  : null);
+                        final orderStatusText = _buildChatRoomOrderStatusText(
+                          chatRoom.order,
+                        );
 
-                              final chatroomCard = GestureDetector(
-                                onTap:
-                                    !isSupportChat && chatRoom.product == null
-                                    ? null
-                                    : () {
-                                        context
-                                            .push(
-                                              Routes.chatroomPage,
-                                              extra: {
-                                                "title": chatTitle,
-                                                "chatRoom": chatRoom,
-                                              },
-                                            )
-                                            .then((value) {
-                                              _loadChatRooms();
-                                            });
-                                      },
-                                child: Container(
-                                  margin: const EdgeInsets.only(bottom: 8),
-                                  padding: const EdgeInsets.all(12),
+                        final chatroomCard = GestureDetector(
+                          onTap: !isSupportChat && chatRoom.product == null
+                              ? null
+                              : () {
+                                  context
+                                      .push(
+                                        Routes.chatroomPage,
+                                        extra: {
+                                          "title": chatTitle,
+                                          "chatRoom": chatRoom,
+                                        },
+                                      )
+                                      .then((value) {
+                                        _loadChatRooms();
+                                      });
+                                },
+                          child: Container(
+                            margin: const EdgeInsets.only(bottom: 8),
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: AppColors.containerBgColor,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: AppColors.borderColor,
+                                width: 1,
+                              ),
+                            ),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Container(
+                                  width: 60,
+                                  height: 60,
+                                  clipBehavior: Clip.antiAlias,
                                   decoration: BoxDecoration(
-                                    color: AppColors.containerBgColor,
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(
-                                      color: AppColors.borderColor,
-                                      width: 1,
-                                    ),
+                                    borderRadius: BorderRadius.circular(8),
+                                    color: Colors.grey[800],
                                   ),
-                                  child: Row(
+                                  child: isSupportChat
+                                      ? Image.asset(
+                                          "assets/icons/appstore.png",
+                                          fit: BoxFit.cover,
+                                        )
+                                      : imageUrl != null
+                                      ? FadeInImage.assetNetwork(
+                                          placeholder:
+                                              "assets/images/photo_loading.gif",
+                                          image: imageUrl,
+                                          fit: BoxFit.cover,
+                                          imageErrorBuilder:
+                                              (context, error, stackTrace) {
+                                                // This builder is used if the network image fails to load.
+                                                return Image.asset(
+                                                  "assets/images/photo_not_found.jpg",
+                                                  width: double.infinity,
+                                                  fit: BoxFit.cover,
+                                                );
+                                              },
+                                        )
+                                      : InitialImage(name: chatTitle),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
                                     children: [
-                                      Container(
-                                        width: 60,
-                                        height: 60,
-                                        clipBehavior: Clip.antiAlias,
-                                        decoration: BoxDecoration(
-                                          borderRadius: BorderRadius.circular(
-                                            8,
-                                          ),
-                                          color: Colors.grey[800],
-                                        ),
-                                        child: isSupportChat
-                                            ? Image.asset(
-                                                "assets/icons/appstore.png",
-                                                fit: BoxFit.cover,
-                                              )
-                                            : imageUrl != null
-                                            ? FadeInImage.assetNetwork(
-                                                placeholder:
-                                                    "assets/images/photo_loading.gif",
-                                                image: imageUrl,
-                                                fit: BoxFit.cover,
-                                                imageErrorBuilder:
-                                                    (
-                                                      context,
-                                                      error,
-                                                      stackTrace,
-                                                    ) {
-                                                      // This builder is used if the network image fails to load.
-                                                      return Image.asset(
-                                                        "assets/images/photo_not_found.jpg",
-                                                        width: double.infinity,
-                                                        fit: BoxFit.cover,
-                                                      );
-                                                    },
-                                              )
-                                            : InitialImage(name: chatTitle),
-                                      ),
-                                      const SizedBox(width: 12),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Row(
-                                              children: [
-                                                Expanded(
-                                                  child: Text(
-                                                    chatTitle,
-                                                    style: const TextStyle(
-                                                      color: AppColors
-                                                          .primaryTextColor,
-                                                      fontSize: 16,
-                                                      fontWeight:
-                                                          FontWeight.bold,
-                                                    ),
-                                                    maxLines: 1,
-                                                    overflow:
-                                                        TextOverflow.ellipsis,
-                                                  ),
-                                                ),
-                                                if ((chatRoom.totalUnread ??
-                                                        0) >
-                                                    0)
-                                                  Container(
-                                                    margin:
-                                                        const EdgeInsets.only(
-                                                          left: 8,
-                                                        ),
-                                                    padding:
-                                                        const EdgeInsets.all(6),
-                                                    decoration:
-                                                        const BoxDecoration(
-                                                          color: Colors.red,
-                                                          shape:
-                                                              BoxShape.circle,
-                                                        ),
-                                                    child: Text(
-                                                      chatRoom.totalUnread
-                                                          .toString(),
-                                                      style: const TextStyle(
-                                                        color: Colors.white,
-                                                        fontSize: 12,
-                                                        fontWeight:
-                                                            FontWeight.bold,
-                                                      ),
-                                                    ),
-                                                  ),
-                                              ],
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            child: Text(
+                                              chatTitle,
+                                              style: const TextStyle(
+                                                color:
+                                                    AppColors.primaryTextColor,
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
                                             ),
-                                            if (variantTitle.isNotEmpty) ...[
-                                              const SizedBox(height: 2),
-                                              Text(
-                                                variantTitle,
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
+                                          ),
+                                          if ((chatRoom.totalUnread ?? 0) > 0)
+                                            Container(
+                                              margin: const EdgeInsets.only(
+                                                left: 8,
+                                              ),
+                                              padding: const EdgeInsets.all(6),
+                                              decoration: const BoxDecoration(
+                                                color: Colors.red,
+                                                shape: BoxShape.circle,
+                                              ),
+                                              child: Text(
+                                                chatRoom.totalUnread.toString(),
+                                                style: const TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
+                                            ),
+                                        ],
+                                      ),
+                                      if (variantTitle.isNotEmpty) ...[
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          variantTitle,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                            color: AppColors.secondaryTextColor,
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      ],
+                                      if (orderStatusText != null) ...[
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          orderStatusText,
+                                          style: const TextStyle(
+                                            color: AppColors.infoColor,
+                                            fontSize: 12,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ],
+                                      if (chatRoom.lastMessage != null) ...[
+                                        const SizedBox(height: 4),
+                                        Row(
+                                          children: [
+                                            Expanded(
+                                              child: Text(
+                                                _buildLastMessageContent(
+                                                  chatRoom.lastMessage!,
+                                                  isSupportChat: isSupportChat,
+                                                ),
                                                 style: const TextStyle(
                                                   color: AppColors
                                                       .secondaryTextColor,
-                                                  fontSize: 13,
-                                                  fontWeight: FontWeight.w500,
-                                                ),
-                                              ),
-                                            ],
-                                            if (orderStatusText != null) ...[
-                                              const SizedBox(height: 2),
-                                              Text(
-                                                orderStatusText,
-                                                style: const TextStyle(
-                                                  color: AppColors.infoColor,
-                                                  fontSize: 12,
+                                                  fontSize: 14,
                                                 ),
                                                 maxLines: 1,
                                                 overflow: TextOverflow.ellipsis,
                                               ),
-                                            ],
-                                            if (chatRoom.lastMessage !=
-                                                null) ...[
-                                              const SizedBox(height: 4),
-                                              Row(
-                                                children: [
-                                                  Expanded(
-                                                    child: Text(
-                                                      _buildLastMessageContent(
-                                                        chatRoom.lastMessage!,
-                                                        isSupportChat:
-                                                            isSupportChat,
-                                                      ),
-                                                      style: const TextStyle(
-                                                        color: AppColors
-                                                            .secondaryTextColor,
-                                                        fontSize: 14,
-                                                      ),
-                                                      maxLines: 1,
-                                                      overflow:
-                                                          TextOverflow.ellipsis,
-                                                    ),
-                                                  ),
-                                                  const SizedBox(width: 8),
-                                                  Text(
-                                                    Formatter.formatDateTime(
-                                                      chatRoom
-                                                          .lastMessage!
-                                                          .createdAt,
-                                                    ),
-                                                    style: const TextStyle(
-                                                      color: AppColors
-                                                          .secondaryTextColor,
-                                                      fontSize: 12,
-                                                    ),
-                                                  ),
-                                                ],
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Text(
+                                              Formatter.formatDateTime(
+                                                chatRoom.lastMessage!.createdAt,
                                               ),
-                                            ],
+                                              style: const TextStyle(
+                                                color: AppColors
+                                                    .secondaryTextColor,
+                                                fontSize: 12,
+                                              ),
+                                            ),
                                           ],
                                         ),
-                                      ),
+                                      ],
                                     ],
                                   ),
                                 ),
-                              );
-
-                              if (chatRoom.id == chatRooms.last.id) {
-                                return VisibilityDetector(
-                                  key: Key(chatRoom.id),
-                                  onVisibilityChanged: (visibilityInfo) {
-                                    if (visibilityInfo.visibleFraction > 0.2) {
-                                      ref
-                                          .read(
-                                            chatroomListNotifierProvider
-                                                .notifier,
-                                          )
-                                          .fetchMoreChatRooms();
-                                    }
-                                  },
-                                  child: chatroomCard,
-                                );
-                              }
-                              return chatroomCard;
-                            },
+                              ],
+                            ),
                           ),
-                          if (chatRoomProvider.isFetching)
-                            Center(child: CircularProgressIndicator()),
-                        ],
-                      ),
+                        );
+
+                        Widget card = chatroomCard;
+                        if (index == chatRooms.length - 1) {
+                          card = VisibilityDetector(
+                            key: Key(chatRoom.id),
+                            onVisibilityChanged: (visibilityInfo) {
+                              if (visibilityInfo.visibleFraction > 0.2) {
+                                ref
+                                    .read(chatroomListNotifierProvider.notifier)
+                                    .fetchMoreChatRooms();
+                              }
+                            },
+                            child: card,
+                          );
+                        }
+                        return Padding(
+                          key: ValueKey(chatRoom.id),
+                          padding: const EdgeInsets.all(2),
+                          child: card,
+                        );
+                      },
                     ),
             ),
           ],
