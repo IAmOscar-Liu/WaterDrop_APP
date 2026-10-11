@@ -560,7 +560,7 @@ class _SingleOrderDetailsState extends ConsumerState<SingleOrderDetails> {
                     value: subtotal.toDollarsString(prefix: "NT"),
                   ),
                   SummaryRow(
-                    label: '金幣折抵',
+                    label: '金幣折抵（${_order!.discountCoin.formatCoinValue()}金幣）',
                     value: '- ${discount.toDollarsString(prefix: "NT")}',
                     valueColor: AppColors.greenColor,
                   ),

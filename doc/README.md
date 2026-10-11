@@ -14,5 +14,6 @@ Source file paths and commands in these documents are relative to the project ro
 
 ## Implementation Plans
 
+- [User-scoped chatroom SSE: backend API proposal and Flutter migration plan](FLUTTER_CHATROOM_SSE_API_PLAN.md)
 - [Product variants and API enum migration plan](plan.md)
 - [Order history date filter: original API proposal](FLUTTER_ORDER_DATE_FILTER_API_PLAN.md)
