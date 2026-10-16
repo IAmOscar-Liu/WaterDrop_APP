@@ -4,6 +4,9 @@ import 'package:flutter_ad_ecommerce/utils/parse_utils.dart';
 
 // ignore_for_file: public_member_api_docs, sort_constructors_first
 class Chatroom {
+  final int version;
+  final bool listVisible;
+  final DateTime? lastActivityAt;
   final String id;
   final String userId;
   final String? accountId;
@@ -21,6 +24,9 @@ class Chatroom {
   final DateTime? updatedAt;
 
   Chatroom({
+    this.version = 0,
+    this.listVisible = true,
+    this.lastActivityAt,
     required this.id,
     required this.userId,
     this.accountId,
@@ -35,6 +41,18 @@ class Chatroom {
     this.createdAt,
     this.updatedAt,
   });
+
+  String? get variantDisplayName {
+    final candidates = [
+      product?.variantName,
+      variant?.displayName,
+      product?.variant?.displayName,
+    ];
+    for (final value in candidates) {
+      if (value != null && value.trim().isNotEmpty) return value.trim();
+    }
+    return null;
+  }
 
   Chatroom copyWith({
     String? id,
@@ -52,6 +70,9 @@ class Chatroom {
     DateTime? updatedAt,
   }) {
     return Chatroom(
+      version: version,
+      listVisible: listVisible,
+      lastActivityAt: lastActivityAt,
       id: id ?? this.id,
       userId: userId ?? this.userId,
       accountId: accountId ?? this.accountId,
@@ -83,6 +104,9 @@ class Chatroom {
 
   factory Chatroom.fromApiResponseMap(Map<String, dynamic> map) {
     return Chatroom(
+      version: ParseUtils.parseInt(map['version']) ?? 0,
+      listVisible: map['listVisible'] != false,
+      lastActivityAt: ParseUtils.parseDateTime(map['lastActivityAt']),
       id: ParseUtils.parseString(map['id']) ?? "",
       userId: ParseUtils.parseString(map['userId']) ?? "",
       accountId: ParseUtils.parseString(map['accountId']),
@@ -109,6 +133,8 @@ class Chatroom {
 }
 
 class ChatMessage {
+  final String? clientMessageId;
+  final int version;
   final String id;
   final String chatRoomId;
   final ChatMessageSenderType senderType;
@@ -118,6 +144,8 @@ class ChatMessage {
   final DateTime createdAt;
 
   ChatMessage({
+    this.clientMessageId,
+    this.version = 0,
     required this.id,
     required this.chatRoomId,
     required this.senderType,
@@ -128,6 +156,7 @@ class ChatMessage {
   });
 
   ChatMessage copyWith({
+    int? version,
     String? id,
     String? chatRoomId,
     ChatMessageSenderType? senderType,
@@ -137,6 +166,8 @@ class ChatMessage {
     DateTime? createdAt,
   }) {
     return ChatMessage(
+      clientMessageId: clientMessageId,
+      version: version ?? this.version,
       id: id ?? this.id,
       chatRoomId: chatRoomId ?? this.chatRoomId,
       senderType: senderType ?? this.senderType,
@@ -171,6 +202,8 @@ class ChatMessage {
 
   factory ChatMessage.fromApiResponseMap(Map<String, dynamic> map) {
     return ChatMessage(
+      clientMessageId: ParseUtils.parseString(map['clientMessageId']),
+      version: ParseUtils.parseInt(map['version']) ?? 0,
       id: ParseUtils.parseString(map['id']) ?? "",
       chatRoomId: ParseUtils.parseString(map['chatRoomId']) ?? "",
       senderType: ChatMessageSenderType.fromWire(

@@ -11,7 +11,12 @@ import 'package:video_player/video_player.dart';
 
 class ChatMessageWidget extends StatelessWidget {
   final ChatMessage message;
-  const ChatMessageWidget({super.key, required this.message});
+  const ChatMessageWidget({
+    super.key,
+    required this.message,
+    this.deliveryStatus,
+  });
+  final String? deliveryStatus;
 
   List<ChatMessageAttachment> _getValidAttachments() {
     return message.attachments
@@ -125,7 +130,12 @@ class ChatMessageWidget extends StatelessWidget {
                 spacing: 2,
                 runSpacing: 2,
                 children: validAttachments
-                    .map((a) => _buildAttachment(context, a, attachmentSize))
+                    .map(
+                      (a) => KeyedSubtree(
+                        key: ValueKey('${a.id}:${a.url}'),
+                        child: _buildAttachment(context, a, attachmentSize),
+                      ),
+                    )
                     .toList(),
               ),
             ),
@@ -135,7 +145,7 @@ class ChatMessageWidget extends StatelessWidget {
             Padding(
               padding: EdgeInsetsGeometry.only(top: 4, right: 8),
               child: Text(
-                message.id == "pending" ? "發送中" : "已讀",
+                deliveryStatus ?? (message.id == "pending" ? "發送中" : "已讀"),
                 style: TextStyle(color: AppColors.mutedTextColor, fontSize: 14),
               ),
             ),

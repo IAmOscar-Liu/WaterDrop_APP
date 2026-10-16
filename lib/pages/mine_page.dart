@@ -1,3 +1,4 @@
+import 'package:flutter_ad_ecommerce/provider/chat_sync_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_ad_ecommerce/constants/app_constants.dart';
@@ -75,6 +76,7 @@ class _MinePageState extends ConsumerState<MinePage> {
     required String label,
     required Color color,
     required VoidCallback onTap,
+    int unreadCount = 0,
   }) {
     return Expanded(
       child: ElevatedButton(
@@ -92,7 +94,11 @@ class _MinePageState extends ConsumerState<MinePage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: 32),
+            Badge(
+              isLabelVisible: unreadCount > 0,
+              label: Text(unreadCount > 99 ? '99+' : '$unreadCount'),
+              child: Icon(icon, size: 32),
+            ),
             const SizedBox(height: 8),
             Text(
               label,
@@ -310,6 +316,9 @@ class _MinePageState extends ConsumerState<MinePage> {
                 _buildQuickActionButton(
                   icon: Icons.chat,
                   label: "聊天室",
+                  unreadCount: AppConstants.chatSseEnabled
+                      ? ref.watch(chatSyncProvider).totalUnread
+                      : 0,
                   color: Colors.green,
                   onTap: () => context.push(Routes.chatroomListPage),
                 ),

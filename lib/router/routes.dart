@@ -18,6 +18,7 @@ class Routes {
   static const String help = '/help';
   static const String advertisementVideoPlayer = '/advertisement-video-player';
   static const String singleProductDetails = '/single-product-details';
+  static const String bankSearch = '/bank-search';
   static const String textSearch = '/text-search';
   static const String photoView = '/photo-view';
   static const String chatroomListPage = '/chatroom-list';

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:developer';
 
 import 'package:flutter_ad_ecommerce/utils/events.dart';
+import 'package:flutter_ad_ecommerce/service/notification_tap_service.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 class LocalNotificationService {
@@ -64,17 +65,15 @@ class LocalNotificationService {
     await _flutterLocalNotificationsPlugin.initialize(
       initializationSettings,
       onDidReceiveNotificationResponse: (response) {
-        // Handle notification tap in foreground
-        log("Foreground notification has been tapped: ${response.payload}");
-        // log("Foreground notification has been tapped: ${response.data}");
-        if (response.payload != null) {
-          Future.delayed(Duration(milliseconds: 250), () {
-            Map<String, dynamic> payloadData = jsonDecode(response.payload!);
-            eventBus.fire(NotificationTappedEvent(data: payloadData));
-          });
-        }
+        _handleTapPayload(response.payload);
       },
     );
+
+    final launch = await _flutterLocalNotificationsPlugin
+        .getNotificationAppLaunchDetails();
+    if (launch?.didNotificationLaunchApp == true) {
+      _handleTapPayload(launch?.notificationResponse?.payload);
+    }
 
     // Create Android notification channel
     await _flutterLocalNotificationsPlugin
@@ -85,6 +84,18 @@ class LocalNotificationService {
 
     // Mark initialization as complete
     _isFlutterLocalNotificationInitialized = true;
+  }
+
+  void _handleTapPayload(String? payload) {
+    if (payload == null) return;
+    try {
+      final data = jsonDecode(payload);
+      if (data is Map<String, dynamic>) {
+        queueNotificationTap(NotificationTappedEvent(data: data));
+      }
+    } on FormatException {
+      log('Ignoring an invalid notification tap payload');
+    }
   }
 
   // Show a local notification with the given title, body, and payload

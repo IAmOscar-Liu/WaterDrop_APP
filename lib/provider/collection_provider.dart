@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_ad_ecommerce/constants/app_constants.dart';
 import 'package:flutter_ad_ecommerce/models/collection.dart';
 import 'package:flutter_ad_ecommerce/provider/dio_provider.dart';
+import 'package:flutter_ad_ecommerce/provider/product_provider.dart';
 import 'package:flutter_ad_ecommerce/utils/custom_async_value.dart';
 import 'package:flutter_ad_ecommerce/utils/exception_handler.dart';
 import 'package:flutter_ad_ecommerce/utils/parse_utils.dart';
@@ -29,48 +30,6 @@ class CollectionNotifier extends _$CollectionNotifier {
 
   void reset() {
     state = CustomAsyncValue.initial();
-  }
-
-  /// Checks the unfiltered collection list without changing the visible list's
-  /// search, pagination, or loading state. This only checks visible membership:
-  /// inactive products are hidden by the API even when still saved.
-  Future<Result<bool>> isProductCollected(String productId) async {
-    final dio = ref.read(dioProvider);
-    try {
-      var page = 1;
-      while (true) {
-        final response = await dio.get(
-          '/api/collection/list',
-          queryParameters: {'page': page, 'limit': _customLimit},
-        );
-        final data = response.data;
-        if (data is! Map ||
-            data['success'] != true ||
-            data['data'] is! Map ||
-            data['data']['collections'] is! List) {
-          return Result.failure('無法讀取收藏狀態，請重試');
-        }
-        final collections = data['data']['collections'] as List;
-        if (collections.any((entry) {
-          if (entry is! Map) return false;
-          final product = entry['product'];
-          return entry['productId'] == productId ||
-              (product is Map && product['id'] == productId);
-        })) {
-          return Result.success(true);
-        }
-        if (collections.isEmpty) return Result.success(false);
-        final totalPages = ParseUtils.parseInt(data['data']['totalPages']);
-        if (totalPages == null || totalPages < 1) {
-          return Result.failure('無法讀取收藏狀態，請重試');
-        }
-        if (page >= totalPages) return Result.success(false);
-        page++;
-      }
-    } catch (e) {
-      log('Failed to read collection membership: $e');
-      return Result.failure('無法讀取收藏狀態，請重試');
-    }
   }
 
   Future<void> loadCollections({
@@ -195,6 +154,9 @@ class CollectionNotifier extends _$CollectionNotifier {
         throw Exception('無法加入我的收藏');
       }
 
+      ref
+          .read(productNotifierProvider.notifier)
+          .setProductCollected(productId, true);
       return Result.success(
         productName != null ? "「$productName」已加入我的收藏" : "商品已加入我的收藏",
       );
@@ -236,6 +198,9 @@ class CollectionNotifier extends _$CollectionNotifier {
         throw Exception('無法刪除我的收藏');
       }
 
+      ref
+          .read(productNotifierProvider.notifier)
+          .setProductCollected(productId, false);
       return Result.success(
         productName != null ? "「$productName」已移除我的收藏" : "商品已移除我的收藏",
       );
@@ -247,6 +212,9 @@ class CollectionNotifier extends _$CollectionNotifier {
         // Product deletion may have already removed the saved record.
         // Refresh cached results and let the caller clear its saved state.
         await loadCollections(search: _search);
+        ref
+            .read(productNotifierProvider.notifier)
+            .setProductCollected(productId, false);
         return Result.success('此商品已不在我的收藏中');
       }
       return Result.failure(

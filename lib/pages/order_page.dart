@@ -1,3 +1,4 @@
+import 'package:flutter_ad_ecommerce/shared/widgets/pagination_footer.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_ad_ecommerce/constants/colors.dart';
 import 'package:flutter_ad_ecommerce/features/order/order_date_range.dart';
@@ -159,25 +160,14 @@ class _OrderPageState extends ConsumerState<OrderPage> {
                       itemCount: orders.length + 1,
                       itemBuilder: (context, index) {
                         if (index == orders.length) {
-                          return Column(
-                            children: [
-                              if (orderProvider.isFetching)
-                                Center(child: CircularProgressIndicator()),
-                              if (_paginationError != null)
-                                Padding(
-                                  padding: const EdgeInsets.all(16),
-                                  child: Text(_paginationError!),
-                                ),
-                              if (orderProvider.isDone &&
-                                  orderProvider.data!.page <
-                                      orderProvider.data!.totalPages)
-                                TextButton(
-                                  onPressed: _fetchMoreOrders,
-                                  child: Text(
-                                    _paginationError == null ? '載入更多' : '重試',
-                                  ),
-                                ),
-                            ],
+                          return PaginationFooter(
+                            loading: orderProvider.isFetching,
+                            hasError: _paginationError != null,
+                            onLoadMore:
+                                orderProvider.data!.page <
+                                    orderProvider.data!.totalPages
+                                ? _fetchMoreOrders
+                                : null,
                           );
                         }
                         final order = orders[index];

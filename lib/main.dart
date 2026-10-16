@@ -1,3 +1,4 @@
+import 'package:flutter_ad_ecommerce/features/message/widgets/notification_sync_host.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:developer';
@@ -9,12 +10,15 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_ad_ecommerce/app_flavor.dart';
+import 'package:flutter_ad_ecommerce/constants/app_constants.dart';
+import 'package:flutter_ad_ecommerce/features/chatroom/widget/chat_sync_host.dart';
 import 'package:flutter_ad_ecommerce/constants/colors.dart';
 import 'package:flutter_ad_ecommerce/provider/account_provider.dart';
 import 'package:flutter_ad_ecommerce/provider/advertisement_provider.dart';
 import 'package:flutter_ad_ecommerce/provider/cart_provider.dart';
 import 'package:flutter_ad_ecommerce/provider/message_stats_provider.dart';
 import 'package:flutter_ad_ecommerce/provider/product_category_provider.dart';
+import 'package:flutter_ad_ecommerce/provider/product_provider.dart';
 import 'package:flutter_ad_ecommerce/provider/system_provider.dart';
 import 'package:flutter_ad_ecommerce/router/router.dart';
 import 'package:flutter_ad_ecommerce/service/firebase_messaging_service.dart';
@@ -73,7 +77,7 @@ class _MyAppState extends ConsumerState<MyApp> {
   dynamic error;
   late final Stream<User?> _authStateChanges;
   late StreamSubscription _tokenChangeSubscription;
-  bool _initialMessageHandled = false;
+  StreamSubscription<RemoteMessage>? _foregroundMessages;
 
   @override
   void initState() {
@@ -110,7 +114,10 @@ class _MyAppState extends ConsumerState<MyApp> {
           });
         }
       } else {
+        await _foregroundMessages?.cancel();
+        _foregroundMessages = null;
         accountNotifier.reset();
+        ref.invalidate(productNotifierProvider);
         String? deviceId = await getDeviceId();
         ref.read(systemNotifierProvider.notifier).clearFcmToken(deviceId);
         setState(() {
@@ -136,9 +143,11 @@ class _MyAppState extends ConsumerState<MyApp> {
   void dispose() {
     super.dispose();
     _tokenChangeSubscription.cancel();
+    _foregroundMessages?.cancel();
   }
 
   Future<void> _handleLoginAftermath() async {
+    final loginAccount = ref.read(accountNotifierProvider).id;
     final String? fcmToken = await FirebaseMessaging.instance.getToken();
     if (fcmToken != null) {
       String? deviceId = await getDeviceId();
@@ -147,13 +156,20 @@ class _MyAppState extends ConsumerState<MyApp> {
           .sendFcmToken(fcmToken, deviceId: deviceId);
     }
 
-    FirebaseMessaging.onMessage.listen((message) {
+    await _foregroundMessages?.cancel();
+    if (!mounted ||
+        !isLoggedIn ||
+        ref.read(accountNotifierProvider).id != loginAccount) {
+      return;
+    }
+    _foregroundMessages = FirebaseMessaging.onMessage.listen((message) {
       final notificationData = message.notification;
       if (notificationData != null) {
         final system = ref.read(systemNotifierProvider);
         if ((message.data['command'] == "explore" && system.isInExplorePage) ||
-            (message.data['command'] == "message" && system.isInMessagePage) ||
             (message.data['command'] == "chat_message" &&
+                WidgetsBinding.instance.lifecycleState ==
+                    AppLifecycleState.resumed &&
                 system.currentChatRoomId == message.data['chatRoomId'])) {
           return;
         }
@@ -165,25 +181,13 @@ class _MyAppState extends ConsumerState<MyApp> {
       }
     });
 
-    if (!_initialMessageHandled) {
-      FirebaseMessaging.instance.getInitialMessage().then((message) {
-        if (message != null && message.notification != null) {
-          _initialMessageHandled = true;
-          // Delay to ensure RootLayout has rebuilt with isLoggedIn = true
-          Future.delayed(const Duration(milliseconds: 500), () {
-            eventBus.fire(
-              NotificationTappedEvent(
-                title: message.notification!.title,
-                body: message.notification!.body,
-                data: message.data,
-              ),
-            );
-          });
-        }
-      });
-    }
-
     ref.read(productCategoryProvider.notifier).loadProductCategory();
+    ApiCallManager.updateApiCallTimestamp(productListApiCacheKey);
+    unawaited(
+      ref
+          .read(productNotifierProvider.notifier)
+          .loadProducts(reuseExisting: true),
+    );
     ref.read(cartProvider.notifier).loadCartItems();
     ref.read(messageStatsNotifierProvider.notifier).loadMessageStats();
     ref.read(systemNotifierProvider.notifier).loadSystemInfo();
@@ -210,6 +214,16 @@ class _MyAppState extends ConsumerState<MyApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp.router(
+      builder: (context, child) {
+        Widget content = child ?? const SizedBox.shrink();
+        if (AppConstants.chatSseEnabled) {
+          content = ChatSyncHost(loggedIn: isLoggedIn, child: content);
+        }
+        if (AppConstants.notificationSseEnabled) {
+          content = NotificationSyncHost(loggedIn: isLoggedIn, child: content);
+        }
+        return content;
+      },
       routerConfig: getRouter(
         isLoading: isLoading,
         isLoggedIn: isLoggedIn,

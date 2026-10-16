@@ -3,6 +3,7 @@ import 'package:flutter_ad_ecommerce/models/api_enums.dart';
 import 'package:flutter_ad_ecommerce/utils/parse_utils.dart';
 
 class Message {
+  final int version;
   final String id;
   final String userId;
   final String? orderId;
@@ -16,6 +17,7 @@ class Message {
   final Map<String, dynamic>? metadata;
 
   Message({
+    this.version = 0,
     required this.id,
     required this.userId,
     this.orderId,
@@ -30,6 +32,7 @@ class Message {
 
   factory Message.fromApiResponseMap(Map<String, dynamic> map) {
     return Message(
+      version: ParseUtils.parseInt(map['version']) ?? 0,
       id: ParseUtils.parseString(map['id']) ?? "",
       userId: ParseUtils.parseString(map['userId']) ?? "",
       orderId: ParseUtils.parseString(map['orderId']),
@@ -46,6 +49,7 @@ class Message {
   }
 
   Message copyWith({
+    int? version,
     String? id,
     String? userId,
     String? orderId,
@@ -58,6 +62,7 @@ class Message {
     Map<String, dynamic>? metadata,
   }) {
     return Message(
+      version: version ?? this.version,
       id: id ?? this.id,
       userId: userId ?? this.userId,
       orderId: orderId ?? this.orderId,
@@ -104,6 +109,7 @@ class MessagePagination {
 }
 
 class MessageStats {
+  final int version;
   final int total;
   final int systemAlert;
   final int promotion;
@@ -113,6 +119,7 @@ class MessageStats {
   final int other;
 
   MessageStats({
+    this.version = 0,
     required this.total,
     required this.systemAlert,
     required this.promotion,
@@ -124,6 +131,7 @@ class MessageStats {
 
   factory MessageStats.fromApiResponseMap(Map<String, dynamic> map) {
     return MessageStats(
+      version: ParseUtils.parseInt(map['version']) ?? 0,
       total: ParseUtils.parseInt(map['total']) ?? 0,
       systemAlert: ParseUtils.parseInt(map['system_alert']) ?? 0,
       promotion: ParseUtils.parseInt(map['promotion']) ?? 0,
@@ -135,6 +143,7 @@ class MessageStats {
   }
 
   MessageStats copyWith({
+    int? version,
     int? total,
     int? systemAlert,
     int? promotion,
@@ -144,6 +153,7 @@ class MessageStats {
     int? other,
   }) {
     return MessageStats(
+      version: version ?? this.version,
       total: total ?? this.total,
       systemAlert: systemAlert ?? this.systemAlert,
       promotion: promotion ?? this.promotion,

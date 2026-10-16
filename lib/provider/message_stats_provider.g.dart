@@ -7,7 +7,7 @@ part of 'message_stats_provider.dart';
 // **************************************************************************
 
 String _$messageStatsNotifierHash() =>
-    r'63d078ca1f579f993f34795327f28eaa2f2c5de3';
+    r'fecbea55e580e4c07605f34def1921aa6616c9e6';
 
 /// See also [MessageStatsNotifier].
 @ProviderFor(MessageStatsNotifier)

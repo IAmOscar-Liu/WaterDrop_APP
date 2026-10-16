@@ -3,6 +3,7 @@ import 'dart:developer';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_ad_ecommerce/service/local_notification_service.dart';
 import 'package:flutter_ad_ecommerce/utils/events.dart';
+import 'package:flutter_ad_ecommerce/service/notification_tap_service.dart';
 
 class FirebaseMessagingService {
   // Private constructor for singleton pattern
@@ -40,11 +41,9 @@ class FirebaseMessagingService {
     // Listen for notification taps when the app is in background but not terminated
     FirebaseMessaging.onMessageOpenedApp.listen(_onMessageOpenApp);
 
-    // Check for initial message that opened the app from terminated stated
-    // final initialMessage = await FirebaseMessaging.instance.getInitialMessage();
-    // if (initialMessage != null) {
-    //   _onMessageOpenApp(initialMessage);
-    // }
+    // Capture cold-start taps before the router or account may be ready.
+    final initialMessage = await FirebaseMessaging.instance.getInitialMessage();
+    if (initialMessage != null) _onMessageOpenApp(initialMessage);
   }
 
   Future<String?> getPushNotificationsToken() async {
@@ -112,22 +111,13 @@ class FirebaseMessagingService {
 
   // Handles notification taps when app is opened from the background or terminated state
   void _onMessageOpenApp(RemoteMessage message) {
-    // print("Notification caused the app to open: ${message.data.toString()}");
-    log(
-      "Notification caused the app to open: notification ${message.notification}",
+    queueNotificationTap(
+      NotificationTappedEvent(
+        title: message.notification?.title,
+        body: message.notification?.body,
+        data: message.data,
+      ),
     );
-    // log("Notification caused the app to open: data ${message.data}");
-    if (message.notification != null) {
-      Future.delayed(Duration(milliseconds: 250), () {
-        eventBus.fire(
-          NotificationTappedEvent(
-            title: message.notification!.title,
-            body: message.notification!.body,
-            data: message.data,
-          ),
-        );
-      });
-    }
   }
 }
 

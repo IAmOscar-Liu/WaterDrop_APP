@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'package:flutter_ad_ecommerce/constants/app_constants.dart';
+import 'package:flutter_ad_ecommerce/pages/sync_chatroom_page.dart';
 import 'dart:developer';
 
 import 'package:flutter/material.dart';
@@ -15,15 +17,24 @@ import 'package:flutter_ad_ecommerce/utils/parse_utils.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-class ChatroomPage extends ConsumerStatefulWidget {
+class ChatroomPage extends StatelessWidget {
   const ChatroomPage({super.key, required this.extra});
+  final dynamic extra;
+  @override
+  Widget build(BuildContext context) => AppConstants.chatSseEnabled
+      ? SyncChatroomPage(extra: extra)
+      : LegacyChatroomPage(extra: extra);
+}
+
+class LegacyChatroomPage extends ConsumerStatefulWidget {
+  const LegacyChatroomPage({super.key, required this.extra});
   final dynamic extra;
 
   @override
-  ConsumerState<ChatroomPage> createState() => _ChatroomPageState();
+  ConsumerState<LegacyChatroomPage> createState() => _ChatroomPageState();
 }
 
-class _ChatroomPageState extends ConsumerState<ChatroomPage> {
+class _ChatroomPageState extends ConsumerState<LegacyChatroomPage> {
   String? _errorMsg;
   Chatroom? _chatroom;
 
@@ -149,7 +160,10 @@ class _ChatroomPageState extends ConsumerState<ChatroomPage> {
 
   String? get _appBarSubtitle {
     final variantName =
-        _chatroom?.product?.variantName?.trim() ??
+        _chatroom?.variantDisplayName ??
+        (widget.extra is Map && widget.extra['chatRoom'] is Chatroom
+            ? (widget.extra['chatRoom'] as Chatroom).variantDisplayName
+            : null) ??
         (widget.extra is Map
             ? ParseUtils.parseString(widget.extra['variantName'])?.trim()
             : null);

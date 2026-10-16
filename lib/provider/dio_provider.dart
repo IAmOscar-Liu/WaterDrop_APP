@@ -1,125 +1,131 @@
 import 'package:dio/dio.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart' show Ref;
 import 'package:flutter_ad_ecommerce/constants/app_constants.dart';
 import 'package:flutter_ad_ecommerce/provider/system_provider.dart';
+import 'package:flutter_ad_ecommerce/provider/account_provider.dart';
 import 'package:flutter_ad_ecommerce/service/google_auth_service.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
-// This line is required for the generator to run.
 part 'dio_provider.g.dart';
 
-@riverpod
-Dio dio(DioRef ref) {
-  // Create a new Dio instance.
-  final dio = Dio();
+/// REST and SSE share one in-flight token refresh. Never retry through a queued
+/// error interceptor: waiting on the retry can deadlock that interceptor queue.
+final chatTokenRefreshProvider = Provider<Future<bool> Function()>((ref) {
+  Future<bool>? pending;
+  Future<bool> refresh() async {
+    final user = GoogleAuthService().getCurrentUser();
+    if (user == null) return false;
+    final previous = ref.read(systemNotifierProvider).accessToken;
+    try {
+      final timezone = await FlutterTimezone.getLocalTimezone();
+      final response =
+          await Dio(
+            BaseOptions(
+              baseUrl: AppConstants.apiBaseUrl,
+              connectTimeout: const Duration(seconds: 30),
+              receiveTimeout: const Duration(seconds: 30),
+            ),
+          ).post(
+            '/api/auth/login',
+            data: {
+              'oauthId': user.uid,
+              'oauthProvider': 'google',
+              'email': user.email,
+              'name': user.displayName,
+              'timezone': timezone,
+            },
+          );
+      if (GoogleAuthService().getCurrentUser()?.uid != user.uid ||
+          ref.read(systemNotifierProvider).accessToken != previous) {
+        return false;
+      }
+      final token = response.data['data']?['token'];
+      if (response.data['success'] != true ||
+          token is! String ||
+          token.isEmpty) {
+        return false;
+      }
+      ref.read(systemNotifierProvider.notifier).setAccessToken(token);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
 
-  // You can configure Dio with base options, interceptors, etc.
-  dio.options.baseUrl = AppConstants.apiBaseUrl;
-  dio.options.connectTimeout = const Duration(seconds: 60);
-  dio.options.receiveTimeout = const Duration(seconds: 60);
+  return () => pending ??= refresh().whenComplete(() {
+    pending = null;
+  });
+});
 
-  // Use QueuedInterceptorsWrapper to lock and unlock requests.
-  // This prevents multiple concurrent requests from all trying to refresh
-  // the token at the same time if they all fail with a 401.
+@Riverpod(keepAlive: true)
+Dio dio(Ref ref) {
+  final dio = Dio(
+    BaseOptions(
+      baseUrl: AppConstants.apiBaseUrl,
+      connectTimeout: const Duration(seconds: 60),
+      receiveTimeout: const Duration(seconds: 60),
+    ),
+  );
   dio.interceptors.add(
-    QueuedInterceptorsWrapper(
-      // ATTACH TOKEN TO REQUEST
+    InterceptorsWrapper(
       onRequest: (options, handler) {
-        // Check for a custom option to determine if auth is needed.
-        // Defaults to true if the option is not provided.
-        final bool requiresAuth =
-            options.extra['requiresAuth'] as bool? ?? true;
-
-        if (requiresAuth) {
-          final accessToken = ref.read(systemNotifierProvider).accessToken;
-          if (accessToken != null && accessToken.isNotEmpty) {
-            options.headers['Authorization'] = 'Bearer $accessToken';
-          }
-        }
-        print('REQUEST[${options.method}] => PATH: ${options.path}');
-        return handler.next(options);
-      },
-
-      // LOG SUCCESSFUL RESPONSES
-      onResponse: (response, handler) {
-        print(
-          'RESPONSE[${response.statusCode}] => PATH: ${response.requestOptions.path}',
-        );
-        return handler.next(response);
-      },
-
-      // HANDLE 401 AND REFRESH TOKEN
-      onError: (e, handler) async {
-        final bool requiresAuth =
-            e.requestOptions.extra['requiresAuth'] as bool? ?? true;
-        final bool isRetry =
-            e.requestOptions.extra['isRetry'] as bool? ?? false;
-
-        final User? user = GoogleAuthService().getCurrentUser();
-
-        // Only handle 401 errors on authorized requests that are not retries.
-        if (e.response?.statusCode == 401 &&
-            requiresAuth &&
-            !isRetry &&
-            user != null) {
-          print('INTERCEPTOR: Received 401, attempting to refresh token.');
-
-          try {
-            final currentTimeZone = await FlutterTimezone.getLocalTimezone();
-            final response = await Dio().post(
-              "${AppConstants.apiBaseUrl}/api/auth/google",
-              data: {
-                "sub": user.uid,
-                "email": user.email,
-                "name": user.displayName,
-                "picture": user.photoURL,
-                "timezone": currentTimeZone,
-                // "referral_code": "OOR665", // 可選
-              },
+        if (options.extra['requiresAuth'] != false) {
+          final owner = ref.read(accountNotifierProvider).id;
+          final originalOwner = options.extra['authOwner'];
+          if (originalOwner != null && originalOwner != owner) {
+            handler.reject(
+              DioException(
+                requestOptions: options,
+                type: DioExceptionType.cancel,
+                message: 'Authentication session changed',
+              ),
             );
-
-            if (response.statusCode == 200 &&
-                response.data['success'] == true &&
-                response.data['data']['user'] != null &&
-                response.data['data']['token'] != null) {
-              final newAccessToken = response.data['data']['token'].toString();
-              print('INTERCEPTOR: Token refreshed successfully.');
-
-              final requestOptions = e.requestOptions;
-              requestOptions.headers['Authorization'] =
-                  'Bearer $newAccessToken';
-              requestOptions.extra['isRetry'] = true; // Mark as a retry
-
-              print(
-                'INTERCEPTOR: Retrying original request to ${requestOptions.path}',
-              );
-              final retryResponse = await dio.fetch(requestOptions);
-
-              // IMPORTANT: Resolve the handler with the new response
-              return handler.resolve(retryResponse);
-            }
-          } on DioException catch (refreshError) {
-            // If the refresh token request fails, reject the original error.
-            print('INTERCEPTOR: Refresh token failed - $refreshError');
-            // Optionally, you could log the user out here.
-            return handler.reject(e);
+            return;
+          }
+          options.extra['authOwner'] = owner;
+          final token = ref.read(systemNotifierProvider).accessToken;
+          if (token != null && token.isNotEmpty) {
+            options.headers['Authorization'] = 'Bearer $token';
           }
         }
-
-        // For all other errors, just pass them through.
-        return handler.next(e);
+        handler.next(options);
+      },
+      onError: (error, handler) async {
+        final request = error.requestOptions;
+        if (error.response?.statusCode != 401 ||
+            request.extra['requiresAuth'] == false ||
+            request.extra['isRetry'] == true ||
+            request.extra['skipAuthRefresh'] == true) {
+          handler.next(error);
+          return;
+        }
+        if (request.extra['authOwner'] !=
+            ref.read(accountNotifierProvider).id) {
+          handler.next(error);
+          return;
+        }
+        final current = ref.read(systemNotifierProvider).accessToken;
+        final alreadyRefreshed =
+            current != null &&
+            request.headers['Authorization'] != 'Bearer $current';
+        if (!alreadyRefreshed && !await ref.read(chatTokenRefreshProvider)()) {
+          handler.next(error);
+          return;
+        }
+        request.extra['isRetry'] = true;
+        // Multipart bodies are single-use and must be cloned for an auth retry.
+        if (request.data is FormData) {
+          request.data = (request.data as FormData).clone();
+        }
+        try {
+          handler.resolve(await dio.fetch(request));
+        } on DioException catch (retryError) {
+          handler.reject(retryError);
+        }
       },
     ),
   );
-  // Return the configured Dio instance.
+  ref.onDispose(() => dio.close(force: true));
   return dio;
 }
-
-/// To use this provider, you would first need to run the build_runner:
-/// flutter pub run build_runner build
-///
-/// Then, in your code (e.g., in another provider or a widget), you can access it like this:
-///
-/// final dio = ref.watch(dioProvider);
-/// final response = await dio.get('/some_endpoint');

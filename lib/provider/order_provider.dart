@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:developer';
 
@@ -8,6 +9,8 @@ import 'package:flutter_ad_ecommerce/models/order.dart';
 import 'package:flutter_ad_ecommerce/models/product.dart';
 import 'package:flutter_ad_ecommerce/provider/dio_provider.dart';
 import 'package:flutter_ad_ecommerce/provider/cart_provider.dart';
+import 'package:flutter_ad_ecommerce/provider/chat_sync_provider.dart';
+import 'package:flutter_ad_ecommerce/provider/chatroom_list_provider.dart';
 import 'package:flutter_ad_ecommerce/provider/product_provider.dart';
 import 'package:flutter_ad_ecommerce/utils/custom_async_value.dart';
 import 'package:flutter_ad_ecommerce/utils/exception_handler.dart';
@@ -165,7 +168,9 @@ class OrderNotifier extends _$OrderNotifier {
       if (response.data['success'] != true) {
         throw Exception('無法新增訂單');
       }
-      return Result.success(Order.fromApiResponseMap(response.data['data']));
+      final order = Order.fromApiResponseMap(response.data['data']);
+      unawaited(_refreshChatroomsAfterOrderCreated());
+      return Result.success(order);
     } on DioException catch (e) {
       log(
         '[DioException] Failed to create order: ${getDioExceptionMessage(e)}',
@@ -194,6 +199,19 @@ class OrderNotifier extends _$OrderNotifier {
     } catch (e) {
       log('[Exception] Failed to create order: $e');
       return Result.failure('Error: $e');
+    }
+  }
+
+  Future<void> _refreshChatroomsAfterOrderCreated() async {
+    try {
+      if (AppConstants.chatSseEnabled) {
+        await ref.read(chatSyncProvider).refreshListMetadata();
+      } else {
+        await ref.read(chatroomListNotifierProvider.notifier).loadChatRooms();
+      }
+    } catch (error) {
+      // Refreshing metadata must not turn a successful checkout into a failure.
+      log('Failed to refresh chatrooms after order creation: $error');
     }
   }
 

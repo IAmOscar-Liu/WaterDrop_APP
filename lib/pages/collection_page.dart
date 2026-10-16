@@ -1,3 +1,4 @@
+import 'package:flutter_ad_ecommerce/shared/widgets/pagination_footer.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_ad_ecommerce/constants/colors.dart';
 import 'package:flutter_ad_ecommerce/features/explore/widget/product_card.dart';
@@ -178,8 +179,16 @@ class _CollectionPageState extends ConsumerState<CollectionPage> {
                               );
                             },
                           ),
-                          if (collectionProvider.isFetching)
-                            Center(child: CircularProgressIndicator()),
+                          PaginationFooter(
+                            loading: collectionProvider.isFetching,
+                            onLoadMore:
+                                collectionProvider.data!.page <
+                                    collectionProvider.data!.totalPages
+                                ? () => ref
+                                      .read(collectionNotifierProvider.notifier)
+                                      .fetchMoreCollections()
+                                : null,
+                          ),
                         ],
                       ),
                     ),

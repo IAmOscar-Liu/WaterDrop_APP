@@ -4,6 +4,18 @@ import 'package:flutter_ad_ecommerce/app_flavor.dart';
 class AppConstants {
   static const paginationPageSize = 20;
 
+  // SSE is the default; set CHAT_SSE_ENABLED=false for legacy polling.
+  static const chatSseEnabled = bool.fromEnvironment(
+    'CHAT_SSE_ENABLED',
+    defaultValue: true,
+  );
+
+  // Independent rollback for Message Center synchronization.
+  static const notificationSseEnabled = bool.fromEnvironment(
+    'NOTIFICATION_SSE_ENABLED',
+    defaultValue: true,
+  );
+
   static const _apiBaseUrlOverride = String.fromEnvironment('API_BASE_URL');
 
   static String get apiBaseUrl {

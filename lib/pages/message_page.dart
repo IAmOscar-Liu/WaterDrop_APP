@@ -1,3 +1,9 @@
+import 'package:flutter_ad_ecommerce/shared/widgets/pagination_footer.dart';
+import 'dart:async';
+import 'package:flutter_ad_ecommerce/shared/widgets/anchored_list_scroll_controller.dart';
+import 'package:flutter_ad_ecommerce/constants/app_constants.dart';
+import 'package:flutter_ad_ecommerce/provider/notification_sync_provider.dart';
+import 'package:flutter_ad_ecommerce/router/chat_route_observer.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_ad_ecommerce/features/message/widgets/message_card.dart';
 import 'package:flutter_ad_ecommerce/models/api_enums.dart';
@@ -37,7 +43,105 @@ class MessagePage extends ConsumerStatefulWidget {
   ConsumerState<MessagePage> createState() => _MessagePageState();
 }
 
-class _MessagePageState extends ConsumerState<MessagePage> {
+class _MessagePageState extends ConsumerState<MessagePage> with RouteAware {
+  NotificationSyncController? _sync;
+  NotificationQuery? _query;
+  ModalRoute<dynamic>? _route;
+  final _scroll = AnchoredListScrollController();
+  final _viewportKey = GlobalKey();
+  final _messageKeys = <String, GlobalKey>{};
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final route = ModalRoute.of(context);
+    if (_route != route && route != null) {
+      chatRouteObserver.unsubscribe(this);
+      _route = route;
+      chatRouteObserver.subscribe(this, route);
+    }
+    _updateVisibility();
+  }
+
+  void _updateVisibility() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _query == null) return;
+      _sync!.setQueryVisible(
+        _query!,
+        _route?.isCurrent ?? true,
+        nearTop: !_scroll.hasClients || _scroll.offset < 60,
+      );
+    });
+  }
+
+  @override
+  void didPush() => _updateVisibility();
+  @override
+  void didPushNext() {
+    if (_query != null) _sync!.setQueryVisible(_query!, false);
+  }
+
+  @override
+  void didPop() {
+    if (_query != null) _sync!.setQueryVisible(_query!, false);
+  }
+
+  @override
+  void didPopNext() => _updateVisibility();
+
+  @override
+  void dispose() {
+    chatRouteObserver.unsubscribe(this);
+    if (_query != null) _sync!.closeQuery(_query!);
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  void _fetchMore() {
+    if (_query != null) {
+      _sync!.loadList(_query!, more: true);
+    } else {
+      ref.read(messageNotifierProvider.notifier).fetchMoreMessages();
+    }
+  }
+
+  Widget _listFooter({bool allowManualLoadMore = false}) {
+    final q = _query;
+    if (q == null) return const SizedBox.shrink();
+    if (!allowManualLoadMore &&
+        !q.loading &&
+        q.error == null &&
+        !q.dirty &&
+        q.hasMore) {
+      // Infinite scrolling needs no idle button before the loading indicator.
+      // Recheck each page even if snapshot holes leave the last row unchanged.
+      return VisibilityDetector(
+        key: ValueKey(('notification-next-page', q, q.page)),
+        onVisibilityChanged: (info) {
+          if (mounted &&
+              identical(_query, q) &&
+              info.visibleFraction > 0 &&
+              q.error == null) {
+            _fetchMore();
+          }
+        },
+        child: const SizedBox(height: 1, width: double.infinity),
+      );
+    }
+    return PaginationFooter(
+      loading: q.loading,
+      hasError: q.error != null,
+      label: q.dirty ? '更新搜尋結果' : '載入更多',
+      onLoadMore:
+          q.error != null || q.dirty || (allowManualLoadMore && q.hasMore)
+          ? () => _sync!.loadList(
+              q,
+              more: q.error != null ? q.retryMore : !q.dirty && q.hasMore,
+            )
+          : null,
+    );
+  }
+
   MessageType _type = MessageType.all;
   String _textSearch = '';
   bool _onlyUnread = false;
@@ -45,11 +149,36 @@ class _MessagePageState extends ConsumerState<MessagePage> {
   @override
   void initState() {
     super.initState();
+    if (AppConstants.notificationSseEnabled) {
+      _sync = ref.read(notificationSyncProvider);
+      _query = _sync!.openQuery();
+      _scroll.addListener(_updateVisibility);
+    }
     _loadMessages(loadStats: true);
   }
 
   void _loadMessages({bool loadStats = false}) {
     Future.delayed(Duration.zero, () {
+      if (!mounted) return;
+      if (_sync != null) {
+        final old = _query!;
+        if (old.type != _type.notificationType ||
+            old.search != _textSearch ||
+            old.onlyUnread != _onlyUnread) {
+          _sync!.closeQuery(old);
+          _query = _sync!.openQuery(
+            type: _type.notificationType,
+            search: _textSearch,
+            onlyUnread: _onlyUnread,
+          );
+          if (_scroll.hasClients) _scroll.jumpTo(0);
+        }
+        _sync!.setQueryVisible(_query!, _route?.isCurrent ?? true);
+        unawaited(_sync!.loadList(_query!));
+        if (loadStats) unawaited(_sync!.loadStats());
+        setState(() {});
+        return;
+      }
       if (loadStats) {
         ref.read(messageStatsNotifierProvider.notifier).loadMessageStats();
       }
@@ -110,9 +239,12 @@ class _MessagePageState extends ConsumerState<MessagePage> {
   }
 
   void _handleMarkAsRead(String messageId) async {
-    final result = await ref
-        .read(messageNotifierProvider.notifier)
-        .markAsRead(messageId);
+    final result = _sync != null
+        ? await _sync!.markRead(messageId)
+        : await ref
+              .read(messageNotifierProvider.notifier)
+              .markAsRead(messageId);
+    if (!mounted) return;
     if (result.isFailure) {
       ScaffoldMessenger.of(
         // ignore: use_build_context_synchronously
@@ -127,10 +259,13 @@ class _MessagePageState extends ConsumerState<MessagePage> {
     }
   }
 
-  void _handleDeleteMessage(String messageId) async {
-    final result = await ref
-        .read(messageNotifierProvider.notifier)
-        .deleteMessage(messageId);
+  Future<void> _handleDeleteMessage(String messageId) async {
+    final result = _sync != null
+        ? await _sync!.delete(messageId)
+        : await ref
+              .read(messageNotifierProvider.notifier)
+              .deleteMessage(messageId);
+    if (!mounted) return;
     if (result.isFailure) {
       ScaffoldMessenger.of(
         // ignore: use_build_context_synchronously
@@ -149,16 +284,20 @@ class _MessagePageState extends ConsumerState<MessagePage> {
     return PopScope(
       canPop: true,
       onPopInvokedWithResult: (didPop, result) {
-        ref.read(systemNotifierProvider.notifier).setIsInMessagePage(false);
+        if (_sync == null) {
+          ref.read(systemNotifierProvider.notifier).setIsInMessagePage(false);
+        }
       },
       child: AppScaffold(
         appBar: SimpleAppBar(
           title: '訊息中心',
+          subtitle: _sync != null && !_sync!.connected ? '訊息正在重新連線……' : null,
           actions: [
-            IconButton(
-              onPressed: () => _loadMessages(),
-              icon: const Icon(Icons.refresh, color: Colors.white),
-            ),
+            if (_sync == null)
+              IconButton(
+                onPressed: () => _loadMessages(),
+                icon: const Icon(Icons.refresh, color: Colors.white),
+              ),
           ],
         ),
         useSafeArea: true,
@@ -169,12 +308,30 @@ class _MessagePageState extends ConsumerState<MessagePage> {
 
   @override
   Widget build(BuildContext context) {
-    final messageProvider = ref.watch(messageNotifierProvider);
+    final sync = AppConstants.notificationSseEnabled
+        ? ref.watch(notificationSyncProvider)
+        : null;
+    final messageProvider = sync != null
+        ? sync.listValue(_query!)
+        : ref.watch(messageNotifierProvider);
     if (messageProvider.isInitial || messageProvider.isLoading) {
       return _buildLayout(child: PageLoading('載入訊息中......'));
     }
 
     final List<Message> messages = messageProvider.data?.messages ?? [];
+    _scroll.preserveItems(
+      messages.map((m) => m.id),
+      _messageKeys,
+      _viewportKey,
+    );
+    final indices = {
+      for (var i = 0; i < messages.length; i++) messages[i].id: i,
+    };
+    _messageKeys.removeWhere((id, _) => !indices.containsKey(id));
+    final keyIndices = {
+      for (final entry in _messageKeys.entries)
+        entry.value: indices[entry.key]!,
+    };
     final MessageStats? messageStats = ref
         .watch(messageStatsNotifierProvider)
         .data;
@@ -276,7 +433,7 @@ class _MessagePageState extends ConsumerState<MessagePage> {
                           },
                         )
                         .then((value) {
-                          if (value is String) {
+                          if (mounted && value is String) {
                             setState(() {
                               _textSearch = value;
                             });
@@ -307,9 +464,16 @@ class _MessagePageState extends ConsumerState<MessagePage> {
               ),
             ),
             Expanded(
+              key: _viewportKey,
               child: messageProvider.hasError
-                  ? PageError(
-                      "Failed to load messages: ${messageProvider.error}",
+                  ? Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        PageError(
+                          "Failed to load messages: ${messageProvider.error}",
+                        ),
+                        if (_sync != null) _listFooter(),
+                      ],
                     )
                   : messageProvider.data!.messages.isEmpty
                   ? Center(
@@ -323,10 +487,14 @@ class _MessagePageState extends ConsumerState<MessagePage> {
                           ),
                           SizedBox(height: 12),
                           Text("目前沒有訊息", style: TextStyle(color: Colors.white)),
+                          if (_sync != null)
+                            _listFooter(allowManualLoadMore: true),
                         ],
                       ),
                     )
                   : ListView.builder(
+                      controller: _scroll,
+                      findChildIndexCallback: (key) => keyIndices[key],
                       padding: const EdgeInsets.only(
                         left: 8,
                         right: 8,
@@ -336,8 +504,16 @@ class _MessagePageState extends ConsumerState<MessagePage> {
                       itemBuilder: (context, index) {
                         if (index == messages.length) {
                           return messageProvider.isFetching
-                              ? const Center(child: CircularProgressIndicator())
-                              : const SizedBox.shrink();
+                              ? const PaginationFooter(loading: true)
+                              : _sync != null
+                              ? _listFooter()
+                              : PaginationFooter(
+                                  onLoadMore:
+                                      messageProvider.data!.page <
+                                          messageProvider.data!.totalPages
+                                      ? _fetchMore
+                                      : null,
+                                );
                         }
                         final message = messages[index];
 
@@ -360,15 +536,26 @@ class _MessagePageState extends ConsumerState<MessagePage> {
                               color: Colors.white,
                             ),
                           ),
-                          onDismissed: (direction) async {
-                            if (!messageProvider.isProcessing) {
-                              _handleDeleteMessage(message.id);
-                            }
-                          },
+                          confirmDismiss: _sync == null
+                              ? null
+                              : (_) async {
+                                  // Canonical state removes the row on success; a failed
+                                  // request leaves this Dismissible mounted and usable.
+                                  await _handleDeleteMessage(message.id);
+                                  return false;
+                                },
+                          onDismissed: _sync != null
+                              ? null
+                              : (direction) async {
+                                  if (!messageProvider.isProcessing) {
+                                    _handleDeleteMessage(message.id);
+                                  }
+                                },
                           child: MessageCard(
                             message: message,
                             onTap: () async {
-                              if (!messageProvider.isProcessing &&
+                              if (_sync == null &&
+                                  !messageProvider.isProcessing &&
                                   !message.isRead) {
                                 _handleMarkAsRead(message.id);
                               }
@@ -378,7 +565,9 @@ class _MessagePageState extends ConsumerState<MessagePage> {
                                     extra: {"message": message},
                                   )
                                   .then((value) {
-                                    if (value is Map &&
+                                    if (mounted &&
+                                        _sync == null &&
+                                        value is Map &&
                                         value['reload'] == true) {
                                       _loadMessages(loadStats: true);
                                     }
@@ -393,16 +582,17 @@ class _MessagePageState extends ConsumerState<MessagePage> {
                             key: Key(message.id),
                             onVisibilityChanged: (visibilityInfo) {
                               if (visibilityInfo.visibleFraction > 0.2) {
-                                ref
-                                    .read(messageNotifierProvider.notifier)
-                                    .fetchMoreMessages();
+                                _fetchMore();
                               }
                             },
                             child: card,
                           );
                         }
                         return Padding(
-                          key: ValueKey(message.id),
+                          key: _messageKeys.putIfAbsent(
+                            message.id,
+                            GlobalKey.new,
+                          ),
                           padding: const EdgeInsets.all(2),
                           child: card,
                         );

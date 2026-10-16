@@ -59,6 +59,39 @@ You can replace the `API_BASE_URL` value with any reachable local tunnel URL. Ke
 
 `API_BASE_URL` is only honored in non-release builds. Release builds, including Xcode archives for TestFlight, always use the flavor's configured API URL.
 
+### Chatroom SSE rollout
+
+The user-scoped SSE implementation uses the [confirmed backend sync contract](doc/FLUTTER_CHATROOM_SSE_API_CHANGES.md) and is enabled by default in all builds. No SSE flag is needed, including when using a local API tunnel:
+
+```sh
+fvm flutter run --flavor dev -t lib/main_dev.dart \
+  --dart-define=API_BASE_URL=https://dorothea-overslavish-proficiently.ngrok-free.dev/
+```
+
+Pass `--dart-define=CHAT_SSE_ENABLED=false` to `flutter run` or `flutter build` to use the legacy polling path. The two paths do not run together.
+
+The VS Code launch configurations use the same default. Fully stop and relaunch an existing debug session when changing compile-time defines; hot reload/restart does not change them.
+
+When enabled, one foreground session connection updates all accessible rooms, previews, and unread counts. History uses 20-message pages with scroll-to-load older messages; sending/list/history/read operations use `/api/chatroom/sync/*`. Background/logout closes SSE and FCM remains responsible for notifications. Reconnect resumes the user-feed cursor; a reset reloads the list and mounted conversations. Failed sends retain their content and retry UUID in memory for the signed-in session, including across room navigation, but not across app termination/logout.
+
+Local synchronization checks:
+
+```sh
+fvm flutter test test/chat
+```
+
+These mocked transport/controller/widget checks do not establish backend deployment, proxy flushing, or mobile background delivery. Verify those against the migrated staging environment before releasing.
+
+### Message Center SSE
+
+Message Center uses the [confirmed notification contract](doc/FLUTTER_NOTIFICATION_SSE_API_CHANGES.md). It is enabled by default, like chat, so the development command above also enables notification synchronization. Use `--dart-define=NOTIFICATION_SSE_ENABLED=false` to select the legacy notification REST behavior independently of chat. For environments awaiting the notification migration/deployment, use that override until the sync endpoints are ready.
+
+After login, one foreground notification stream updates unread badges throughout the app. It has a separate cursor from chat; background/logout closes both connections, and resume replays each feed independently. Notifications use 20-item frozen pages, canonical read/delete responses, and versioned live updates. Text searches refresh through the server to preserve PostgreSQL search semantics; while browsing older results, use **更新搜尋結果** to apply a pending search refresh. FCM retains responsibility for alerts, including while Message Center is open, and does not independently increment the badges. Push-only chat/admin alerts do not create Message Center items.
+
+Tapping a `command: message` push with `notificationId` opens the saved notification directly after login/account initialization, including cold launches. The detail is fetched from the API and marked read when displayed. Pushes without an ID open Message Center; inaccessible or deleted items return there with a notice. Receiving a push alone never navigates or marks an item read.
+
+Run `fvm flutter test test/notification test/chat test/provider/chat_auth_refresh_test.dart` for controller, lifecycle, transport, and UI checks. Live backend/proxy and real-device FCM verification remain separate from these mocked checks. Restart the app after changing compile-time feature flags.
+
 ## Build
 
 Build Android dev debug:

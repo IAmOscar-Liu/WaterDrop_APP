@@ -5,6 +5,8 @@ Source file paths and commands in these documents are relative to the project ro
 
 ## API Contracts and Backend Handoffs
 
+- [Message Center SSE: confirmed backend sync contract](FLUTTER_NOTIFICATION_SSE_API_CHANGES.md)
+- [Chatroom SSE: confirmed backend sync contract](FLUTTER_CHATROOM_SSE_API_CHANGES.md)
 - [Flutter pagination sizes and exceptions](PAGINATION.md)
 - [Flutter API enum fields](FLUTTER_API_ENUMS.md)
 - [Product variants API changes](PRODUCT_VARIANTS_API_CHANGES.md)
@@ -14,6 +16,7 @@ Source file paths and commands in these documents are relative to the project ro
 
 ## Implementation Plans
 
+- [Message Center SSE: backend API proposal and Flutter migration plan](FLUTTER_NOTIFICATION_SSE_API_PLAN.md)
 - [User-scoped chatroom SSE: backend API proposal and Flutter migration plan](FLUTTER_CHATROOM_SSE_API_PLAN.md)
 - [Product variants and API enum migration plan](plan.md)
 - [Order history date filter: original API proposal](FLUTTER_ORDER_DATE_FILTER_API_PLAN.md)

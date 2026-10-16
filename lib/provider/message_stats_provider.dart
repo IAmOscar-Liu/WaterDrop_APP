@@ -1,3 +1,5 @@
+import 'package:flutter_ad_ecommerce/constants/app_constants.dart';
+import 'package:flutter_ad_ecommerce/provider/notification_sync_provider.dart';
 import 'dart:developer';
 
 import 'package:dio/dio.dart';
@@ -13,6 +15,9 @@ part 'message_stats_provider.g.dart';
 class MessageStatsNotifier extends _$MessageStatsNotifier {
   @override
   CustomAsyncValue<MessageStats> build() {
+    if (AppConstants.notificationSseEnabled) {
+      return ref.watch(notificationSyncProvider).statsValue;
+    }
     // Start with an empty list - message will be loaded from API
     return CustomAsyncValue.initial();
   }
@@ -22,6 +27,10 @@ class MessageStatsNotifier extends _$MessageStatsNotifier {
   }
 
   Future<void> loadMessageStats() async {
+    if (AppConstants.notificationSseEnabled) {
+      await ref.read(notificationSyncProvider).loadStats();
+      return;
+    }
     try {
       state = CustomAsyncValue.loading();
       final response = await ref

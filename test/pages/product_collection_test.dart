@@ -29,6 +29,7 @@ class _CollectionApi {
     'id': 'product',
     'name': 'Test product',
     'price': 100,
+    'isCollected': saved,
     'variants': variants,
     'deletedAt': deletedAt,
     if (status != null) 'status': status,
@@ -42,7 +43,7 @@ class _CollectionApi {
           requests.add(options);
           Object response;
           if (options.path == '/api/product/product') {
-            response = {'success': true, 'data': product};
+            response = {'success': !failLookup, 'data': product};
           } else if (options.path == '/api/collection/list') {
             final page = options.queryParameters['page'];
             response = {
@@ -112,14 +113,17 @@ Future<void> _openProduct(
   _CollectionApi api, {
   String source = 'cart',
   bool hideCollection = false,
+  bool omitCollectionStatus = false,
 }) async {
   final dio = api.createDio();
   addTearDown(() => dio.close());
+  final product = api.product;
+  if (omitCollectionStatus) product.remove('isCollected');
   final extra = <String, dynamic>{
     if (source == 'order')
       'productId': 'product'
     else
-      'product': Product.fromApiResponseMap(api.product),
+      'product': Product.fromApiResponseMap(product),
     if (source == 'collection')
       'removeFromCollection': true
     else
@@ -341,37 +345,52 @@ void main() {
     expect(api.navigationResult, {'reload': true});
   });
 
-  testWidgets(
-    'Membership lookup checks later pages without changing the list',
-    (tester) async {
-      final api = _CollectionApi(saved: true)..secondPage = true;
-      await _openProduct(tester, api);
-      expect(find.text('移除收藏'), findsOneWidget);
-      final requests = api.requests.where(
-        (r) => r.path == '/api/collection/list',
-      );
-      expect(requests.map((r) => r.queryParameters['page']), [1, 2]);
-      expect(
-        requests.every((r) => !r.queryParameters.containsKey('search')),
-        isTrue,
-      );
-      final container = ProviderScope.containerOf(
-        tester.element(find.byType(SingleProductDetails)),
-      );
-      expect(container.read(collectionNotifierProvider).isInitial, isTrue);
-    },
-  );
+  testWidgets('API collection status does not scan collection pages', (
+    tester,
+  ) async {
+    final api = _CollectionApi(saved: true)..secondPage = true;
+    await _openProduct(tester, api);
+    expect(find.text('移除收藏'), findsOneWidget);
+    final requests = api.requests.where(
+      (r) => r.path == '/api/collection/list',
+    );
+    expect(requests, isEmpty);
+    expect(api.requests, isEmpty);
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(SingleProductDetails)),
+    );
+    expect(container.read(collectionNotifierProvider).isInitial, isTrue);
+  });
 
   testWidgets('Failed membership lookup offers retry rather than guessing', (
     tester,
   ) async {
     final api = _CollectionApi(saved: true)..failLookup = true;
-    await _openProduct(tester, api);
+    await _openProduct(tester, api, omitCollectionStatus: true);
     expect(find.text('加入收藏'), findsNothing);
     expect(find.text('移除收藏'), findsNothing);
     api.failLookup = false;
     await _tapAction(tester, '重試讀取收藏狀態');
     expect(find.text('移除收藏'), findsOneWidget);
+  });
+
+  testWidgets('Embedded product without status fetches product detail once', (
+    tester,
+  ) async {
+    final api = _CollectionApi(saved: true);
+    await _openProduct(tester, api, omitCollectionStatus: true);
+    expect(find.text('移除收藏'), findsOneWidget);
+    expect(api.requests.map((r) => r.path), ['/api/product/product']);
+  });
+
+  testWidgets('API false overrides the collection navigation hint', (
+    tester,
+  ) async {
+    final api = _CollectionApi(saved: false);
+    await _openProduct(tester, api, source: 'collection');
+    expect(find.text('加入收藏'), findsOneWidget);
+    expect(find.text('移除收藏'), findsNothing);
+    expect(api.requests, isEmpty);
   });
 
   testWidgets('Inactive unsaved product cannot be added to collections', (

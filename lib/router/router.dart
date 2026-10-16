@@ -1,3 +1,5 @@
+import 'package:flutter_ad_ecommerce/pages/bank_search_page.dart';
+import 'package:flutter_ad_ecommerce/router/chat_route_observer.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_ad_ecommerce/layout/root_layout.dart';
@@ -111,6 +113,7 @@ GoRouter getRouter({
     },
     routes: [
       ShellRoute(
+        observers: [chatRouteObserver],
         redirect: (context, state) {
           print("[redirect] root layout: ${state.matchedLocation}");
 
@@ -183,6 +186,11 @@ GoRouter getRouter({
             path: Routes.singleProductDetails,
             builder: (context, state) =>
                 SingleProductDetails(extra: state.extra),
+          ),
+          GoRoute(
+            path: Routes.bankSearch,
+            builder: (context, state) =>
+                BankSearchPage(selectedCode: state.extra as String?),
           ),
           GoRoute(
             path: Routes.textSearch,

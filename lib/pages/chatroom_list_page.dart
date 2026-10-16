@@ -1,4 +1,8 @@
+import 'package:flutter_ad_ecommerce/shared/widgets/pagination_footer.dart';
+import 'package:flutter_ad_ecommerce/constants/app_constants.dart';
+import 'package:flutter_ad_ecommerce/provider/chat_sync_provider.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_ad_ecommerce/shared/widgets/anchored_list_scroll_controller.dart';
 import 'package:flutter_ad_ecommerce/constants/colors.dart';
 import 'package:flutter_ad_ecommerce/models/api_enums.dart';
 import 'package:flutter_ad_ecommerce/models/chatroom.dart';
@@ -21,6 +25,16 @@ class ChatroomListPage extends ConsumerStatefulWidget {
 }
 
 class _ChatroomListPageState extends ConsumerState<ChatroomListPage> {
+  final _scroll = AnchoredListScrollController();
+  final _viewportKey = GlobalKey();
+  final _roomKeys = <String, GlobalKey>{};
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -29,7 +43,12 @@ class _ChatroomListPageState extends ConsumerState<ChatroomListPage> {
 
   void _loadChatRooms() {
     Future.delayed(Duration.zero, () {
-      ref.read(chatroomListNotifierProvider.notifier).loadChatRooms();
+      if (!mounted) return;
+      if (AppConstants.chatSseEnabled) {
+        ref.read(chatSyncProvider).loadList();
+      } else {
+        ref.read(chatroomListNotifierProvider.notifier).loadChatRooms();
+      }
     });
   }
 
@@ -94,14 +113,29 @@ class _ChatroomListPageState extends ConsumerState<ChatroomListPage> {
   }
 
   Widget _buildLayout({required Widget child}) {
+    final sync = AppConstants.chatSseEnabled
+        ? ref.watch(chatSyncProvider)
+        : null;
     return AppScaffold(
       appBar: SimpleAppBar(
         title: '聊天室',
+        // Status belongs in the fixed-height app bar, so reconnect/error
+        // transitions never move the list's viewport.
+        subtitle: sync != null && !sync.connected ? '聊天室正在重新連線……' : null,
         actions: [
-          IconButton(
-            onPressed: () => _loadChatRooms(),
-            icon: const Icon(Icons.refresh, color: Colors.white),
-          ),
+          if (sync?.listError != null)
+            IconButton(
+              tooltip: '載入失敗，點擊重試',
+              onPressed: () => sync!.loadList(
+                more: sync.listValue.hasData && sync.hasMoreRooms,
+              ),
+              icon: const Icon(Icons.error_outline),
+            ),
+          if (!AppConstants.chatSseEnabled)
+            IconButton(
+              onPressed: () => _loadChatRooms(),
+              icon: const Icon(Icons.refresh, color: Colors.white),
+            ),
         ],
       ),
       useSafeArea: true,
@@ -111,12 +145,26 @@ class _ChatroomListPageState extends ConsumerState<ChatroomListPage> {
 
   @override
   Widget build(BuildContext context) {
-    final chatRoomProvider = ref.watch(chatroomListNotifierProvider);
+    final chatRoomProvider = AppConstants.chatSseEnabled
+        ? ref.watch(chatSyncProvider).listValue
+        : ref.watch(chatroomListNotifierProvider);
     if (chatRoomProvider.isInitial || chatRoomProvider.isLoading) {
       return _buildLayout(child: PageLoading('載入聊天室中......'));
     }
 
     final List<Chatroom> chatRooms = chatRoomProvider.data?.rooms ?? [];
+    _scroll.preserveItems(
+      chatRooms.map((room) => room.id),
+      _roomKeys,
+      _viewportKey,
+    );
+    final indices = {
+      for (var i = 0; i < chatRooms.length; i++) chatRooms[i].id: i,
+    };
+    _roomKeys.removeWhere((id, _) => !indices.containsKey(id));
+    final keyIndices = {
+      for (final entry in _roomKeys.entries) entry.value: indices[entry.key]!,
+    };
 
     return _buildLayout(
       child: Padding(
@@ -125,13 +173,33 @@ class _ChatroomListPageState extends ConsumerState<ChatroomListPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Expanded(
+              key: _viewportKey,
               child: chatRoomProvider.hasError
                   ? PageError(
                       "Failed to load chatRooms: ${chatRoomProvider.error}",
                     )
                   : chatRoomProvider.data!.rooms.isEmpty
-                  ? Center(child: EmptyState("目前沒有聊天室"))
+                  ? Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          EmptyState("目前沒有聊天室"),
+                          if (AppConstants.chatSseEnabled &&
+                              ref.watch(chatSyncProvider).hasMoreRooms)
+                            PaginationFooter(
+                              loading: chatRoomProvider.isFetching,
+                              hasError:
+                                  ref.watch(chatSyncProvider).listError != null,
+                              onLoadMore: () => ref
+                                  .read(chatSyncProvider)
+                                  .loadList(more: true),
+                            ),
+                        ],
+                      ),
+                    )
                   : ListView.builder(
+                      controller: _scroll,
+                      findChildIndexCallback: (key) => keyIndices[key],
                       padding: const EdgeInsets.only(
                         left: 8,
                         right: 8,
@@ -140,17 +208,34 @@ class _ChatroomListPageState extends ConsumerState<ChatroomListPage> {
                       itemCount: chatRooms.length + 1,
                       itemBuilder: (context, index) {
                         if (index == chatRooms.length) {
-                          return chatRoomProvider.isFetching
-                              ? const Center(child: CircularProgressIndicator())
-                              : const SizedBox.shrink();
+                          final sync = AppConstants.chatSseEnabled
+                              ? ref.watch(chatSyncProvider)
+                              : null;
+                          final hasMore =
+                              sync?.hasMoreRooms ??
+                              (chatRoomProvider.data!.page <
+                                  chatRoomProvider.data!.totalPages);
+                          return PaginationFooter(
+                            loading: chatRoomProvider.isFetching,
+                            hasError: sync?.listError != null,
+                            onLoadMore: hasMore || sync?.listError != null
+                                ? () => sync != null
+                                      ? sync.loadList(more: hasMore)
+                                      : ref
+                                            .read(
+                                              chatroomListNotifierProvider
+                                                  .notifier,
+                                            )
+                                            .fetchMoreChatRooms()
+                                : null,
+                          );
                         }
                         final chatRoom = chatRooms[index];
                         final bool isSupportChat = chatRoom.accountId == null;
                         final String chatTitle = isSupportChat
                             ? "水滴客服"
                             : chatRoom.product?.name ?? "未知商品";
-                        final variantTitle =
-                            chatRoom.product?.variantName?.trim() ?? "";
+                        final variantTitle = chatRoom.variantDisplayName ?? "";
                         final productImages =
                             chatRoom.product?.images ?? const <String>[];
                         final variantImage = chatRoom.product?.variantImage
@@ -175,6 +260,8 @@ class _ChatroomListPageState extends ConsumerState<ChatroomListPage> {
                                         extra: {
                                           "title": chatTitle,
                                           "chatRoom": chatRoom,
+                                          "variantName":
+                                              chatRoom.variantDisplayName,
                                         },
                                       )
                                       .then((value) {
@@ -340,16 +427,27 @@ class _ChatroomListPageState extends ConsumerState<ChatroomListPage> {
                             key: Key(chatRoom.id),
                             onVisibilityChanged: (visibilityInfo) {
                               if (visibilityInfo.visibleFraction > 0.2) {
-                                ref
-                                    .read(chatroomListNotifierProvider.notifier)
-                                    .fetchMoreChatRooms();
+                                if (AppConstants.chatSseEnabled) {
+                                  ref
+                                      .read(chatSyncProvider)
+                                      .loadList(more: true);
+                                } else {
+                                  ref
+                                      .read(
+                                        chatroomListNotifierProvider.notifier,
+                                      )
+                                      .fetchMoreChatRooms();
+                                }
                               }
                             },
                             child: card,
                           );
                         }
                         return Padding(
-                          key: ValueKey(chatRoom.id),
+                          key: _roomKeys.putIfAbsent(
+                            chatRoom.id,
+                            GlobalKey.new,
+                          ),
                           padding: const EdgeInsets.all(2),
                           child: card,
                         );

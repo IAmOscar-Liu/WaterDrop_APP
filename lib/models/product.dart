@@ -192,6 +192,8 @@ class Product {
   final ProductVariant? variant;
   final String? variantName;
   final String? variantImage;
+  // Embedded products from cart/order APIs may not include this user-specific field.
+  final bool? isCollected;
 
   Product({
     required this.id,
@@ -217,6 +219,7 @@ class Product {
     this.variant,
     this.variantName,
     this.variantImage,
+    this.isCollected,
   });
 
   // Simple factory for demonstration, could be from JSON in a real app
@@ -274,6 +277,9 @@ class Product {
           : null,
       variantName: ParseUtils.parseString(map['variantName']),
       variantImage: ParseUtils.parseString(map['variantImage']),
+      isCollected: map['isCollected'] is bool
+          ? map['isCollected'] as bool
+          : null,
     );
   }
 
@@ -309,6 +315,7 @@ class Product {
       'variant': variant?.displayName,
       'variantName': variantName,
       'variantImage': variantImage,
+      'isCollected': isCollected,
     };
   }
 
@@ -345,6 +352,7 @@ class Product {
     ProductVariant? variant,
     String? variantName,
     String? variantImage,
+    bool? isCollected,
   }) {
     return Product(
       id: id ?? this.id,
@@ -370,6 +378,7 @@ class Product {
       variant: variant ?? this.variant,
       variantName: variantName ?? this.variantName,
       variantImage: variantImage ?? this.variantImage,
+      isCollected: isCollected ?? this.isCollected,
     );
   }
 }

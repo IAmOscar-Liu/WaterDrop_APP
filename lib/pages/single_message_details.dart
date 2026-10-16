@@ -1,5 +1,9 @@
+import 'package:flutter_ad_ecommerce/constants/app_constants.dart';
+import 'package:flutter_ad_ecommerce/provider/notification_sync_provider.dart';
+import 'package:flutter_ad_ecommerce/router/chat_route_observer.dart';
 import 'dart:developer';
 
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_ad_ecommerce/constants/colors.dart';
 import 'package:flutter_ad_ecommerce/models/api_enums.dart';
@@ -25,18 +29,99 @@ class SingleMessageDetails extends ConsumerStatefulWidget {
       _SingleMessageDetailsState();
 }
 
-class _SingleMessageDetailsState extends ConsumerState<SingleMessageDetails> {
+class _SingleMessageDetailsState extends ConsumerState<SingleMessageDetails>
+    with RouteAware {
+  NotificationSyncController? _sync;
+  NotificationDetail? _detail;
+  ModalRoute<dynamic>? _route;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final route = ModalRoute.of(context);
+    if (_route != route && route != null) {
+      chatRouteObserver.unsubscribe(this);
+      _route = route;
+      chatRouteObserver.subscribe(this, route);
+    }
+    _updateVisibility();
+  }
+
+  void _updateVisibility() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _detail != null) {
+        _sync!.setDetailVisible(_detail!, _route?.isCurrent ?? true);
+      }
+    });
+  }
+
+  @override
+  void didPush() => _updateVisibility();
+  @override
+  void didPushNext() {
+    if (_detail != null) _sync!.setDetailVisible(_detail!, false);
+  }
+
+  @override
+  void didPop() {
+    if (_detail != null) _sync!.setDetailVisible(_detail!, false);
+  }
+
+  @override
+  void didPopNext() => _updateVisibility();
+  @override
+  void dispose() {
+    chatRouteObserver.unsubscribe(this);
+    if (_detail != null) _sync!.closeDetail(_detail!);
+    super.dispose();
+  }
+
   Message? _message;
   bool _isLoading = true;
   dynamic _error;
 
   bool _isDeleting = false;
+  bool _fallbackScheduled = false;
+
+  void _returnToMessageCenterIfPushed() {
+    if (!mounted ||
+        _fallbackScheduled ||
+        widget.extra is! Map ||
+        widget.extra['openedFromNotification'] != true) {
+      return;
+    }
+    _fallbackScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || ModalRoute.of(context)?.isCurrent != true) {
+        _fallbackScheduled = false;
+        return;
+      }
+      final messenger = ScaffoldMessenger.of(context);
+      context.pushReplacement(Routes.messagePage);
+      messenger.showSnackBar(const SnackBar(content: Text('此訊息已刪除或無法存取')));
+    });
+  }
 
   String _getTypeLabel(NotificationType type) => type.displayName;
 
   @override
   void initState() {
     super.initState();
+    if (AppConstants.notificationSseEnabled) {
+      final extra = widget.extra is Map ? widget.extra as Map : const {};
+      final supplied = extra['message'];
+      final id = supplied is Message
+          ? supplied.id
+          : extra['messageId'] as String?;
+      if (id == null || id.isEmpty) {
+        _error = '無法開啟訊息';
+        _isLoading = false;
+      } else {
+        _sync = ref.read(notificationSyncProvider);
+        _detail = _sync!.openDetail(id);
+      }
+      return;
+    }
     if (widget.extra is Map && widget.extra['message'] != null) {
       setState(() {
         _isLoading = false;
@@ -44,6 +129,7 @@ class _SingleMessageDetailsState extends ConsumerState<SingleMessageDetails> {
       });
     } else if (widget.extra is Map && widget.extra['messageId'] is String) {
       _loadSingleMessage(widget.extra['messageId']).then((value) {
+        if (!mounted) return;
         if (value.isSuccess) {
           setState(() {
             _isLoading = false;
@@ -86,6 +172,9 @@ class _SingleMessageDetailsState extends ConsumerState<SingleMessageDetails> {
       Message message = Message.fromApiResponseMap(data['data']);
       return Result.success(message);
     } catch (e) {
+      if (e is DioException && e.response?.statusCode == 404) {
+        _returnToMessageCenterIfPushed();
+      }
       log("Error loading Message $messageId: $e");
       return Result.failure("Error loading Message $messageId: $e");
     }
@@ -100,6 +189,18 @@ class _SingleMessageDetailsState extends ConsumerState<SingleMessageDetails> {
   }
 
   void deleteMessage(Message message) async {
+    if (_sync != null) {
+      final result = await _sync!.delete(message.id);
+      if (!mounted) return;
+      if (result.isSuccess) {
+        context.pop();
+      } else {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(result.error ?? '無法刪除訊息')));
+      }
+      return;
+    }
     setState(() {
       _isDeleting = true;
     });
@@ -135,6 +236,36 @@ class _SingleMessageDetailsState extends ConsumerState<SingleMessageDetails> {
 
   @override
   Widget build(BuildContext context) {
+    if (_detail != null) {
+      final sync = ref.watch(notificationSyncProvider);
+      _message = sync.item(_detail!.id);
+      _isDeleting = sync.deleting(_detail!.id);
+      _error = sync.unavailable(_detail!.id) ? '此訊息已刪除或無法存取' : _detail!.error;
+      if (sync.unavailable(_detail!.id)) _returnToMessageCenterIfPushed();
+      if (_error == null &&
+          (sync.connectionStatus == 'unauthorized' ||
+              sync.connectionStatus == 'unavailable')) {
+        _error = '訊息連線不可用，請重新登入或稍後再試';
+      }
+      _isLoading = !_detail!.loaded && _error == null;
+    }
+    if (_error != null) {
+      return _buildLayout(
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('$_error', style: const TextStyle(color: Colors.white)),
+              if (_detail != null && !_sync!.unavailable(_detail!.id))
+                TextButton(
+                  onPressed: () => _sync!.loadDetail(_detail!),
+                  child: const Text('重試'),
+                ),
+            ],
+          ),
+        ),
+      );
+    }
     if (_isLoading || _message == null) {
       return _buildLayout(
         child: Center(
@@ -146,12 +277,6 @@ class _SingleMessageDetailsState extends ConsumerState<SingleMessageDetails> {
               Text('載入訊息中......', style: TextStyle(color: Colors.white)),
             ],
           ),
-        ),
-      );
-    } else if (_error != null) {
-      return _buildLayout(
-        child: Center(
-          child: Text("$_error", style: TextStyle(color: Colors.white)),
         ),
       );
     }
@@ -186,7 +311,7 @@ class _SingleMessageDetailsState extends ConsumerState<SingleMessageDetails> {
                       vertical: 2,
                     ),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.1),
+                      color: Colors.white.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Text(

@@ -42,13 +42,12 @@ class _SingleProductDetailsState extends ConsumerState<SingleProductDetails> {
   @override
   void initState() {
     super.initState();
-    _isCollected = _openedFromCollection ? true : null;
     if (widget.extra is Map && widget.extra['product'] != null) {
       setState(() {
         _isLoading = false;
         _setProduct(widget.extra['product']);
       });
-      _loadCollectionMembership();
+      _loadCollectionStatus();
     } else if (widget.extra is Map && widget.extra['productId'] is String) {
       Future.delayed(Duration.zero, () {
         _loadSingleProduct(widget.extra['productId']).then((value) {
@@ -58,7 +57,7 @@ class _SingleProductDetailsState extends ConsumerState<SingleProductDetails> {
               _isLoading = false;
               _setProduct(value.data!);
             });
-            _loadCollectionMembership();
+            _loadCollectionStatus();
           } else {
             setState(() {
               _isLoading = false;
@@ -79,6 +78,7 @@ class _SingleProductDetailsState extends ConsumerState<SingleProductDetails> {
   void _setProduct(Product product, {bool selectDefault = true}) {
     final previousId = _selectedVariant?.id;
     _product = product;
+    _isCollected = product.isCollected ?? (_openedFromCollection ? true : null);
     final variants = product.availableVariants;
     _selectedVariant = null;
     if (!product.isPurchasable) return;
@@ -218,7 +218,7 @@ class _SingleProductDetailsState extends ConsumerState<SingleProductDetails> {
     return value.toString();
   }
 
-  Future<void> _loadCollectionMembership() async {
+  Future<void> _loadCollectionStatus() async {
     final product = _product;
     if (product == null || _hideAddCollectionButton || _isCollected != null) {
       return;
@@ -227,20 +227,18 @@ class _SingleProductDetailsState extends ConsumerState<SingleProductDetails> {
       _isCheckingCollection = true;
       _collectionStatusError = null;
     });
-    final result = await ref
-        .read(collectionNotifierProvider.notifier)
-        .isProductCollected(product.id);
+    final result = await _loadSingleProduct(product.id);
     if (!mounted) return;
     setState(() {
       _isCheckingCollection = false;
-      if (result.isSuccess) {
-        _isCollected = result.data;
+      if (result.isSuccess && result.data!.isCollected != null) {
+        _setProduct(result.data!);
       } else {
-        _collectionStatusError = result.error;
+        _collectionStatusError = '無法讀取收藏狀態，請重試';
       }
     });
     if (result.isFailure) {
-      _showSnackBar(result.error ?? '無法讀取收藏狀態，請重試', isError: true);
+      _showSnackBar('無法讀取收藏狀態，請重試', isError: true);
     }
   }
 
@@ -258,7 +256,10 @@ class _SingleProductDetailsState extends ConsumerState<SingleProductDetails> {
     if (!mounted) return;
     setState(() {
       _isUpdatingCollection = false;
-      if (result.isSuccess) _isCollected = !isRemoval;
+      if (result.isSuccess) {
+        _isCollected = !isRemoval;
+        _product = _product!.copyWith(isCollected: !isRemoval);
+      }
     });
     _showSnackBar(
       result.isSuccess
@@ -931,7 +932,7 @@ class _SingleProductDetailsState extends ConsumerState<SingleProductDetails> {
                                     collectionState.isProcessing
                                 ? null
                                 : _collectionStatusError != null
-                                ? _loadCollectionMembership
+                                ? _loadCollectionStatus
                                 : _updateCollection,
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.orangeAccent,

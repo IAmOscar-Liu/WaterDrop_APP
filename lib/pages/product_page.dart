@@ -1,3 +1,4 @@
+import 'package:flutter_ad_ecommerce/shared/widgets/pagination_footer.dart';
 import 'dart:async';
 import 'dart:developer';
 
@@ -39,7 +40,7 @@ class _ProductPageState extends ConsumerState<ProductPage> {
   @override
   void initState() {
     super.initState();
-    _loadProducts();
+    _loadProducts(reuseExisting: true);
 
     _routeChangeSubscription = eventBus.on<RouterChangeEvent>().listen((
       event,
@@ -63,9 +64,17 @@ class _ProductPageState extends ConsumerState<ProductPage> {
     _routeChangeSubscription.cancel();
   }
 
-  void _loadProducts() {
+  void _loadProducts({bool reuseExisting = false}) {
     Future.delayed(Duration.zero, () async {
+      if (!mounted) return;
+      final canReuse =
+          reuseExisting &&
+          !await ApiCallManager.isOlderThan(
+            productListApiCacheKey,
+            const Duration(minutes: 10),
+          );
       await ApiCallManager.updateApiCallTimestamp(productListApiCacheKey);
+      if (!mounted) return;
       await ref
           .read(productNotifierProvider.notifier)
           .loadProducts(
@@ -75,6 +84,7 @@ class _ProductPageState extends ConsumerState<ProductPage> {
             search: _textSearch.isEmpty ? null : _textSearch,
             minPrice: _minPrice,
             maxPrice: _maxPrice,
+            reuseExisting: canReuse,
           );
     });
   }
@@ -268,8 +278,16 @@ class _ProductPageState extends ConsumerState<ProductPage> {
                               return ProductCard(product: product);
                             },
                           ),
-                          if (productProvider.isFetching)
-                            Center(child: CircularProgressIndicator()),
+                          PaginationFooter(
+                            loading: productProvider.isFetching,
+                            onLoadMore:
+                                productProvider.data!.page <
+                                    productProvider.data!.totalPages
+                                ? () => ref
+                                      .read(productNotifierProvider.notifier)
+                                      .fetchMoreProducts()
+                                : null,
+                          ),
                         ],
                       ),
                     ),

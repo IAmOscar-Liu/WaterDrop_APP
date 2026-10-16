@@ -7,7 +7,7 @@ part of 'collection_provider.dart';
 // **************************************************************************
 
 String _$collectionNotifierHash() =>
-    r'f0532a43bab3317789f33fa48b9dc77d15317b41';
+    r'1709741859d07f329a7f0769957b9e05ecb7ce82';
 
 /// See also [CollectionNotifier].
 @ProviderFor(CollectionNotifier)

@@ -6,7 +6,7 @@ part of 'product_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$totalProductValueHash() => r'a474e99a6b57ced0cc4a50d3ad529c73199d90db';
+String _$totalProductValueHash() => r'551ecf74d9c1797bb2bb6c8122b26a23ddd0da7c';
 
 /// Computed provider that calculates the total value of all products
 ///
@@ -25,12 +25,12 @@ final totalProductValueProvider = AutoDisposeProvider<double>.internal(
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
 typedef TotalProductValueRef = AutoDisposeProviderRef<double>;
-String _$productNotifierHash() => r'b3fd222af1b03d794d2b515619a0f0c62d290d32';
+String _$productNotifierHash() => r'cc39fbafcc81de93d02e03488db93c5a3edb97e8';
 
 /// See also [ProductNotifier].
 @ProviderFor(ProductNotifier)
 final productNotifierProvider =
-    AutoDisposeNotifierProvider<
+    NotifierProvider<
       ProductNotifier,
       CustomAsyncValue<ProductPagination>
     >.internal(
@@ -43,7 +43,6 @@ final productNotifierProvider =
       allTransitiveDependencies: null,
     );
 
-typedef _$ProductNotifier =
-    AutoDisposeNotifier<CustomAsyncValue<ProductPagination>>;
+typedef _$ProductNotifier = Notifier<CustomAsyncValue<ProductPagination>>;
 // ignore_for_file: type=lint
 // ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member, deprecated_member_use_from_same_package

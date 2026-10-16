@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_ad_ecommerce/constants/colors.dart';
 import 'package:flutter_ad_ecommerce/provider/account_provider.dart';
 import 'package:flutter_ad_ecommerce/provider/system_provider.dart';
+import 'package:flutter_ad_ecommerce/router/routes.dart';
+import 'package:go_router/go_router.dart';
 import 'package:flutter_ad_ecommerce/shared/widgets/keyboard_dismiss_on_tap.dart';
 import 'package:flutter_ad_ecommerce/shared/widgets/simple_app_bar.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -26,7 +28,6 @@ class _AccountDeliveryPageState extends ConsumerState<AccountDeliveryPage> {
 
   final _formKey = GlobalKey<FormState>();
   bool _isLoading = false;
-  bool _isLoadingBankList = false;
   bool _resetBank = false;
   String? _selectedBankCode;
   String? _selectedBankName;
@@ -43,13 +44,6 @@ class _AccountDeliveryPageState extends ConsumerState<AccountDeliveryPage> {
     );
     _selectedBankCode = accountInfo.bankCode;
     _selectedBankName = accountInfo.bankName;
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final bankList = ref.read(systemNotifierProvider).bankList;
-      if (bankList == null || bankList.isEmpty) {
-        _loadBankList();
-      }
-    });
   }
 
   @override
@@ -59,33 +53,6 @@ class _AccountDeliveryPageState extends ConsumerState<AccountDeliveryPage> {
     _phoneController.dispose();
     _bankAccountController.dispose();
     super.dispose();
-  }
-
-  Future<void> _loadBankList() async {
-    if (_isLoadingBankList) return;
-
-    setState(() {
-      _isLoadingBankList = true;
-    });
-
-    final result = await ref
-        .read(systemNotifierProvider.notifier)
-        .loadBankList();
-
-    if (!mounted) return;
-
-    setState(() {
-      _isLoadingBankList = false;
-    });
-
-    if (result.isFailure) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(result.error ?? '銀行資料載入失敗'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
   }
 
   void _handleUpdateDelivery() async {
@@ -280,22 +247,6 @@ class _AccountDeliveryPageState extends ConsumerState<AccountDeliveryPage> {
   }
 
   Widget _buildBankInfo() {
-    final bankList = ref.watch(systemNotifierProvider).bankList ?? [];
-    final bankItems = bankList
-        .whereType<Map>()
-        .map((bank) {
-          final code = bank['code']?.toString() ?? '';
-          final name = bank['name']?.toString() ?? '';
-          if (code.isEmpty || name.isEmpty) return null;
-          return MapEntry(code, name);
-        })
-        .whereType<MapEntry<String, String>>()
-        .toList();
-    final selectedBankCode =
-        bankItems.any((bank) => bank.key == _selectedBankCode)
-        ? _selectedBankCode
-        : null;
-
     return AppPanel(
       margin: const EdgeInsets.symmetric(horizontal: 16.0),
       child: Column(
@@ -375,10 +326,7 @@ class _AccountDeliveryPageState extends ConsumerState<AccountDeliveryPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildBankSelector(
-                  bankItems: bankItems,
-                  selectedBankCode: selectedBankCode,
-                ),
+                _buildBankSelector(),
                 const SizedBox(height: 16),
                 _buildInputField(
                   label: '銀行帳號',
@@ -394,74 +342,45 @@ class _AccountDeliveryPageState extends ConsumerState<AccountDeliveryPage> {
     );
   }
 
-  Widget _buildBankSelector({
-    required List<MapEntry<String, String>> bankItems,
-    required String? selectedBankCode,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Padding(
-          padding: EdgeInsets.only(bottom: 8.0),
-          child: Text(
-            '銀行代碼 / 銀行名稱',
-            style: TextStyle(color: AppColors.secondaryTextColor, fontSize: 14),
-          ),
+  Widget _buildBankSelector() {
+    return TextFormField(
+      key: ValueKey('bank-${_selectedBankCode ?? ''}'),
+      initialValue: _selectedBankCode == null
+          ? ''
+          : '$_selectedBankCode ${_selectedBankName ?? ''}',
+      readOnly: true,
+      enabled: !_isLoading,
+      style: const TextStyle(color: Colors.white, fontSize: 16),
+      decoration: _inputDecoration().copyWith(
+        labelText: '銀行代碼 / 銀行名稱',
+        labelStyle: const TextStyle(color: AppColors.secondaryTextColor),
+        hintText: '選擇銀行',
+        hintStyle: const TextStyle(color: AppColors.secondaryTextColor),
+        suffixIcon: const Icon(
+          Icons.search,
+          color: AppColors.secondaryTextColor,
         ),
-        DropdownButtonFormField<String>(
-          key: ValueKey(selectedBankCode ?? 'empty-bank'),
-          initialValue: selectedBankCode,
-          isExpanded: true,
-          dropdownColor: AppColors.fieldInputColor,
-          style: const TextStyle(color: Colors.white, fontSize: 16),
-          iconEnabledColor: AppColors.secondaryTextColor,
-          decoration: _inputDecoration(),
-          hint: Text(
-            _isLoadingBankList ? '銀行資料載入中...' : '選擇銀行',
-            style: const TextStyle(color: AppColors.secondaryTextColor),
-          ),
-          items: bankItems
-              .map(
-                (bank) => DropdownMenuItem<String>(
-                  value: bank.key,
-                  child: Text('${bank.key} ${bank.value}'),
-                ),
-              )
-              .toList(),
-          onChanged: _isLoading || _isLoadingBankList
-              ? null
-              : (value) {
-                  final selectedBank = bankItems
-                      .where((bank) => bank.key == value)
-                      .firstOrNull;
-                  setState(() {
-                    _selectedBankCode = selectedBank?.key;
-                    _selectedBankName = selectedBank?.value;
-                    _resetBank = false;
-                  });
-                },
-          validator: (_) {
-            if (_bankAccountController.text.trim().isNotEmpty &&
-                (_selectedBankCode == null || _selectedBankCode!.isEmpty)) {
-              return '請選擇銀行';
-            }
-            return null;
-          },
-        ),
-        if (selectedBankCode == null &&
-            _selectedBankCode != null &&
-            _selectedBankName != null)
-          Padding(
-            padding: const EdgeInsets.only(top: 8.0),
-            child: Text(
-              '目前銀行：$_selectedBankCode $_selectedBankName',
-              style: const TextStyle(
-                color: AppColors.secondaryTextColor,
-                fontSize: 12,
-              ),
-            ),
-          ),
-      ],
+      ),
+      onTap: () async {
+        FocusScope.of(context).unfocus();
+        final bank = await context.push<MapEntry<String, String>>(
+          Routes.bankSearch,
+          extra: _selectedBankCode,
+        );
+        if (!mounted || bank == null) return;
+        setState(() {
+          _selectedBankCode = bank.key;
+          _selectedBankName = bank.value;
+          _resetBank = false;
+        });
+      },
+      validator: (_) {
+        if (_bankAccountController.text.trim().isNotEmpty &&
+            (_selectedBankCode == null || _selectedBankCode!.isEmpty)) {
+          return '請選擇銀行';
+        }
+        return null;
+      },
     );
   }
 
