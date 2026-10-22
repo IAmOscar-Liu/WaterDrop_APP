@@ -154,6 +154,7 @@ enum OrderStatus {
 }
 
 enum RefundStatus {
+  rejected,
   pending,
   processing,
   completed,
@@ -167,6 +168,7 @@ enum RefundStatus {
       "completed" => RefundStatus.completed,
       "cancelled" => RefundStatus.cancelled,
       "pending" => RefundStatus.pending,
+      "rejected" => RefundStatus.rejected,
       _ => RefundStatus.pending,
     };
   }

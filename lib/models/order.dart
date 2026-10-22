@@ -228,7 +228,16 @@ class OrderItem {
   final DateTime updatedAt;
   final Product? product;
   final bool canRefund;
+  final bool refundReceiptChecksBypassed;
   final int remainingRefundQuantity;
+  final DateTime? refundWindowStartsAt;
+  final DateTime? originalRefundDeadlineAt;
+  final DateTime? refundDeadlineAt;
+  final String? refundWindowStatus;
+  final String? refundWindowSource;
+  final String? refundBlockReason;
+  final DateTime? refundServerTime;
+  final int? unreservedRefundQuantity;
   final List<RefundItem> refundItems;
 
   const OrderItem({
@@ -249,7 +258,16 @@ class OrderItem {
     required this.updatedAt,
     this.product,
     this.canRefund = false,
+    this.refundReceiptChecksBypassed = false,
     this.remainingRefundQuantity = 0,
+    this.refundWindowStartsAt,
+    this.originalRefundDeadlineAt,
+    this.refundDeadlineAt,
+    this.refundWindowStatus,
+    this.refundWindowSource,
+    this.refundBlockReason,
+    this.refundServerTime,
+    this.unreservedRefundQuantity,
     this.refundItems = const [],
   });
 
@@ -278,8 +296,23 @@ class OrderItem {
           ? Product.fromApiResponseMap(map['product'])
           : null,
       canRefund: map['canRefund'] == true,
+      refundReceiptChecksBypassed: map['refundReceiptChecksBypassed'] == true,
       remainingRefundQuantity:
           ParseUtils.parseInt(map['remainingRefundQuantity']) ?? 0,
+      refundWindowStartsAt: ParseUtils.parseDateTime(
+        map['refundWindowStartsAt'],
+      ),
+      originalRefundDeadlineAt: ParseUtils.parseDateTime(
+        map['originalRefundDeadlineAt'],
+      ),
+      refundDeadlineAt: ParseUtils.parseDateTime(map['refundDeadlineAt']),
+      refundWindowStatus: ParseUtils.parseString(map['refundWindowStatus']),
+      refundWindowSource: ParseUtils.parseString(map['refundWindowSource']),
+      refundBlockReason: ParseUtils.parseString(map['refundBlockReason']),
+      refundServerTime: ParseUtils.parseDateTime(map['refundServerTime']),
+      unreservedRefundQuantity: ParseUtils.parseInt(
+        map['unreservedRefundQuantity'],
+      ),
       refundItems: map['refundItems'] is List
           ? List.generate(
               map['refundItems'].length,
@@ -308,6 +341,16 @@ class OrderItem {
     DateTime? updatedAt,
     Product? product,
     bool? canRefund,
+    bool? refundReceiptChecksBypassed,
+    int? remainingRefundQuantity,
+    DateTime? refundWindowStartsAt,
+    DateTime? originalRefundDeadlineAt,
+    DateTime? refundDeadlineAt,
+    String? refundWindowStatus,
+    String? refundWindowSource,
+    String? refundBlockReason,
+    DateTime? refundServerTime,
+    int? unreservedRefundQuantity,
     List<RefundItem>? refundItems,
   }) {
     return OrderItem(
@@ -329,6 +372,20 @@ class OrderItem {
       updatedAt: updatedAt ?? this.updatedAt,
       product: product ?? this.product,
       canRefund: canRefund ?? this.canRefund,
+      refundReceiptChecksBypassed:
+          refundReceiptChecksBypassed ?? this.refundReceiptChecksBypassed,
+      remainingRefundQuantity:
+          remainingRefundQuantity ?? this.remainingRefundQuantity,
+      refundWindowStartsAt: refundWindowStartsAt ?? this.refundWindowStartsAt,
+      originalRefundDeadlineAt:
+          originalRefundDeadlineAt ?? this.originalRefundDeadlineAt,
+      refundDeadlineAt: refundDeadlineAt ?? this.refundDeadlineAt,
+      refundWindowStatus: refundWindowStatus ?? this.refundWindowStatus,
+      refundWindowSource: refundWindowSource ?? this.refundWindowSource,
+      refundBlockReason: refundBlockReason ?? this.refundBlockReason,
+      refundServerTime: refundServerTime ?? this.refundServerTime,
+      unreservedRefundQuantity:
+          unreservedRefundQuantity ?? this.unreservedRefundQuantity,
       refundItems: refundItems ?? this.refundItems,
     );
   }
@@ -380,6 +437,13 @@ class RefundItem {
   final double? returnableCoins;
   final Map<String, dynamic>? metadata;
   final Map<String, dynamic>? summary;
+  final String? clientRequestId;
+  final Map<String, dynamic>? originalRequest;
+  final DateTime? rejectedAt;
+  final String? rejectedBy;
+  final String? rejectionReason;
+  final DateTime? rejectionDeadlineBefore;
+  final DateTime? rejectionDeadlineAfter;
   final List<RefundLog> logs;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -400,6 +464,13 @@ class RefundItem {
     this.returnableCoins,
     this.metadata,
     this.summary,
+    this.clientRequestId,
+    this.originalRequest,
+    this.rejectedAt,
+    this.rejectedBy,
+    this.rejectionReason,
+    this.rejectionDeadlineBefore,
+    this.rejectionDeadlineAfter,
     this.logs = const [],
     required this.createdAt,
     required this.updatedAt,
@@ -423,6 +494,19 @@ class RefundItem {
       returnableCoins: ParseUtils.parseDouble(map['returnableCoins']),
       metadata: map['metadata'] is Map ? map['metadata'] : null,
       summary: map['summary'] is Map ? map['summary'] : null,
+      clientRequestId: ParseUtils.parseString(map['clientRequestId']),
+      originalRequest: map['originalRequest'] is Map
+          ? Map<String, dynamic>.from(map['originalRequest'])
+          : null,
+      rejectedAt: ParseUtils.parseDateTime(map['rejectedAt']),
+      rejectedBy: ParseUtils.parseString(map['rejectedBy']),
+      rejectionReason: ParseUtils.parseString(map['rejectionReason']),
+      rejectionDeadlineBefore: ParseUtils.parseDateTime(
+        map['rejectionDeadlineBefore'],
+      ),
+      rejectionDeadlineAfter: ParseUtils.parseDateTime(
+        map['rejectionDeadlineAfter'],
+      ),
       logs: map['logs'] is List
           ? List.generate(
               map['logs'].length,

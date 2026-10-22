@@ -1,3 +1,5 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_ad_ecommerce/provider/refund_request_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_ad_ecommerce/constants/colors.dart';
 import 'package:flutter_ad_ecommerce/models/api_enums.dart';
@@ -5,7 +7,7 @@ import 'package:flutter_ad_ecommerce/models/order.dart';
 import 'package:flutter_ad_ecommerce/shared/widgets/product_thumbnail.dart';
 import 'package:flutter_ad_ecommerce/utils/number_formatter_extension.dart';
 
-class OrderItemList extends StatelessWidget {
+class OrderItemList extends ConsumerWidget {
   final List<OrderItem> items;
   final ValueChanged<OrderItem> onContactSupport;
   final ValueChanged<OrderItem> onCreateRefund;
@@ -22,13 +24,15 @@ class OrderItemList extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return ListView.separated(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       itemCount: items.length,
       itemBuilder: (context, index) {
         final item = items[index];
+        final pending =
+            ref.watch(pendingRefundProvider(item.id)).valueOrNull == true;
         final productImages = item.product?.images ?? const <String>[];
         final variantImage = item.variantImage?.trim();
         final imageUrl = variantImage != null && variantImage.isNotEmpty
@@ -85,13 +89,19 @@ class OrderItemList extends StatelessWidget {
                       ),
                     ],
                     const SizedBox(height: 2),
-                    Row(
+                    Wrap(
                       children: [
                         if (item.product != null)
                           _ActionLink(
-                            label: '聯絡客服',
+                            label: '聯絡賣家',
                             color: AppColors.infoColor,
                             onTap: () => onContactSupport(item),
+                          ),
+                        if (pending)
+                          _ActionLink(
+                            label: '確認申請',
+                            color: AppColors.goldColor,
+                            onTap: () => onCreateRefund(item),
                           ),
                         if (item.refundItems.isNotEmpty)
                           _ActionLink(
@@ -100,7 +110,8 @@ class OrderItemList extends StatelessWidget {
                             leftPadding: 4,
                             onTap: () => onShowRefundDetails(item),
                           )
-                        else if (item.canRefund &&
+                        else if (!pending &&
+                            item.canRefund &&
                             item.remainingRefundQuantity > 0)
                           _ActionLink(
                             label: '申請退貨',

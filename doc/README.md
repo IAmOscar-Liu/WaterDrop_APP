@@ -5,6 +5,10 @@ Source file paths and commands in these documents are relative to the project ro
 
 ## API Contracts and Backend Handoffs
 
+- [Buyer refunds: eligibility, deadlines and retry contract](FLUTTER_REFUND_STRATEGY_API_CHANGES.md)
+
+- [App icon badge: confirmed backend contract](FLUTTER_APP_BADGE_API_CHANGES.md)
+
 - [Message Center SSE: confirmed backend sync contract](FLUTTER_NOTIFICATION_SSE_API_CHANGES.md)
 - [Chatroom SSE: confirmed backend sync contract](FLUTTER_CHATROOM_SSE_API_CHANGES.md)
 - [Flutter pagination sizes and exceptions](PAGINATION.md)
@@ -15,6 +19,8 @@ Source file paths and commands in these documents are relative to the project ro
 - [Order history date filter: confirmed backend handoff](FLUTTER_ORDER_DATE_FILTER_API_CHANGES.md)
 
 ## Implementation Plans
+
+- [App icon badge: count rules, backend proposal and Flutter plan](FLUTTER_APP_BADGE_API_PLAN.md)
 
 - [Message Center SSE: backend API proposal and Flutter migration plan](FLUTTER_NOTIFICATION_SSE_API_PLAN.md)
 - [User-scoped chatroom SSE: backend API proposal and Flutter migration plan](FLUTTER_CHATROOM_SSE_API_PLAN.md)

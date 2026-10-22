@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter_ad_ecommerce/provider/refund_request_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_ad_ecommerce/constants/colors.dart';
@@ -38,7 +39,8 @@ class SingleOrderDetails extends ConsumerStatefulWidget {
   ConsumerState<SingleOrderDetails> createState() => _SingleOrderDetailsState();
 }
 
-class _SingleOrderDetailsState extends ConsumerState<SingleOrderDetails> {
+class _SingleOrderDetailsState extends ConsumerState<SingleOrderDetails>
+    with WidgetsBindingObserver {
   Order? _order;
   bool _isLoading = true;
   dynamic _error;
@@ -46,32 +48,39 @@ class _SingleOrderDetailsState extends ConsumerState<SingleOrderDetails> {
   @override
   void initState() {
     super.initState();
-    if (widget.extra is Map && widget.extra['order'] is Order) {
-      setState(() {
-        _isLoading = false;
-        _order = widget.extra['order'];
+    WidgetsBinding.instance.addObserver(this);
+    final extra = widget.extra;
+    final orderId = extra is Map
+        ? (extra['order'] is Order
+              ? (extra['order'] as Order).id
+              : extra['orderId'])
+        : null;
+    if (orderId is! String) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) context.pop();
       });
-    } else if (widget.extra is Map && widget.extra['orderId'] is String) {
-      _loadSingleOrder(widget.extra['orderId']).then((value) {
-        if (value.isSuccess) {
-          setState(() {
-            _isLoading = false;
-            _order = value.data!;
-          });
-        } else {
-          setState(() {
-            _isLoading = false;
-            _error =
-                value.error ??
-                "Failed to load order ${widget.extra['orderId']}";
-          });
-        }
-      });
-    } else {
-      // If data is missing, pop immediately
-      WidgetsBinding.instance.addPostFrameCallback((_) => context.pop());
       return;
     }
+    // List snapshots do not carry authoritative refund eligibility.
+    _loadSingleOrder(orderId).then((result) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _order = result.data;
+        _error = result.error;
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _refreshOrder();
   }
 
   Future<Result<Order>> _loadSingleOrder(String orderId) async {
@@ -212,26 +221,76 @@ class _SingleOrderDetailsState extends ConsumerState<SingleOrderDetails> {
         subType;
   }
 
-  Future<bool> _showCreateRefundDialog(OrderItem item) async {
-    final created = await showCreateRefundDialog(context, item: item);
-
-    if (created) {
-      await _refreshOrder();
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('已送出退貨申請')));
-      }
+  Future<OrderItem?> _freshRefundItem(OrderItem item) async {
+    final result = await _loadSingleOrder(item.orderId);
+    if (!mounted) return null;
+    if (result.isFailure) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('無法更新退貨資格，請稍後再試')));
+      return null;
     }
+    setState(() {
+      _order = result.data!;
+    });
+    for (final fresh in _order!.items) {
+      if (fresh.id == item.id) return fresh;
+    }
+    return null;
+  }
 
+  Future<bool> _showCreateRefundDialog(OrderItem item) async {
+    final fresh = await _freshRefundItem(item);
+    if (!mounted || fresh == null) return false;
+    final pending = await ref.read(refundRequestProvider).pending(item.id);
+    if (!mounted) return false;
+    if (pending == null &&
+        (!fresh.canRefund || fresh.remainingRefundQuantity <= 0)) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('目前無法新增退貨申請，請查看最新退貨資格')));
+      return false;
+    }
+    final created = await showCreateRefundDialog(context, item: fresh);
+    if (!mounted) return created;
+    ref.invalidate(pendingRefundProvider(item.id));
+    if (created) {
+      await showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) => AlertDialog(
+          backgroundColor: const Color(0xFF262A33),
+          title: const Text(
+            '退貨申請已確認',
+            style: TextStyle(color: AppColors.primaryTextColor),
+          ),
+          content: const Text(
+            '請至「聊天室」追蹤退貨進度，並與賣家確認後續處理事宜。',
+            style: TextStyle(color: AppColors.primaryTextColor),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('確定', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        ),
+      );
+    }
+    if (mounted) await _refreshOrder();
     return created;
   }
 
-  void _showRefundItemsBottomSheet(OrderItem item) {
+  void _showRefundItemsBottomSheet(OrderItem item) async {
+    final fresh = await _freshRefundItem(item);
+    if (!mounted || fresh == null) return;
     showRefundItemsBottomSheet(
       context,
-      item: item,
+      item: fresh,
       onCreateRefund: _showCreateRefundDialog,
+      onOpenChat: fresh.product?.sellerId.isNotEmpty == true
+          ? _contactSupport
+          : null,
     );
   }
 
@@ -245,12 +304,12 @@ class _SingleOrderDetailsState extends ConsumerState<SingleOrderDetails> {
     );
   }
 
-  void _contactSupport(OrderItem item) {
+  void _contactSupport(OrderItem item) async {
     final product = item.product;
     if (product == null) return;
 
     final userId = ref.read(accountNotifierProvider).id;
-    context.push(
+    await context.push(
       Routes.chatroomPage,
       extra: {
         "title": product.name,
@@ -264,6 +323,7 @@ class _SingleOrderDetailsState extends ConsumerState<SingleOrderDetails> {
         "orderId": _order!.id,
       },
     );
+    if (mounted) await _refreshOrder();
   }
 
   Widget _buildProductList(List<OrderItem> items) {
@@ -493,7 +553,7 @@ class _SingleOrderDetailsState extends ConsumerState<SingleOrderDetails> {
       } else {
         itemSections.add(
           SectionPanel(
-            title: "運單未建立-請聯絡客服",
+            title: "運單未建立-請聯絡賣家",
             titleIcon: const Icon(Icons.error, color: Colors.red),
             titleColor: Colors.red,
             child: _buildProductList(unassignedItems),

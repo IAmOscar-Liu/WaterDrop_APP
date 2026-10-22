@@ -37,6 +37,7 @@ class LocalNotificationService {
     "Channel name",
     description: "Android push notification channel",
     importance: Importance.max,
+    showBadge: true,
   );
 
   // Flag to track intialization status
@@ -98,6 +99,12 @@ class LocalNotificationService {
     }
   }
 
+  Future<void> clearSessionNotifications() async {
+    if (_isFlutterLocalNotificationInitialized) {
+      await _flutterLocalNotificationsPlugin.cancelAll();
+    }
+  }
+
   // Show a local notification with the given title, body, and payload
   Future<void> showNotification(
     String? title,
@@ -114,7 +121,8 @@ class LocalNotificationService {
     );
 
     // iOS-specific notification details
-    DarwinNotificationDetails iOSDetails = DarwinNotificationDetails();
+    // The badge controller owns foreground counts. APNs owns background counts.
+    const iOSDetails = DarwinNotificationDetails(presentBadge: false);
 
     // Combine platform-specific details
     final notificationDetails = NotificationDetails(

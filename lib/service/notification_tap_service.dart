@@ -6,5 +6,6 @@ import 'package:flutter_ad_ecommerce/utils/events.dart';
 final pendingNotificationTap = ValueNotifier<NotificationTappedEvent?>(null);
 
 void queueNotificationTap(NotificationTappedEvent event) {
+  if (event.data?['command'] == 'badge_sync') return;
   if (event.data != null) pendingNotificationTap.value = event;
 }

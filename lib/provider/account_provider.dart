@@ -14,6 +14,7 @@ part 'account_provider.g.dart';
 
 @Riverpod(keepAlive: true)
 class AccountNotifier extends _$AccountNotifier {
+  int _sessionGeneration = 0;
   @override
   AccountInfo build() {
     // Return initial or loaded data here.
@@ -22,10 +23,12 @@ class AccountNotifier extends _$AccountNotifier {
   }
 
   void reset() {
+    _sessionGeneration++;
     state = AccountInfo.zero();
   }
 
   Future<Result> loadAccountInfo(User user, {String? timezone}) async {
+    final generation = ++_sessionGeneration;
     try {
       final response = await ref
           .read(dioProvider)
@@ -47,6 +50,9 @@ class AccountNotifier extends _$AccountNotifier {
         throw Exception("Failed to get response data");
       }
 
+      if (generation != _sessionGeneration) {
+        return Result.failure('Account changed');
+      }
       state = AccountInfo.fromApiResponseMap(data['data']['user']);
       ref
           .read(systemNotifierProvider.notifier)
@@ -63,6 +69,7 @@ class AccountNotifier extends _$AccountNotifier {
   }
 
   Future<Result> refreshAccountInfo() async {
+    final generation = _sessionGeneration;
     try {
       final response = await ref.read(dioProvider).get("/api/auth/profile");
       final data = response.data;
@@ -70,6 +77,9 @@ class AccountNotifier extends _$AccountNotifier {
         throw Exception("Failed to get response data");
       }
 
+      if (generation != _sessionGeneration) {
+        return Result.failure('Account changed');
+      }
       state = AccountInfo.fromApiResponseMap(data['data']);
 
       return Result.success();

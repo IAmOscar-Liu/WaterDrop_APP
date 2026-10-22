@@ -36,6 +36,7 @@ class RefundStatusBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final style = switch (status) {
+      RefundStatus.rejected => (text: "已拒絕", color: Colors.red),
       RefundStatus.pending => (text: "待處理", color: Colors.orange),
       RefundStatus.processing => (text: "處理中", color: AppColors.infoColor),
       RefundStatus.completed => (text: "已完成", color: AppColors.greenColor),

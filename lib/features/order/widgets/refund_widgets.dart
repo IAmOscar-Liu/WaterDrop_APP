@@ -2,15 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_ad_ecommerce/constants/colors.dart';
 import 'package:flutter_ad_ecommerce/features/order/widgets/order_status_badge.dart';
+import 'package:flutter_ad_ecommerce/models/api_enums.dart';
 import 'package:flutter_ad_ecommerce/models/order.dart';
 import 'package:flutter_ad_ecommerce/provider/order_provider.dart';
+import 'package:flutter_ad_ecommerce/provider/refund_request_provider.dart';
+import 'package:flutter_ad_ecommerce/features/order/widgets/refund_eligibility_info.dart';
 import 'package:flutter_ad_ecommerce/shared/layouts/draggable_details_sheet.dart';
 import 'package:flutter_ad_ecommerce/shared/widgets/detail_rows.dart';
 import 'package:flutter_ad_ecommerce/utils/coin_utils.dart';
 import 'package:flutter_ad_ecommerce/utils/formatter.dart';
 import 'package:flutter_ad_ecommerce/utils/number_formatter_extension.dart';
-import 'package:flutter_ad_ecommerce/utils/parse_utils.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 
 Future<bool> showCreateRefundDialog(
   BuildContext context, {
@@ -28,9 +31,12 @@ void showRefundItemsBottomSheet(
   BuildContext context, {
   required OrderItem item,
   required Future<bool> Function(OrderItem item) onCreateRefund,
+  ValueChanged<OrderItem>? onOpenChat,
+  bool hasPendingRequest = false,
 }) {
   final refundItems = item.refundItems;
-  final canCreateRefund = item.canRefund && item.remainingRefundQuantity > 0;
+  final canCreateRefund =
+      hasPendingRequest || (item.canRefund && item.remainingRefundQuantity > 0);
 
   showDraggableDetailsSheet<void>(
     context: context,
@@ -52,10 +58,8 @@ void showRefundItemsBottomSheet(
             if (canCreateRefund)
               FilledButton(
                 onPressed: () async {
-                  final created = await onCreateRefund(item);
-                  if (created && context.mounted) {
-                    Navigator.of(context).pop();
-                  }
+                  Navigator.of(context).pop();
+                  await onCreateRefund(item);
                 },
                 style: FilledButton.styleFrom(
                   backgroundColor: AppColors.primaryButtonColor,
@@ -69,26 +73,34 @@ void showRefundItemsBottomSheet(
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                child: const Row(
+                child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(Icons.add, size: 16),
                     SizedBox(width: 2),
-                    Text('新增'),
+                    Text(hasPendingRequest ? '確認申請' : '新增'),
                   ],
                 ),
               ),
           ],
         ),
         const SizedBox(height: 8),
-        const _RefundConversionNotice(),
+        RefundEligibilityInfo(item: item, includeConversionNote: true),
       ],
     ),
     bodyBuilder: (context, scrollController) => ListView.builder(
       controller: scrollController,
       itemCount: refundItems.length,
       itemBuilder: (context, index) {
-        return _RefundItemCard(refundItem: refundItems[index]);
+        return _RefundItemCard(
+          refundItem: refundItems[index],
+          onOpenChat: onOpenChat == null
+              ? null
+              : () {
+                  Navigator.of(context).pop();
+                  onOpenChat(item);
+                },
+        );
       },
     ),
   );
@@ -96,8 +108,9 @@ void showRefundItemsBottomSheet(
 
 class _RefundItemCard extends StatefulWidget {
   final RefundItem refundItem;
+  final VoidCallback? onOpenChat;
 
-  const _RefundItemCard({required this.refundItem});
+  const _RefundItemCard({required this.refundItem, this.onOpenChat});
 
   @override
   State<_RefundItemCard> createState() => _RefundItemCardState();
@@ -222,6 +235,7 @@ class _RefundItemCardState extends State<_RefundItemCard> {
 
   Widget _buildLogHistory() {
     final logs = refundItem.logs;
+    final original = refundItem.originalRequest;
 
     return Container(
       width: double.infinity,
@@ -233,7 +247,25 @@ class _RefundItemCardState extends State<_RefundItemCard> {
         border: Border.all(color: AppColors.borderColor),
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (original != null) ...[
+            const Text(
+              '原始申請',
+              style: TextStyle(
+                color: AppColors.primaryTextColor,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 4),
+            DetailRow(label: '原申請數量:', value: '${original['quantity'] ?? ''}'),
+            if (original['reason'] != null)
+              DetailRow(label: '原退貨原因:', value: '${original['reason']}'),
+            if (original['note'] != null)
+              DetailRow(label: '原備註:', value: '${original['note']}'),
+            if (logs.isNotEmpty) const Divider(color: AppColors.dividerColor),
+            const SizedBox(height: 10),
+          ],
           for (var index = 0; index < logs.length; index++)
             _buildLogRow(logs[index], index == logs.length - 1),
         ],
@@ -245,7 +277,8 @@ class _RefundItemCardState extends State<_RefundItemCard> {
   Widget build(BuildContext context) {
     final reason = refundItem.reason?.trim();
     final note = refundItem.note?.trim();
-    final hasLogs = refundItem.logs.isNotEmpty;
+    final hasHistory =
+        refundItem.logs.isNotEmpty || refundItem.originalRequest != null;
 
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 8.0),
@@ -283,6 +316,20 @@ class _RefundItemCardState extends State<_RefundItemCard> {
               ],
             ),
           ),
+          if (refundItem.rejectionReason?.trim().isNotEmpty == true)
+            DetailRow(label: '拒絕原因:', value: refundItem.rejectionReason!),
+          if (refundItem.rejectedAt != null)
+            DetailRow(
+              label: '拒絕時間:',
+              value: Formatter.formatDateTime(refundItem.rejectedAt!.toLocal()),
+            ),
+          if (refundItem.rejectionDeadlineAfter != null)
+            DetailRow(
+              label: '重新申請截止時間:',
+              value: DateFormat(
+                'yyyy-MM-dd HH:mm:ss',
+              ).format(refundItem.rejectionDeadlineAfter!.toLocal()),
+            ),
           DetailRow(label: '退貨數量:', value: refundItem.quantity.toString()),
           DetailRow(
             label: '現金退款:',
@@ -296,16 +343,66 @@ class _RefundItemCardState extends State<_RefundItemCard> {
             label: '最後更新時間:',
             value: Formatter.formatDateTime(refundItem.updatedAt),
           ),
-          if (hasLogs) ...[
+          if (refundItem.status == RefundStatus.pending ||
+              refundItem.status == RefundStatus.processing)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(
+                    Icons.info_outline,
+                    color: AppColors.goldColor,
+                    size: 18,
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text.rich(
+                      TextSpan(
+                        children: [
+                          const TextSpan(text: '您可以前往'),
+                          if (widget.onOpenChat != null)
+                            WidgetSpan(
+                              alignment: PlaceholderAlignment.baseline,
+                              baseline: TextBaseline.alphabetic,
+                              child: Semantics(
+                                link: true,
+                                child: InkWell(
+                                  onTap: widget.onOpenChat,
+                                  child: const Text(
+                                    '聊天室',
+                                    style: TextStyle(
+                                      color: AppColors.goldColor,
+                                      fontSize: 13,
+                                      decoration: TextDecoration.underline,
+                                      decorationColor: AppColors.goldColor,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            )
+                          else
+                            const TextSpan(text: '聊天室'),
+                          const TextSpan(text: '與賣家討論退貨事宜。'),
+                        ],
+                      ),
+                      style: const TextStyle(
+                        color: AppColors.goldColor,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          if (hasHistory) ...[
             const SizedBox(height: 4),
             Align(
               alignment: Alignment.centerRight,
               child: TextButton.icon(
-                onPressed: () {
-                  setState(() {
-                    _showLogs = !_showLogs;
-                  });
-                },
+                onPressed: () => setState(() {
+                  _showLogs = !_showLogs;
+                }),
                 style: TextButton.styleFrom(
                   foregroundColor: AppColors.infoColor,
                   visualDensity: VisualDensity.compact,
@@ -348,21 +445,50 @@ class _CreateRefundDialogState extends ConsumerState<_CreateRefundDialog> {
   late final TextEditingController _reasonController;
   late final TextEditingController _noteController;
 
+  late OrderItem _item;
+  bool _isLoading = true;
+  bool _retryOriginal = false;
   bool _isSubmitting = false;
   String? _errorText;
 
   @override
   void initState() {
     super.initState();
+    _item = widget.item;
     _quantityController = TextEditingController(text: '1');
     _reasonController = TextEditingController();
     _noteController = TextEditingController();
     _quantityController.addListener(_handleFormChanged);
     _reasonController.addListener(_handleFormChanged);
+    _noteController.addListener(_handleFormChanged);
+    _restorePending();
+  }
+
+  Future<void> _restorePending() async {
+    try {
+      final pending = await ref.read(refundRequestProvider).pending(_item.id);
+      if (!mounted) return;
+      if (pending != null) {
+        _quantityController.text = '${pending['quantity']}';
+        _reasonController.text = pending['reason'] as String? ?? '';
+        _noteController.text = pending['note'] as String? ?? '';
+      }
+      setState(() {
+        _retryOriginal = pending != null;
+        _isLoading = false;
+      });
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _errorText = '無法讀取申請記錄，請稍後再試';
+        });
+      }
+    }
   }
 
   @override
   void dispose() {
+    _noteController.removeListener(_handleFormChanged);
     _quantityController.removeListener(_handleFormChanged);
     _reasonController.removeListener(_handleFormChanged);
     _quantityController.dispose();
@@ -378,12 +504,14 @@ class _CreateRefundDialogState extends ConsumerState<_CreateRefundDialog> {
   }
 
   bool get _isFormValid {
-    final quantity = ParseUtils.parseInt(_quantityController.text.trim()) ?? 0;
-    final reason = _reasonController.text.trim();
-    return quantity >= 1 &&
-        quantity <= widget.item.remainingRefundQuantity &&
-        reason.isNotEmpty &&
-        widget.item.product?.sellerId.isNotEmpty == true;
+    if (_isLoading) return false;
+    if (_retryOriginal) return true;
+    final quantity = int.tryParse(_quantityController.text.trim()) ?? 0;
+    return _item.canRefund &&
+        quantity >= 1 &&
+        quantity <= _item.remainingRefundQuantity &&
+        _reasonController.text.trim().length <= 2000 &&
+        _noteController.text.trim().length <= 5000;
   }
 
   InputDecoration _inputDecoration({
@@ -413,194 +541,166 @@ class _CreateRefundDialogState extends ConsumerState<_CreateRefundDialog> {
   }
 
   Future<void> _submit() async {
-    final item = widget.item;
-    final maxQuantity = item.remainingRefundQuantity;
-    final quantity = ParseUtils.parseInt(_quantityController.text.trim()) ?? 0;
-    final reason = _reasonController.text.trim();
-    final note = _noteController.text.trim();
-    final accountId = item.product?.sellerId;
-
-    if (quantity < 1 || quantity > maxQuantity) {
-      setState(() {
-        _errorText = '退貨數量需介於 1 到 $maxQuantity';
-      });
-      return;
-    }
-    if (reason.isEmpty) {
-      setState(() {
-        _errorText = '請填寫退貨原因';
-      });
-      return;
-    }
-    if (accountId == null || accountId.isEmpty) {
-      setState(() {
-        _errorText = '找不到賣家資訊，無法申請退貨';
-      });
-      return;
-    }
-
+    if (_isSubmitting || !_isFormValid) return;
     setState(() {
       _isSubmitting = true;
       _errorText = null;
     });
-
     final result = await ref
-        .read(orderNotifierProvider.notifier)
-        .createRefund(
-          orderItemId: item.id,
-          accountId: accountId,
-          quantity: quantity,
-          reason: reason,
-          note: note.isEmpty ? null : note,
+        .read(refundRequestProvider)
+        .submit(
+          itemId: _item.id,
+          quantity: int.tryParse(_quantityController.text.trim()) ?? 1,
+          reason: _reasonController.text,
+          note: _noteController.text,
         );
-
     if (!mounted) return;
-
-    if (result.isFailure) {
-      setState(() {
-        _isSubmitting = false;
-        _errorText = result.error ?? '申請退貨失敗';
-      });
+    ref.invalidate(pendingRefundProvider(_item.id));
+    if (result.isSuccess) {
+      Navigator.of(context).pop(true);
       return;
     }
-
-    Navigator.of(context).pop(true);
+    // Refresh eligibility even for business failures. A timeout keeps the
+    // original body locked and can be retried regardless of current eligibility.
+    final refreshed = await ref
+        .read(orderNotifierProvider.notifier)
+        .getOrder(orderId: _item.orderId);
+    if (!mounted) return;
+    setState(() {
+      if (refreshed.isSuccess) {
+        for (final item in refreshed.data!.items) {
+          if (item.id == _item.id) _item = item;
+        }
+      }
+      _isSubmitting = false;
+      _retryOriginal = result.uncertain;
+      if (refreshed.isFailure && !result.uncertain) _isLoading = true;
+      _errorText = result.error;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    final item = widget.item;
+    final item = _item;
     final maxQuantity = item.remainingRefundQuantity;
 
-    return GestureDetector(
-      behavior: HitTestBehavior.translucent,
-      onTap: () => FocusScope.of(context).unfocus(),
-      child: AlertDialog(
-        backgroundColor: const Color(0xFF262A33),
-        title: const Text(
-          '申請退貨',
-          style: TextStyle(color: AppColors.primaryTextColor),
-        ),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                item.productNameAtSale,
-                style: const TextStyle(
-                  color: AppColors.primaryTextColor,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              if (item.variantDisplayName.isNotEmpty) ...[
-                const SizedBox(height: 4),
+    return PopScope(
+      canPop: !_isSubmitting,
+      child: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onTap: () => FocusScope.of(context).unfocus(),
+        child: AlertDialog(
+          backgroundColor: const Color(0xFF262A33),
+          title: const Text(
+            '申請退貨',
+            style: TextStyle(color: AppColors.primaryTextColor),
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
                 Text(
-                  item.variantDisplayName,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                  item.productNameAtSale,
                   style: const TextStyle(
-                    color: AppColors.secondaryTextColor,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
+                    color: AppColors.primaryTextColor,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
-              ],
-              const SizedBox(height: 12),
-              TextField(
-                controller: _quantityController,
-                enabled: !_isSubmitting,
-                keyboardType: TextInputType.number,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                onTapOutside: (_) => FocusScope.of(context).unfocus(),
-                style: const TextStyle(color: AppColors.primaryTextColor),
-                decoration: _inputDecoration(
-                  labelText: '退貨數量',
-                  helperText: '最多可退 $maxQuantity 件',
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _reasonController,
-                enabled: !_isSubmitting,
-                onTapOutside: (_) => FocusScope.of(context).unfocus(),
-                style: const TextStyle(color: AppColors.primaryTextColor),
-                decoration: _inputDecoration(labelText: '退貨原因'),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _noteController,
-                enabled: !_isSubmitting,
-                maxLines: 3,
-                onTapOutside: (_) => FocusScope.of(context).unfocus(),
-                style: const TextStyle(color: AppColors.primaryTextColor),
-                decoration: _inputDecoration(
-                  labelText: '備註（選填）',
-                  alignLabelWithHint: true,
-                ),
-              ),
-              if (_errorText != null) ...[
+                if (item.variantDisplayName.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    item.variantDisplayName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppColors.secondaryTextColor,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 12),
-                Text(
-                  _errorText!,
-                  style: const TextStyle(color: AppColors.dangerButtonColor),
+                if (_retryOriginal)
+                  const Text(
+                    '上次申請結果尚待確認，重試會沿用原申請內容。',
+                    style: TextStyle(color: AppColors.secondaryTextColor),
+                  ),
+                TextField(
+                  controller: _quantityController,
+                  enabled: !_isSubmitting && !_isLoading && !_retryOriginal,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  onTapOutside: (_) => FocusScope.of(context).unfocus(),
+                  style: const TextStyle(color: AppColors.primaryTextColor),
+                  decoration: _inputDecoration(
+                    labelText: '退貨數量',
+                    helperText: '最多可退 $maxQuantity 件',
+                  ),
                 ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _reasonController,
+                  maxLength: 2000,
+                  enabled: !_isSubmitting && !_isLoading && !_retryOriginal,
+                  onTapOutside: (_) => FocusScope.of(context).unfocus(),
+                  style: const TextStyle(color: AppColors.primaryTextColor),
+                  decoration: _inputDecoration(labelText: '退貨原因（選填）'),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _noteController,
+                  maxLength: 5000,
+                  enabled: !_isSubmitting && !_isLoading && !_retryOriginal,
+                  maxLines: 3,
+                  onTapOutside: (_) => FocusScope.of(context).unfocus(),
+                  style: const TextStyle(color: AppColors.primaryTextColor),
+                  decoration: _inputDecoration(
+                    labelText: '備註（選填）',
+                    alignLabelWithHint: true,
+                  ),
+                ),
+                if (_errorText != null) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    _errorText!,
+                    style: const TextStyle(color: AppColors.dangerButtonColor),
+                  ),
+                ],
+                const SizedBox(height: 12),
+                RefundEligibilityInfo(item: item, includeConversionNote: true),
               ],
-              const SizedBox(height: 12),
-              const _RefundConversionNotice(),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: _isSubmitting
-                ? null
-                : () => Navigator.of(context).pop(false),
-            child: const Text('取消', style: TextStyle(color: Colors.white)),
-          ),
-          ElevatedButton(
-            onPressed: _isSubmitting || !_isFormValid ? null : _submit,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primaryButtonColor,
-              foregroundColor: AppColors.primaryTextColor,
-              disabledBackgroundColor: AppColors.mutedTextColor,
-              disabledForegroundColor: AppColors.secondaryTextColor,
             ),
-            child: _isSubmitting
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Text('送出'),
           ),
-        ],
+          actions: [
+            TextButton(
+              onPressed: _isSubmitting
+                  ? null
+                  : () => Navigator.of(context).pop(false),
+              child: Text(
+                _retryOriginal ? '稍後確認' : '取消',
+                style: const TextStyle(color: Colors.white),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: _isSubmitting || !_isFormValid ? null : _submit,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primaryButtonColor,
+                foregroundColor: AppColors.primaryTextColor,
+                disabledBackgroundColor: AppColors.mutedTextColor,
+                disabledForegroundColor: AppColors.secondaryTextColor,
+              ),
+              child: _isSubmitting
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Text(_retryOriginal ? '重試原申請' : '送出'),
+            ),
+          ],
+        ),
       ),
-    );
-  }
-}
-
-class _RefundConversionNotice extends StatelessWidget {
-  const _RefundConversionNotice();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(Icons.info_outline, color: AppColors.warningColor, size: 16),
-        SizedBox(width: 6),
-        Expanded(
-          child: Text(
-            '退款金額的小數部分將依 NT\$1 = 10 金幣轉換，並合併計入退還金幣。',
-            style: TextStyle(
-              color: AppColors.warningColor,
-              fontSize: 12,
-              height: 1.4,
-            ),
-          ),
-        ),
-      ],
     );
   }
 }

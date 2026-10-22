@@ -6,7 +6,7 @@ part of 'system_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$systemNotifierHash() => r'd17357c89dea627f684f390e21c529608d644f35';
+String _$systemNotifierHash() => r'584aaf752848dfbf4bac101514bdf596797f1bab';
 
 /// See also [SystemNotifier].
 @ProviderFor(SystemNotifier)

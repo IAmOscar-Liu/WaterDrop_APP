@@ -1,5 +1,8 @@
 import 'package:flutter_ad_ecommerce/features/message/widgets/notification_sync_host.dart';
 import 'dart:async';
+import 'package:flutter_ad_ecommerce/features/app_badge/app_badge_host.dart';
+import 'package:flutter_ad_ecommerce/provider/app_badge_provider.dart';
+import 'package:flutter_ad_ecommerce/provider/session_logout_provider.dart';
 import 'dart:convert';
 import 'dart:developer';
 import 'dart:math' show min;
@@ -24,7 +27,6 @@ import 'package:flutter_ad_ecommerce/router/router.dart';
 import 'package:flutter_ad_ecommerce/service/firebase_messaging_service.dart';
 import 'package:flutter_ad_ecommerce/service/local_notification_service.dart';
 import 'package:flutter_ad_ecommerce/utils/api_call_manager.dart';
-import 'package:flutter_ad_ecommerce/utils/device_info.dart';
 import 'package:flutter_ad_ecommerce/utils/events.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -78,6 +80,8 @@ class _MyAppState extends ConsumerState<MyApp> {
   late final Stream<User?> _authStateChanges;
   late StreamSubscription _tokenChangeSubscription;
   StreamSubscription<RemoteMessage>? _foregroundMessages;
+  StreamSubscription<User?>? _authSubscription;
+  int _authGeneration = 0;
 
   @override
   void initState() {
@@ -88,18 +92,24 @@ class _MyAppState extends ConsumerState<MyApp> {
     });
 
     _authStateChanges = FirebaseAuth.instance.authStateChanges();
-    _authStateChanges.listen((user) async {
+    _authSubscription = _authStateChanges.listen((user) async {
+      final generation = ++_authGeneration;
       log("authStateChanges");
       final accountNotifier = ref.read(accountNotifierProvider.notifier);
       if (user != null) {
-        log(user.toString());
+        if (ref.read(accountNotifierProvider).oauthId.isNotEmpty &&
+            ref.read(accountNotifierProvider).oauthId != user.uid) {
+          ref.read(appBadgeProvider).configureSession(null, foreground: false);
+        }
         // use user.uid
         final String currentTimeZone = await FlutterTimezone.getLocalTimezone();
         log("current timezone: $currentTimeZone");
+        if (!mounted || generation != _authGeneration) return;
         final result = await accountNotifier.loadAccountInfo(
           user,
           timezone: currentTimeZone,
         );
+        if (!mounted || generation != _authGeneration) return;
         if (result.isSuccess) {
           setState(() {
             isLoggedIn = true;
@@ -114,12 +124,13 @@ class _MyAppState extends ConsumerState<MyApp> {
           });
         }
       } else {
+        ref.read(appBadgeProvider).configureSession(null, foreground: false);
         await _foregroundMessages?.cancel();
+        if (!mounted || generation != _authGeneration) return;
         _foregroundMessages = null;
         accountNotifier.reset();
         ref.invalidate(productNotifierProvider);
-        String? deviceId = await getDeviceId();
-        ref.read(systemNotifierProvider.notifier).clearFcmToken(deviceId);
+        // Explicit logout removes registration before Firebase credentials end.
         setState(() {
           isLoggedIn = false;
           isLoading = false;
@@ -130,17 +141,18 @@ class _MyAppState extends ConsumerState<MyApp> {
     _tokenChangeSubscription = eventBus.on<TokenChangeEvent>().listen((
       event,
     ) async {
-      if (event.token != null) {
-        String? deviceId = await getDeviceId();
-        ref
-            .read(systemNotifierProvider.notifier)
-            .sendFcmToken(event.token!, deviceId: deviceId);
+      if (event.token != null &&
+          isLoggedIn &&
+          FirebaseAuth.instance.currentUser != null) {
+        await ref.read(deviceRegistrationProvider).register(event.token!);
       }
     });
   }
 
   @override
   void dispose() {
+    _authGeneration++;
+    _authSubscription?.cancel();
     super.dispose();
     _tokenChangeSubscription.cancel();
     _foregroundMessages?.cancel();
@@ -149,11 +161,13 @@ class _MyAppState extends ConsumerState<MyApp> {
   Future<void> _handleLoginAftermath() async {
     final loginAccount = ref.read(accountNotifierProvider).id;
     final String? fcmToken = await FirebaseMessaging.instance.getToken();
+    if (!mounted ||
+        !isLoggedIn ||
+        ref.read(accountNotifierProvider).id != loginAccount) {
+      return;
+    }
     if (fcmToken != null) {
-      String? deviceId = await getDeviceId();
-      ref
-          .read(systemNotifierProvider.notifier)
-          .sendFcmToken(fcmToken, deviceId: deviceId);
+      await ref.read(deviceRegistrationProvider).register(fcmToken);
     }
 
     await _foregroundMessages?.cancel();
@@ -163,6 +177,14 @@ class _MyAppState extends ConsumerState<MyApp> {
       return;
     }
     _foregroundMessages = FirebaseMessaging.onMessage.listen((message) {
+      final badge = ref.read(appBadgeProvider);
+      badge.handlePush(message.data);
+      final recipient = message.data['badgeUserId'];
+      if (message.data['command'] == 'badge_sync' ||
+          (recipient != null &&
+              recipient != ref.read(accountNotifierProvider).id)) {
+        return;
+      }
       final notificationData = message.notification;
       if (notificationData != null) {
         final system = ref.read(systemNotifierProvider);
@@ -222,7 +244,11 @@ class _MyAppState extends ConsumerState<MyApp> {
         if (AppConstants.notificationSseEnabled) {
           content = NotificationSyncHost(loggedIn: isLoggedIn, child: content);
         }
-        return content;
+        return AppBadgeHost(
+          loggedIn: isLoggedIn,
+          sessionReady: !isLoading,
+          child: content,
+        );
       },
       routerConfig: getRouter(
         isLoading: isLoading,

@@ -1,5 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_ad_ecommerce/provider/app_badge_provider.dart';
+import 'package:flutter_ad_ecommerce/features/app_badge/app_badge_host.dart';
 import 'package:flutter_ad_ecommerce/models/account_info.dart';
 import 'package:flutter_ad_ecommerce/pages/home_page.dart';
 import 'package:flutter_ad_ecommerce/provider/account_provider.dart';
@@ -12,8 +14,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class _TestAccount extends AccountNotifier {
   @override
-  AccountInfo build() =>
-      AccountInfo.zero().copyWith(termsAcceptedAt: DateTime(2026, 9, 17));
+  AccountInfo build() => AccountInfo.zero().copyWith(
+    id: 'user',
+    oauthId: 'firebase-user',
+    termsAcceptedAt: DateTime(2026, 9, 17),
+  );
 
   @override
   Future<Result> refreshAccountInfo() async => Result.success();
@@ -27,12 +32,37 @@ class _BoxApi {
   bool empty = false;
   bool additionalBox = false;
   int openRequests = 0;
+  int badgeRevision = 0;
+  int? badgeCount;
 
   Dio createDio() {
     final dio = Dio();
     dio.interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) {
+          if (options.path == '/api/app/badge') {
+            final count =
+                badgeCount ??
+                (empty ? 0 : (opened ? 0 : 1) + (additionalBox ? 1 : 0));
+            handler.resolve(
+              Response(
+                requestOptions: options,
+                statusCode: 200,
+                data: {
+                  'success': true,
+                  'data': {
+                    'version': ++badgeRevision,
+                    'total': count,
+                    'claimableUnopenedBoxes': count,
+                    'unreadNotifications': 0,
+                    'unreadChatMessages': 0,
+                    'nextReconcileAt': null,
+                  },
+                },
+              ),
+            );
+            return;
+          }
           final opening = options.path == '/api/treasureBox/open/box';
           if (opening) {
             expectSync(options.method, 'POST');
@@ -84,6 +114,12 @@ class _BoxApi {
   }
 }
 
+Future<void> _settle(WidgetTester tester) async {
+  await tester.pumpAndSettle();
+  await tester.pump(const Duration(milliseconds: 250));
+  await tester.pumpAndSettle();
+}
+
 Future<ProviderContainer> _showHome(WidgetTester tester, Dio dio) async {
   await tester.pumpWidget(
     ProviderScope(
@@ -91,10 +127,16 @@ Future<ProviderContainer> _showHome(WidgetTester tester, Dio dio) async {
         dioProvider.overrideWithValue(dio),
         accountNotifierProvider.overrideWith(_TestAccount.new),
       ],
-      child: const MaterialApp(home: HomePage()),
+      child: const MaterialApp(
+        home: AppBadgeHost(
+          loggedIn: true,
+          sessionReady: true,
+          child: HomePage(),
+        ),
+      ),
     ),
   );
-  await tester.pumpAndSettle();
+  await _settle(tester);
   return ProviderScope.containerOf(tester.element(find.byType(HomePage)));
 }
 
@@ -121,11 +163,28 @@ void main() {
     final refresh = container
         .read(treasureBoxNotifierProvider.notifier)
         .loadTreasureBoxes();
-    await tester.pumpAndSettle();
+    await _settle(tester);
     await refresh;
     expectNoEarnedBoxes();
     await tester.pumpWidget(const SizedBox.shrink());
   });
+
+  testWidgets(
+    'server count overrides stale active boxes and is not capped to slots',
+    (tester) async {
+      final api = _BoxApi()..badgeCount = 0;
+      final dio = api.createDio();
+      addTearDown(() => dio.close());
+      final container = await _showHome(tester, dio);
+      expect(find.text('目前沒有可開啟的寶箱'), findsOneWidget);
+      expect(container.read(claimableTreasureBoxCountProvider), 0);
+      api.badgeCount = 12;
+      container.read(appBadgeProvider).invalidate();
+      await _settle(tester);
+      expect(find.text('您有 12 個寶箱可以開啟!'), findsOneWidget);
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
 
   for (final reward in [5.0, 0.0]) {
     testWidgets(
@@ -138,14 +197,14 @@ void main() {
         expect(find.text('您有 1 個寶箱可以開啟!'), findsOneWidget);
 
         await tester.tap(find.text('1'));
-        await tester.pumpAndSettle();
+        await _settle(tester);
         expect(api.openRequests, 1);
         expect(find.text('您已開啟所有寶箱！'), findsOneWidget);
 
         final refresh = container
             .read(treasureBoxNotifierProvider.notifier)
             .loadTreasureBoxes();
-        await tester.pumpAndSettle();
+        await _settle(tester);
         await refresh;
         expect(
           container.read(treasureBoxNotifierProvider).isDone,
@@ -162,7 +221,7 @@ void main() {
         expect(find.text('您已開啟所有寶箱！'), findsOneWidget);
         expect(find.textContaining('您尚未獲得寶箱'), findsNothing);
         await tester.tap(find.text('1'));
-        await tester.pumpAndSettle();
+        await _settle(tester);
         expect(api.openRequests, 1);
 
         // A fresh provider scope must derive the same message from the API alone.
@@ -175,7 +234,7 @@ void main() {
         final dailyRefresh = container
             .read(treasureBoxNotifierProvider.notifier)
             .loadTreasureBoxes(keepPreviousData: false);
-        await tester.pumpAndSettle();
+        await _settle(tester);
         await dailyRefresh;
         expect(find.textContaining('您尚未獲得寶箱'), findsOneWidget);
         expect(find.text('您已開啟所有寶箱！'), findsNothing);

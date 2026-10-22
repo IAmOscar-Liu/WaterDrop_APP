@@ -113,17 +113,22 @@ class SystemNotifier extends _$SystemNotifier {
     String fcmToken, {
     String? deviceId,
   }) async {
+    final owner = ref.read(accountNotifierProvider).id;
     try {
       final response = await ref
           .read(dioProvider)
           .post(
             "/api/auth/device-token",
+            options: Options(extra: {'authOwner': owner}),
             data: {"fcmToken": fcmToken, "deviceId": deviceId},
           );
       final data = response.data;
 
       if (data['success'] != true) throw Exception("Fail to send fcm token");
 
+      if (ref.read(accountNotifierProvider).id != owner) {
+        return Result.failure('Account changed');
+      }
       state = state.copyWith(fcmToken: data['data']['fcmToken']);
 
       return Result.success(data['data']['fcmToken']);
@@ -137,14 +142,22 @@ class SystemNotifier extends _$SystemNotifier {
   }
 
   Future<Result<bool>> clearFcmToken(String? deviceId) async {
+    final owner = ref.read(accountNotifierProvider).id;
     try {
       final response = await ref
           .read(dioProvider)
-          .delete("/api/auth/device-token", data: {"deviceId": deviceId});
+          .delete(
+            "/api/auth/device-token",
+            data: {"deviceId": deviceId},
+            options: Options(extra: {'authOwner': owner}),
+          );
       final data = response.data;
 
       if (data['success'] != true) throw Exception("Fail to send fcm token");
 
+      if (ref.read(accountNotifierProvider).id != owner) {
+        return Result.failure('Account changed');
+      }
       state = state.copyWith(clearFcmToken: true);
 
       return Result.success(true);

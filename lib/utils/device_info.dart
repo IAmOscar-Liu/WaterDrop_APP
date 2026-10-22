@@ -1,19 +1,26 @@
 import 'dart:io';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:uuid/uuid.dart';
 
 import 'package:device_info_plus/device_info_plus.dart';
 
-Future<String?> getDeviceId() async {
-  final deviceInfo = DeviceInfoPlugin();
+// Persist an installation identity; Android build IDs are shared by devices.
+Future<String>? _installationId;
+Future<String> getDeviceId() =>
+    _installationId ??= _loadInstallationId().catchError((Object e) {
+      _installationId = null;
+      throw e;
+    });
 
-  if (Platform.isAndroid) {
-    final androidInfo = await deviceInfo.androidInfo;
-    return androidInfo.id; // Unique ID for Android
-  } else if (Platform.isIOS) {
-    final iosInfo = await deviceInfo.iosInfo;
-    return iosInfo.identifierForVendor; // Unique ID for iOS
+Future<String> _loadInstallationId() async {
+  final preferences = await SharedPreferences.getInstance();
+  final existing = preferences.getString('pushInstallationId');
+  if (existing != null && existing.isNotEmpty) return existing;
+  final id = const Uuid().v4();
+  if (!await preferences.setString('pushInstallationId', id)) {
+    throw StateError('Cannot persist push installation ID');
   }
-
-  return null; // Return null if the platform is not supported
+  return id;
 }
 
 Future<String?> getDeviceModel() async {

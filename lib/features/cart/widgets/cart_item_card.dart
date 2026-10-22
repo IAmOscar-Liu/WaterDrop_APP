@@ -249,7 +249,7 @@ class CartItemCard extends ConsumerWidget {
                   style: TextButton.styleFrom(
                     foregroundColor: AppColors.infoColor,
                   ),
-                  child: Text('聯絡客服', style: const TextStyle(fontSize: 14)),
+                  child: Text('聯絡賣家', style: const TextStyle(fontSize: 14)),
                 ),
                 TextButton(
                   onPressed: ref.watch(collectionNotifierProvider).isProcessing

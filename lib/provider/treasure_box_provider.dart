@@ -1,6 +1,8 @@
 // lib/treasure_box_provider.dart
 import 'dart:async';
+import 'package:flutter_riverpod/flutter_riverpod.dart' show Ref;
 import 'dart:developer';
+import 'package:flutter_ad_ecommerce/provider/app_badge_provider.dart';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_ad_ecommerce/models/treasure_box.dart';
@@ -121,14 +123,13 @@ class TreasureBoxNotifier extends _$TreasureBoxNotifier {
 
 /// Computed provider that calculates the number of claimable treasure boxes
 @riverpod
-int claimableTreasureBoxCount(ClaimableTreasureBoxCountRef ref) {
-  final treasureBoxes = ref.watch(treasureBoxNotifierProvider).data ?? [];
-  return treasureBoxes.where((box) => box.isClaimable && !box.isOpened).length;
+int claimableTreasureBoxCount(Ref ref) {
+  return ref.watch(appBadgeProvider).snapshot?.claimableUnopenedBoxes ?? 0;
 }
 
 /// Computed provider that calculates the total amount of all opened treasure boxes
 @riverpod
-double totalOpenedBoxAmount(TotalOpenedBoxAmountRef ref) {
+double totalOpenedBoxAmount(Ref ref) {
   final treasureBoxes = ref.watch(treasureBoxNotifierProvider).data ?? [];
   return treasureBoxes
       .where((box) => box.isOpened)
@@ -137,7 +138,7 @@ double totalOpenedBoxAmount(TotalOpenedBoxAmountRef ref) {
 
 /// Computed provider that calculates the number of empty treasure boxes
 @riverpod
-int emptyTreasureBoxCount(EmptyTreasureBoxCountRef ref) {
+int emptyTreasureBoxCount(Ref ref) {
   final treasureBoxes = ref.watch(treasureBoxNotifierProvider).data ?? [];
   // Opened boxes become non-claimable after accounting, but are not empty slots.
   return treasureBoxes.where((box) => !box.isClaimable && !box.isOpened).length;

@@ -6,6 +6,7 @@ import 'dart:developer';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_ad_ecommerce/provider/app_badge_provider.dart';
 import 'package:flutter_ad_ecommerce/constants/colors.dart';
 import 'package:flutter_ad_ecommerce/models/treasure_box.dart';
 import 'package:flutter_ad_ecommerce/provider/account_provider.dart';
@@ -194,12 +195,20 @@ class _HomePageState extends ConsumerState<HomePage>
                   final emptyBoxCount = ref.watch(
                     emptyTreasureBoxCountProvider,
                   );
+                  final badge = ref.watch(appBadgeProvider);
+                  final statusText = badge.snapshot == null
+                      ? badge.error != null
+                            ? '暫時無法更新寶箱數量'
+                            : '寶箱數量更新中…'
+                      : claimableBoxCount > 0
+                      ? '您有 $claimableBoxCount 個寶箱可以開啟!'
+                      : emptyBoxCount == boxes.length
+                      ? '您尚未獲得寶箱，快去看廣告獲得寶箱吧！'
+                      : boxes.any((box) => box.isClaimable && !box.isOpened)
+                      ? '目前沒有可開啟的寶箱'
+                      : '您已開啟所有寶箱！';
                   return Text(
-                    emptyBoxCount == boxes.length
-                        ? "您尚未獲得寶箱，快去看廣告獲得寶箱吧！"
-                        : claimableBoxCount > 0
-                        ? '您有 ${claimableBoxCount.toString()} 個寶箱可以開啟!'
-                        : '您已開啟所有寶箱！', // You have 1 treasure box to open!
+                    statusText,
                     style: TextStyle(color: Colors.white70, fontSize: 16),
                   );
                 },

@@ -9,7 +9,7 @@ import 'package:flutter_ad_ecommerce/models/system.dart';
 import 'package:flutter_ad_ecommerce/provider/account_provider.dart';
 import 'package:flutter_ad_ecommerce/provider/system_provider.dart';
 import 'package:flutter_ad_ecommerce/router/routes.dart';
-import 'package:flutter_ad_ecommerce/service/google_auth_service.dart';
+import 'package:flutter_ad_ecommerce/provider/session_logout_provider.dart';
 import 'package:flutter_ad_ecommerce/shared/layouts/app_scaffold.dart';
 import 'package:flutter_ad_ecommerce/shared/widgets/app_version_text.dart';
 import 'package:flutter_ad_ecommerce/shared/widgets/messaging_app_bar.dart';
@@ -67,7 +67,7 @@ class _MinePageState extends ConsumerState<MinePage> {
     );
 
     if (confirmed == true && mounted) {
-      await GoogleAuthService().signOut();
+      await signOutWithFeedback(context, ref);
     }
   }
 

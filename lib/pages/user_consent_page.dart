@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_ad_ecommerce/constants/app_constants.dart';
 import 'package:flutter_ad_ecommerce/constants/colors.dart';
 import 'package:flutter_ad_ecommerce/provider/account_provider.dart';
-import 'package:flutter_ad_ecommerce/service/google_auth_service.dart';
+import 'package:flutter_ad_ecommerce/provider/session_logout_provider.dart';
 import 'package:flutter_ad_ecommerce/shared/layouts/app_scaffold.dart';
 import 'package:flutter_ad_ecommerce/shared/widgets/simple_app_bar.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
@@ -37,18 +37,18 @@ class _UserConsentPageState extends ConsumerState<UserConsentPage> {
   Future<void> _showDisagreeDialog() async {
     await showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text("提醒"),
         content: const Text("您若不同意此份同意書，將無法使用本服務"),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: () => Navigator.of(dialogContext).pop(),
             child: const Text("取消"),
           ),
           TextButton(
             onPressed: () {
-              Navigator.of(context).pop();
-              GoogleAuthService().signOut();
+              Navigator.of(dialogContext).pop();
+              signOutWithFeedback(context, ref);
             },
             child: const Text("確認"),
           ),

@@ -286,3 +286,25 @@ Use the Run and Debug panel and select one of:
 - `Flutter Dev Local API`
 
 `Flutter Dev Local API` uses `API_BASE_URL` to point the app at the ngrok/local server.
+
+
+## App icon badge
+
+The app reconciles `GET /api/app/badge` after authentication, foreground resume,
+chat/notification revisions, treasure operations, and badge-bearing foreground pushes.
+The server's complete snapshot also supplies the home treasure count. Errors keep the
+last confirmed snapshot; the first load displays an updating/unavailable message.
+`nextReconcileAt` schedules one foreground refresh, with a 30-second minimum delay to
+avoid retry loops from device clock skew. Backgrounding cancels requests and timers.
+
+On iOS, a native channel sets the absolute count; background/terminated updates come
+from APNs. Local foreground banners do not set the badge. Android uses existing
+notification dots and launcher behavior, without a synthetic numeric/summary notification.
+Count-only `badge_sync` pushes never navigate or display a banner. Logout clears session
+notifications and the iOS count after authenticated device deregistration; a deregistration
+failure leaves the user signed in so logout can be retried. Device registration now uses
+a persisted installation UUID instead of Android's build ID.
+
+The backend migration/deployment in the [confirmed contract](doc/FLUTTER_APP_BADGE_API_CHANGES.md)
+is required. These changes do not run migrations. Verify foreground/background/terminated
+pushes, zero clearing, account switching, and badge permissions on physical devices.

@@ -1,4 +1,5 @@
 import 'dart:developer';
+import 'package:flutter_ad_ecommerce/provider/app_badge_provider.dart';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_ad_ecommerce/models/api_enums.dart';
@@ -176,6 +177,7 @@ class ChatMessageNotifier extends _$ChatMessageNotifier {
         throw Exception('訊息發送失敗');
       }
 
+      ref.read(appBadgeProvider).invalidate();
       return Result.success(true);
     } catch (e) {
       log('Failed to send message: $e');
@@ -307,6 +309,7 @@ class ChatMessageNotifier extends _$ChatMessageNotifier {
         throw Exception('訊息發送失敗');
       }
 
+      ref.read(appBadgeProvider).invalidate();
       return Result.success(true);
     } catch (e) {
       log('Failed to send message: $e');

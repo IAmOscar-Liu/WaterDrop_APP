@@ -7,7 +7,7 @@ part of 'treasure_box_provider.dart';
 // **************************************************************************
 
 String _$claimableTreasureBoxCountHash() =>
-    r'b7adeedb4613d6c35533c2fef57ccc20587ed918';
+    r'9ad66a32673b57be3c1c31379a01f43daa98bc1e';
 
 /// Computed provider that calculates the number of claimable treasure boxes
 ///
@@ -27,7 +27,7 @@ final claimableTreasureBoxCountProvider = AutoDisposeProvider<int>.internal(
 // ignore: unused_element
 typedef ClaimableTreasureBoxCountRef = AutoDisposeProviderRef<int>;
 String _$totalOpenedBoxAmountHash() =>
-    r'1c0581d45d261bcee01ddfcc7619f4f5cf155d48';
+    r'fd4d734411fcffe3378aee79bc48a7eb66a3f730';
 
 /// Computed provider that calculates the total amount of all opened treasure boxes
 ///
@@ -47,7 +47,7 @@ final totalOpenedBoxAmountProvider = AutoDisposeProvider<double>.internal(
 // ignore: unused_element
 typedef TotalOpenedBoxAmountRef = AutoDisposeProviderRef<double>;
 String _$emptyTreasureBoxCountHash() =>
-    r'fc35790135d83531132550508dfe1fef25155882';
+    r'4f709ad35b3523f7cd70df6270b9dad7b17e379a';
 
 /// Computed provider that calculates the number of empty treasure boxes
 ///
@@ -67,7 +67,7 @@ final emptyTreasureBoxCountProvider = AutoDisposeProvider<int>.internal(
 // ignore: unused_element
 typedef EmptyTreasureBoxCountRef = AutoDisposeProviderRef<int>;
 String _$treasureBoxNotifierHash() =>
-    r'88ef01da6994c10e41cf6e4731eaacaf2e4d15b8';
+    r'3370b5558963c21047d86b7dac923554465139e9';
 
 /// See also [TreasureBoxNotifier].
 @ProviderFor(TreasureBoxNotifier)
