@@ -43,10 +43,20 @@ class Chatroom {
   });
 
   String? get variantDisplayName {
+    String? label(ProductVariant? value) {
+      final name = value?.name?.trim();
+      if (name != null && name.isNotEmpty) return name;
+      final options = value?.optionValues.values
+          .map((entry) => entry?.toString().trim() ?? '')
+          .where((entry) => entry.isNotEmpty)
+          .join(' / ');
+      return options == null || options.isEmpty ? null : options;
+    }
+
     final candidates = [
       product?.variantName,
-      variant?.displayName,
-      product?.variant?.displayName,
+      label(variant),
+      label(product?.variant),
     ];
     for (final value in candidates) {
       if (value != null && value.trim().isNotEmpty) return value.trim();

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' show min;
 
 import 'package:flutter/foundation.dart';
@@ -689,6 +690,15 @@ class _CartPageState extends ConsumerState<CartPage> {
                                           orderStatus ==
                                               OrderStatus.paymentProcessing) {
                                         shouldRefreshProducts = true;
+                                        // Reconcile again at the user-visible completion
+                                        // boundary, including asynchronous payment flows.
+                                        unawaited(
+                                          ref
+                                              .read(
+                                                orderNotifierProvider.notifier,
+                                              )
+                                              .refreshChatroomsAfterCheckout(),
+                                        );
                                         return showDialog(
                                           // ignore: use_build_context_synchronously
                                           context: context,

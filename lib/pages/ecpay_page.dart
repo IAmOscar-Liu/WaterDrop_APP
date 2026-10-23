@@ -40,6 +40,7 @@ class _ECPayPageState extends ConsumerState<ECPayPage>
     with WidgetsBindingObserver {
   String? _errorMsg;
   bool _isHandlingClientReturn = false;
+  bool _isLeaving = false;
   Timer? _checkoutTimer;
   String? _idempotencyKey; // To prevent duplicate order creation on app resume
 
@@ -239,6 +240,7 @@ class _ECPayPageState extends ConsumerState<ECPayPage>
     var resultOrder = await ref
         .read(orderNotifierProvider.notifier)
         .getOrder(orderId: orderId);
+    if (!mounted) return;
     if (resultOrder.isFailure) {
       ref.read(systemNotifierProvider.notifier).setCurrentOrder(null);
       return;
@@ -255,6 +257,7 @@ class _ECPayPageState extends ConsumerState<ECPayPage>
     resultOrder = await ref
         .read(orderNotifierProvider.notifier)
         .updateOrder(orderId: orderId, status: OrderStatus.expired);
+    if (!mounted) return;
     if (resultOrder.isSuccess) {
       ref
           .read(systemNotifierProvider.notifier)
@@ -265,44 +268,50 @@ class _ECPayPageState extends ConsumerState<ECPayPage>
     await ref.read(accountNotifierProvider.notifier).refreshAccountInfo();
   }
 
+  Future<void> _handleCheckoutExpiry() async {
+    if (!mounted || _isLeaving || _isHandlingClientReturn) return;
+    final order = ref.read(systemNotifierProvider).currentOrder;
+    if (order == null) return;
+    _isLeaving = true;
+    _checkoutTimer?.cancel();
+    await _expireOrderIfPending(order.id);
+    if (mounted && (ModalRoute.of(context)?.isCurrent ?? false)) context.pop();
+  }
+
   void _startCheckoutTimer(Duration duration) {
-    _checkoutTimer = Timer(duration, () async {
-      final currentOrder = ref.read(systemNotifierProvider).currentOrder;
-      if (currentOrder != null) {
-        await _expireOrderIfPending(currentOrder.id);
-        // ignore: use_build_context_synchronously
-        context.pop();
-      }
-    });
+    _checkoutTimer?.cancel();
+    _checkoutTimer = Timer(duration, _handleCheckoutExpiry);
   }
 
   @override
-  void didChangeAppLifecycleState(AppLifecycleState state) async {
-    if (state == AppLifecycleState.resumed) {
-      final currentOrder = ref.read(systemNotifierProvider).currentOrder;
-      if (currentOrder != null &&
-          DateTime.now().difference(currentOrder.createdAt).inMinutes >= 30) {
-        await _expireOrderIfPending(currentOrder.id);
-        // ignore: use_build_context_synchronously
-        context.pop();
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && mounted) {
+      final order = ref.read(systemNotifierProvider).currentOrder;
+      if (order != null &&
+          DateTime.now().difference(order.createdAt).inMinutes >= 30) {
+        _handleCheckoutExpiry();
       }
     }
   }
 
   void _handleClientReturn(Order order) async {
+    if (!mounted || _isHandlingClientReturn || _isLeaving) return;
     WidgetsBinding.instance.removeObserver(this);
     setState(() {
       _isHandlingClientReturn = true;
       _checkoutTimer?.cancel();
     });
     await Future.delayed(const Duration(milliseconds: 750));
+    if (!mounted) return;
     final totalRetry = 3;
     int retry = 1;
     Order? orderResult;
     while (retry <= totalRetry) {
+      if (!mounted) return;
       final result = await ref
           .read(orderNotifierProvider.notifier)
           .getOrder(orderId: order.id);
+      if (!mounted) return;
       if (result.isSuccess &&
           (result.data!.orderStatus == OrderStatus.paid ||
               result.data!.orderStatus == OrderStatus.paymentProcessing)) {
@@ -315,10 +324,16 @@ class _ECPayPageState extends ConsumerState<ECPayPage>
       }
     }
 
+    if (!mounted) return;
     ref.read(systemNotifierProvider.notifier).setCurrentOrder(orderResult);
     await ref.read(accountNotifierProvider.notifier).refreshAccountInfo();
 
-    // ignore: use_build_context_synchronously
+    if (!mounted ||
+        _isLeaving ||
+        !(ModalRoute.of(context)?.isCurrent ?? false)) {
+      return;
+    }
+    _isLeaving = true;
     context.pop();
   }
 

@@ -12,6 +12,7 @@ import 'package:flutter_ad_ecommerce/provider/cart_provider.dart';
 import 'package:flutter_ad_ecommerce/provider/dio_provider.dart';
 import 'package:flutter_ad_ecommerce/provider/message_stats_provider.dart';
 import 'package:flutter_ad_ecommerce/provider/product_provider.dart';
+import 'package:flutter_ad_ecommerce/provider/order_provider.dart';
 import 'package:flutter_ad_ecommerce/provider/system_provider.dart';
 import 'package:flutter_ad_ecommerce/router/routes.dart';
 import 'package:flutter_ad_ecommerce/utils/custom_async_value.dart';
@@ -21,6 +22,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+class _TestOrders extends OrderNotifier {
+  int chatRefreshes = 0;
+
+  @override
+  Future<void> refreshChatroomsAfterCheckout() async {
+    chatRefreshes++;
+  }
+}
 
 class _TestAccount extends AccountNotifier {
   _TestAccount(this.coins);
@@ -135,6 +145,7 @@ Future<ProviderContainer> _showCart(
   bool initiallyLoading = false,
   bool useCartApi = false,
   GoRouter? router,
+  _TestOrders? orders,
   void Function(RequestOptions, RequestInterceptorHandler)? onRequest,
 }) async {
   final dio = Dio();
@@ -159,6 +170,7 @@ Future<ProviderContainer> _showCart(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        if (orders != null) orderNotifierProvider.overrideWith(() => orders),
         accountNotifierProvider.overrideWith(() => _TestAccount(coins)),
         cartProvider.overrideWith(
           () => useCartApi
@@ -734,7 +746,13 @@ void main() {
         ],
       );
       addTearDown(router.dispose);
-      container = await _showCart(tester, 125.75, router: router);
+      final orders = _TestOrders();
+      container = await _showCart(
+        tester,
+        125.75,
+        router: router,
+        orders: orders,
+      );
       // Unchecked items must not be validated or block this checkout.
       (container.read(cartProvider.notifier) as _TestCart).addUncheckedItem();
       await tester.pumpAndSettle();
@@ -748,6 +766,7 @@ void main() {
       expect(find.text('Return from payment'), findsOneWidget);
       await tester.tap(find.text('Return from payment'));
       await tester.pumpAndSettle();
+      expect(orders.chatRefreshes, status == null ? 0 : 1);
       if (status != null) {
         await tester.tap(find.text('確定'));
         await tester.pumpAndSettle();

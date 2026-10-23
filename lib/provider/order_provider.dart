@@ -169,7 +169,7 @@ class OrderNotifier extends _$OrderNotifier {
         throw Exception('無法新增訂單');
       }
       final order = Order.fromApiResponseMap(response.data['data']);
-      unawaited(_refreshChatroomsAfterOrderCreated());
+      unawaited(refreshChatroomsAfterCheckout());
       return Result.success(order);
     } on DioException catch (e) {
       log(
@@ -202,7 +202,7 @@ class OrderNotifier extends _$OrderNotifier {
     }
   }
 
-  Future<void> _refreshChatroomsAfterOrderCreated() async {
+  Future<void> refreshChatroomsAfterCheckout() async {
     try {
       if (AppConstants.chatSseEnabled) {
         await ref.read(chatSyncProvider).refreshListMetadata();

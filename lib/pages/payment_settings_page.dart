@@ -1,5 +1,7 @@
 // ignore_for_file: constant_identifier_names
 
+import 'dart:async';
+
 import 'package:flutter_ad_ecommerce/shared/layouts/app_scaffold.dart';
 import 'package:flutter_ad_ecommerce/shared/widgets/app_panel.dart';
 import 'package:flutter_ad_ecommerce/shared/widgets/receiver_info_panel.dart';
@@ -10,6 +12,7 @@ import 'package:flutter_ad_ecommerce/constants/app_constants.dart';
 import 'package:flutter_ad_ecommerce/constants/colors.dart';
 import 'package:flutter_ad_ecommerce/features/ecpay/widget/checkout_delivery_section.dart';
 import 'package:flutter_ad_ecommerce/features/ecpay/widget/checkout_webview.dart';
+import 'package:flutter_ad_ecommerce/features/ecpay/widget/logistics_verification_view.dart';
 import 'package:flutter_ad_ecommerce/models/api_enums.dart';
 import 'package:flutter_ad_ecommerce/models/logistics_info.dart';
 import 'package:flutter_ad_ecommerce/models/order.dart';
@@ -42,6 +45,8 @@ class PaymentSettingsPage extends ConsumerStatefulWidget {
 
 class _PaymentSettingsPageState extends ConsumerState<PaymentSettingsPage> {
   CheckoutStat _checkoutStat = CheckoutStat.validating;
+  bool _finishingPaidOrder = false;
+  bool _returnedToCart = false;
   LogisticsSubType _logisticsSubType = AppConstants.logisticsSubType == "B2C"
       ? LogisticsSubType.FAMI
       : LogisticsSubType.FAMIC2C;
@@ -73,6 +78,47 @@ class _PaymentSettingsPageState extends ConsumerState<PaymentSettingsPage> {
       WidgetsBinding.instance.addPostFrameCallback((_) => context.pop());
       return;
     }
+  }
+
+  void _returnToCart() {
+    if (!mounted ||
+        _returnedToCart ||
+        !(ModalRoute.of(context)?.isCurrent ?? false)) {
+      return;
+    }
+    _returnedToCart = true;
+    context.pop();
+  }
+
+  // Run once, after the payment route returns. Builds must never schedule pops.
+  Future<void> _finishPaidOrder(Order order, int expectedDeliveries) async {
+    if (!mounted || _finishingPaidOrder || _returnedToCart) return;
+    _finishingPaidOrder = true;
+    var latest = order;
+    for (
+      var attempt = 0;
+      attempt < 10 && latest.deliveries.length < expectedDeliveries;
+      attempt++
+    ) {
+      await Future<void>.delayed(const Duration(milliseconds: 2500));
+      if (!mounted || _returnedToCart) return;
+      final result = await ref
+          .read(orderNotifierProvider.notifier)
+          .getOrder(orderId: order.id);
+      if (!mounted || _returnedToCart) return;
+      if (result.isSuccess && result.data != null) latest = result.data!;
+    }
+    if (!mounted || _returnedToCart) return;
+    if (latest.deliveries.length < expectedDeliveries) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('部分商品尚未確認運單，請至「訂單記錄」查看')));
+    }
+    ref.read(systemNotifierProvider.notifier).setCurrentOrder(latest);
+    unawaited(
+      ref.read(orderNotifierProvider.notifier).refreshChatroomsAfterCheckout(),
+    );
+    _returnToCart();
   }
 
   LogisticsMapInfo? _savedStoreFor(LogisticsSubType? subType) {
@@ -356,7 +402,6 @@ class _PaymentSettingsPageState extends ConsumerState<PaymentSettingsPage> {
     final Map<String, PaymentSettings> shippingFee =
         widget.extra["shippingFee"];
     final accountInfo = ref.watch(accountNotifierProvider);
-    final currentOrder = ref.watch(systemNotifierProvider).currentOrder;
     final List<CartItem> cartItems = widget.extra['cartItems'];
 
     final virtualItems = cartItems
@@ -579,9 +624,12 @@ class _PaymentSettingsPageState extends ConsumerState<PaymentSettingsPage> {
 
     if (_checkoutStat == CheckoutStat.validating) {
       return _buildLayout(
-        child: ValidationWebview(
-          accountInfo: accountInfo,
+        child: LogisticsVerificationView(
+          logisticsType: AppConstants.logisticsSubType,
+          onBack: () => context.pop(),
+          onEdit: () => context.push(Routes.accountDelivery),
           onSuccess: () {
+            if (!mounted || _checkoutStat != CheckoutStat.validating) return;
             setState(() {
               _checkoutStat = CheckoutStat.settingMap;
             });
@@ -730,6 +778,7 @@ class _PaymentSettingsPageState extends ConsumerState<PaymentSettingsPage> {
                               setState(() {
                                 _checkoutStat = CheckoutStat.processingPayment;
                               });
+                              _finishingPaidOrder = false;
                               context
                                   .push(
                                     Routes.ecPayPage,
@@ -757,6 +806,7 @@ class _PaymentSettingsPageState extends ConsumerState<PaymentSettingsPage> {
                                   )
                                   // If currentOrder's status is pending, refetch currentOrder
                                   .then((value) async {
+                                    if (!mounted || _returnedToCart) return;
                                     final resultOrder = ref
                                         .read(systemNotifierProvider)
                                         .currentOrder;
@@ -766,6 +816,7 @@ class _PaymentSettingsPageState extends ConsumerState<PaymentSettingsPage> {
                                       final result = await ref
                                           .read(orderNotifierProvider.notifier)
                                           .getOrder(orderId: resultOrder.id);
+                                      if (!mounted || _returnedToCart) return;
                                       if (result.isSuccess) {
                                         ref
                                             .read(
@@ -777,6 +828,7 @@ class _PaymentSettingsPageState extends ConsumerState<PaymentSettingsPage> {
                                   })
                                   // If currentOrder's status is still pending, cancel it
                                   .then((value) async {
+                                    if (!mounted || _returnedToCart) return;
                                     final resultOrder = ref
                                         .read(systemNotifierProvider)
                                         .currentOrder;
@@ -789,6 +841,7 @@ class _PaymentSettingsPageState extends ConsumerState<PaymentSettingsPage> {
                                             orderId: resultOrder.id,
                                             status: OrderStatus.canceled,
                                           );
+                                      if (!mounted || _returnedToCart) return;
                                       if (result.isSuccess) {
                                         ref
                                             .read(
@@ -801,6 +854,7 @@ class _PaymentSettingsPageState extends ConsumerState<PaymentSettingsPage> {
                                   // If currentOrder is null -> no order created -> pop
                                   // or if currentOrder's status is payment-processing -> pop
                                   .then((value) {
+                                    if (!mounted || _returnedToCart) return;
                                     final resultOrder = ref
                                         .read(systemNotifierProvider)
                                         .currentOrder;
@@ -808,7 +862,27 @@ class _PaymentSettingsPageState extends ConsumerState<PaymentSettingsPage> {
                                         resultOrder.orderStatus ==
                                             OrderStatus.paymentProcessing) {
                                       // ignore: use_build_context_synchronously
-                                      return context.pop();
+                                      if (resultOrder != null) {
+                                        unawaited(
+                                          ref
+                                              .read(
+                                                orderNotifierProvider.notifier,
+                                              )
+                                              .refreshChatroomsAfterCheckout(),
+                                        );
+                                      }
+                                      _returnToCart();
+                                      return;
+                                    }
+                                    if (resultOrder.orderStatus ==
+                                        OrderStatus.paid) {
+                                      unawaited(
+                                        _finishPaidOrder(
+                                          resultOrder,
+                                          generateGroup().length,
+                                        ),
+                                      );
+                                      return;
                                     }
                                     final orderStatus = resultOrder.orderStatus;
                                     if (orderStatus != OrderStatus.paid) {
@@ -848,6 +922,7 @@ class _PaymentSettingsPageState extends ConsumerState<PaymentSettingsPage> {
                                           );
                                         },
                                       ).then((value) {
+                                        if (!mounted || _returnedToCart) return;
                                         setState(() {
                                           _checkoutStat =
                                               CheckoutStat.settingMap;
@@ -907,60 +982,6 @@ class _PaymentSettingsPageState extends ConsumerState<PaymentSettingsPage> {
             ),
           ],
         ),
-      );
-    } else if (_checkoutStat == CheckoutStat.processingPayment &&
-        currentOrder?.orderStatus == OrderStatus.paid) {
-      return _buildLayout(
-        child: Builder(
-          builder: (context) {
-            Future.delayed(Durations.medium2, () async {
-              void handleOrderFailure() {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text("部分商品無法建立運單，請至「我的」>「我的訂單」查看"),
-                    backgroundColor: AppColors.dangerButtonColor,
-                    duration: const Duration(seconds: 2),
-                  ),
-                );
-              }
-
-              if (currentOrder == null) {
-                handleOrderFailure();
-                // ignore: use_build_context_synchronously
-                context.pop();
-                return;
-              }
-
-              int groupLength = generateGroup().length;
-              Order retryOrder = currentOrder;
-              final totalRetry = 10;
-              int retry = 1;
-              while (retryOrder.deliveries.length != groupLength) {
-                await Future.delayed(const Duration(milliseconds: 2500));
-                final result = await ref
-                    .read(orderNotifierProvider.notifier)
-                    .getOrder(orderId: retryOrder.id);
-                if (result.isSuccess) {
-                  retryOrder = result.data!;
-                } else {
-                  retry++;
-                  if (retry > totalRetry) {
-                    handleOrderFailure();
-                    // ignore: use_build_context_synchronously
-                    context.pop();
-                    return;
-                  }
-                }
-              }
-
-              // _sendOrderCompletedNotification(retryOrder);
-              // ignore: use_build_context_synchronously
-              context.pop();
-            });
-            return PageLoading('運單確認中，請稍後......');
-          },
-        ),
-        allowPop: false,
       );
     } else {
       return _buildLayout(

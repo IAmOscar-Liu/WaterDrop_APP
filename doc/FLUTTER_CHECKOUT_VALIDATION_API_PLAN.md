@@ -1,8 +1,8 @@
 # 結帳批次驗證與綠界測試物流回呼計畫
 
 日期：2026-10-23  
-狀態：**Part A 已依 BE 合約接入 Flutter；BE 端點須先部署。Part B 仍延後。**  
-檢查基準：目前 Flutter 工作目錄，以及 `waterdrop-server` 的 `development` 分支。以下保留提案背景；實際合約以 [BE 交付文件](FLUTTER_CHECKOUT_VALIDATION_API_CHANGES.md) 為準。
+狀態：**Part A、B 已依 BE 合約接入 Flutter；BE 端點須先部署，仍需綠界 sandbox 與實機驗證。**
+檢查基準：目前 Flutter 工作目錄，以及 `waterdrop-server` 的 `development` 分支。以下保留提案背景；實際合約以 [A：批次結帳驗證](FLUTTER_CHECKOUT_VALIDATION_API_CHANGES.md) 與 [B：同步物流驗證](FLUTTER_LOGISTICS_VERIFICATION_API_CHANGES.md) 為準。下方原始 B 的 callback/job 提案已由同步 POST 方案取代。
 
 ## Flutter 接入進度（2026-10-23）
 
@@ -10,7 +10,11 @@
 - 僅 `canCheckout: true` 且回應完整時繼續；失敗時更新完整購物車、顯示原因，要求使用者重新確認。下架商品的既有移除流程仍是獨立操作。
 - 驗證納入購物車操作佇列，檢查帳號與操作版本，捨棄過期回應；規格價格保留 0 與原始小數精度。
 - 後續物流欄位驗證與運費計算使用回傳的商品／賣家資料。最終建立訂單時的 BE 庫存檢查仍保留。
-- Part B 的綠界回呼驗證及 BE 訂單價格強化尚未交付；本次沒有實作這兩項。
+- Part B 改用 `POST /api/ecpay/express/test/validate`，透過現有 authenticated Dio 發送收件資料，receive timeout 為 30 秒。僅 HTTP 200、外層與內層 `success: true` 及 `code: VALIDATED` 同時成立才進入配送設定。
+- 已移除 `ValidationWebview` 與舊 `express-test-reply` 的 Flutter 使用；門市選擇的 `LogisticsMapWebview` 保留。
+- 失敗可手動重試、修改寄貨資料或返回；400 顯示欄位錯誤，429 依 `Retry-After` 倒數停用重試。沒有輪詢或自動業務重試。
+- 帳號、收件資訊、物流模式或路由變更會取消／作廢舊請求；遲到的成功回應無法推進新流程。取消請求不代表綠界已停止建立測試物流單。
+- BE 訂單價格強化仍是獨立待辦；本次物流驗證不取代建立訂單時的庫存與金額檢查。
 
 ## 提案背景與原本流程
 

@@ -8,6 +8,7 @@ import 'package:flutter_ad_ecommerce/models/api_enums.dart';
 import 'package:flutter_ad_ecommerce/models/chatroom.dart';
 import 'package:flutter_ad_ecommerce/provider/chatroom_list_provider.dart';
 import 'package:flutter_ad_ecommerce/router/routes.dart';
+import 'package:flutter_ad_ecommerce/router/chat_route_observer.dart';
 import 'package:flutter_ad_ecommerce/shared/layouts/app_scaffold.dart';
 import 'package:flutter_ad_ecommerce/shared/widgets/initial_image.dart';
 import 'package:flutter_ad_ecommerce/shared/widgets/page_status.dart';
@@ -24,13 +25,30 @@ class ChatroomListPage extends ConsumerStatefulWidget {
   ConsumerState<ChatroomListPage> createState() => _ChatroomListPageState();
 }
 
-class _ChatroomListPageState extends ConsumerState<ChatroomListPage> {
+class _ChatroomListPageState extends ConsumerState<ChatroomListPage>
+    with RouteAware {
   final _scroll = AnchoredListScrollController();
   final _viewportKey = GlobalKey();
   final _roomKeys = <String, GlobalKey>{};
+  ModalRoute<dynamic>? _route;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final route = ModalRoute.of(context);
+    if (route != null && route != _route) {
+      chatRouteObserver.unsubscribe(this);
+      _route = route;
+      chatRouteObserver.subscribe(this, route);
+    }
+  }
+
+  @override
+  void didPopNext() => _loadChatRooms();
 
   @override
   void dispose() {
+    chatRouteObserver.unsubscribe(this);
     _scroll.dispose();
     super.dispose();
   }
@@ -45,7 +63,8 @@ class _ChatroomListPageState extends ConsumerState<ChatroomListPage> {
     Future.delayed(Duration.zero, () {
       if (!mounted) return;
       if (AppConstants.chatSseEnabled) {
-        ref.read(chatSyncProvider).loadList();
+        // Queue behind any active request/reconnect and refresh all loaded pages.
+        ref.read(chatSyncProvider).refreshListMetadata();
       } else {
         ref.read(chatroomListNotifierProvider.notifier).loadChatRooms();
       }
@@ -103,11 +122,16 @@ class _ChatroomListPageState extends ConsumerState<ChatroomListPage> {
     }
 
     switch (order.orderStatus) {
+      case OrderStatus.pending:
       case OrderStatus.paymentProcessing:
         return "待付款";
+      case OrderStatus.paid:
+        return "已付款，待確認配送狀態";
+      case OrderStatus.failed:
+        return "交易失敗";
       case OrderStatus.expired:
         return "交易逾期(未付款)";
-      default:
+      case OrderStatus.canceled:
         return "交易取消";
     }
   }
@@ -254,19 +278,15 @@ class _ChatroomListPageState extends ConsumerState<ChatroomListPage> {
                           onTap: !isSupportChat && chatRoom.product == null
                               ? null
                               : () {
-                                  context
-                                      .push(
-                                        Routes.chatroomPage,
-                                        extra: {
-                                          "title": chatTitle,
-                                          "chatRoom": chatRoom,
-                                          "variantName":
-                                              chatRoom.variantDisplayName,
-                                        },
-                                      )
-                                      .then((value) {
-                                        _loadChatRooms();
-                                      });
+                                  context.push(
+                                    Routes.chatroomPage,
+                                    extra: {
+                                      "title": chatTitle,
+                                      "chatRoom": chatRoom,
+                                      "variantName":
+                                          chatRoom.variantDisplayName,
+                                    },
+                                  );
                                 },
                           child: Container(
                             margin: const EdgeInsets.only(bottom: 8),

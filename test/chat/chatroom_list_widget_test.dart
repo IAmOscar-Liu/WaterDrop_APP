@@ -6,6 +6,7 @@ import 'package:flutter_ad_ecommerce/constants/app_constants.dart';
 import 'package:flutter_ad_ecommerce/pages/chatroom_list_page.dart';
 import 'package:flutter_ad_ecommerce/provider/chat_sync_provider.dart';
 import 'package:flutter_ad_ecommerce/provider/dio_provider.dart';
+import 'package:flutter_ad_ecommerce/router/chat_route_observer.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:visibility_detector/visibility_detector.dart';
@@ -13,6 +14,101 @@ import 'package:visibility_detector/visibility_detector.dart';
 import 'chat_test_support.dart';
 
 void main() {
+  for (final returning in [false, true]) {
+    testWidgets(
+      'paid metadata refreshes on ${returning ? "return to" : "entering"} list behind an old request',
+      (tester) async {
+        final interval = VisibilityDetectorController.instance.updateInterval;
+        VisibilityDetectorController.instance.updateInterval = Duration.zero;
+        addTearDown(() {
+          VisibilityDetectorController.instance.updateInterval = interval;
+        });
+        final api = ChatAdapter();
+        final dio = Dio(BaseOptions(baseUrl: 'https://example.test'))
+          ..httpClientAdapter = api;
+        final sync = ChatSyncController(dio, () async => false);
+        final navigator = GlobalKey<NavigatorState>();
+        var paid = false;
+        var hold = false;
+        final oldRequest = Completer<ResponseBody>();
+        Map<String, dynamic> response(bool paid) => listResponse([
+          {
+            ...room('a'), // Order metadata changes without a chat revision.
+            'order': {
+              'id': 'order',
+              'orderStatus': paid ? 'paid' : 'payment_processing',
+              if (paid) 'delivery': {'RtnMsg': '訂單處理中'},
+            },
+          },
+        ]);
+        api.handler = (_) async {
+          if (hold) {
+            hold = false;
+            return oldRequest.future;
+          }
+          return jsonResponse(response(paid));
+        };
+        sync.configureSession('u', foreground: true);
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              chatSyncProvider.overrideWith((ref) => sync),
+              dioProvider.overrideWithValue(dio),
+            ],
+            child: MaterialApp(
+              navigatorKey: navigator,
+              navigatorObservers: [chatRouteObserver],
+              home: returning ? const ChatroomListPage() : const Scaffold(),
+            ),
+          ),
+        );
+        for (var i = 0; i < 10 && api.connections.isEmpty; i++) {
+          await tester.pump(const Duration(milliseconds: 1));
+        }
+        api.event('stream.ready', {'schemaVersion': 1, 'cursor': 'head'});
+        await tester.pumpAndSettle();
+        if (returning) {
+          expect(find.text('待付款'), findsOneWidget);
+          unawaited(
+            navigator.currentState!.push<void>(
+              MaterialPageRoute(builder: (_) => const Scaffold()),
+            ),
+          );
+          await tester.pumpAndSettle();
+        }
+        // An older list fetch started before payment was confirmed.
+        hold = true;
+        final loading = sync.loadList();
+        await tester.pump();
+        paid = true;
+        if (returning) {
+          navigator.currentState!.pop();
+        } else {
+          unawaited(
+            navigator.currentState!.push<void>(
+              MaterialPageRoute(builder: (_) => const ChatroomListPage()),
+            ),
+          );
+        }
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 400));
+        oldRequest.complete(jsonResponse(response(false)));
+        await tester.pumpAndSettle();
+        await loading;
+        expect(find.text('訂單處理中'), findsOneWidget);
+        expect(find.text('待付款'), findsNothing);
+        expect(
+          api.requests.where((r) => r.path.endsWith('/list')),
+          hasLength(3),
+        );
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pump();
+        dio.close(force: true);
+      },
+      skip: !AppConstants.chatSseEnabled,
+    );
+  }
   testWidgets(
     'support-room events update the visible list every ten seconds',
     (tester) async {

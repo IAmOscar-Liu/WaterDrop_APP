@@ -113,7 +113,12 @@ void main() {
       expect(find.text(failure.message), findsOneWidget);
       expect(find.text('返回'), findsOneWidget);
       expect(find.byType(InAppWebView), findsNothing);
-      expect(requests, ['/api/order', 'api/cart/list', '/api/product/list']);
+      expect(requests.first, '/api/order');
+      // Cart and product reconciliation run concurrently after order rejection.
+      expect(
+        requests.skip(1),
+        unorderedEquals(['api/cart/list', '/api/product/list']),
+      );
       final container = ProviderScope.containerOf(
         tester.element(find.byType(ECPayPage)),
       );

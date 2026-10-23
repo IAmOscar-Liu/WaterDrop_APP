@@ -1,103 +1,12 @@
 // ignore_for_file: non_constant_identifier_names
 
-import 'dart:async';
-import 'dart:collection';
 import 'dart:developer';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_ad_ecommerce/constants/app_constants.dart';
-import 'package:flutter_ad_ecommerce/constants/colors.dart';
 import 'package:flutter_ad_ecommerce/features/ecpay/widget/checkout_delivery_section.dart';
-import 'package:flutter_ad_ecommerce/models/account_info.dart';
 import 'package:flutter_ad_ecommerce/utils/uri_utils.dart';
-import 'package:flutter_ad_ecommerce/shared/widgets/page_status.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-
-class ValidationWebview extends ConsumerStatefulWidget {
-  final AccountInfo accountInfo;
-  final Function() onSuccess;
-  const ValidationWebview({
-    super.key,
-    required this.accountInfo,
-    required this.onSuccess,
-  });
-
-  @override
-  ConsumerState<ValidationWebview> createState() => _ValidationWebviewState();
-}
-
-class _ValidationWebviewState extends ConsumerState<ValidationWebview> {
-  Timer? _timer;
-  bool _isTimeout = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _timer = Timer(Duration(seconds: kReleaseMode ? 30 : 0), () {
-      setState(() {
-        _isTimeout = true;
-      });
-    });
-  }
-
-  @override
-  dispose() {
-    _timer?.cancel();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        SizedBox.expand(
-          child: InAppWebView(
-            onPermissionRequest: (controller, request) async {
-              return PermissionResponse(
-                resources: request.resources,
-                action: PermissionResponseAction.GRANT,
-              );
-            },
-            onWebViewCreated: (controller) async {
-              final urlWithAddedParams = UriUtils.addQueryParamsToUrl(
-                baseUrl:
-                    "${AppConstants.apiBaseUrl}api/ecpay/express/test/create",
-                queryParams: {
-                  "type": AppConstants.logisticsSubType,
-                  'ReceiverName': widget.accountInfo.name,
-                  'ReceiverCellPhone': widget.accountInfo.phone,
-                  'ReceiverEmail': widget.accountInfo.email,
-                },
-              );
-              log(urlWithAddedParams.toString());
-              await controller.loadUrl(
-                urlRequest: URLRequest(url: WebUri.uri(urlWithAddedParams)),
-              );
-
-              controller.addJavaScriptHandler(
-                handlerName: 'express-test-reply',
-                callback: (args) {
-                  // final response = args.firstOrNull;
-                  // log("Response - $response");
-                  _timer?.cancel();
-                  widget.onSuccess();
-                },
-              );
-            },
-          ),
-        ),
-        if (!_isTimeout)
-          Container(
-            color: AppColors.scaffoldBgColor,
-            child: PageLoading('處理中，請稍後......'),
-          ),
-      ],
-    );
-  }
-}
 
 class LogisticsMapWebview extends StatelessWidget {
   final LogisticsSubType logisticsSubType;

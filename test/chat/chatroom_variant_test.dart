@@ -14,9 +14,9 @@ import 'package:go_router/go_router.dart';
 import 'chat_test_support.dart';
 
 void main() {
-  for (final nested in [false, true]) {
+  for (final kind in ['summary', 'nested', 'default']) {
     testWidgets(
-      'list to chat preserves variant with sparse metadata (nested=$nested)',
+      'list to chat preserves variant with sparse metadata ($kind)',
       (tester) async {
         final api = ChatAdapter();
         final dio = Dio(BaseOptions(baseUrl: 'https://example.test'))
@@ -31,9 +31,19 @@ void main() {
                   'accountId': 'seller',
                   'product': {
                     'name': '行動電源',
-                    if (!nested) 'variantName': '白色 / 小',
+                    if (kind == 'summary') 'variantName': '白色 / 小',
                   },
-                  if (nested) 'variant': {'id': 'v', 'name': '白色 / 小'},
+                  if (kind == 'nested')
+                    'variant': {'id': 'v', 'name': '白色 / 小'},
+                  'order': {
+                    'id': 'order',
+                    'orderStatus': 'paid',
+                    'delivery': {
+                      'RtnMsg': '訂單處理中(綠界已收到訂單資料)',
+                      'RtnCode': '300',
+                      'status': 'pending',
+                    },
+                  },
                 },
               ]),
             );
@@ -45,7 +55,13 @@ void main() {
           return jsonResponse({
             ...room('a'),
             'accountId': 'seller',
-            'product': {'name': '行動電源', 'variantName': ''},
+            'product': {'name': '行動電源', 'variantName': null},
+            'variant': {
+              'id': 'v',
+              'name': null,
+              'sku': 'DEFAULT',
+              'optionValues': {},
+            },
           });
         };
         final router = GoRouter(
@@ -73,12 +89,16 @@ void main() {
         }
         api.event('stream.ready', {'schemaVersion': 1, 'cursor': 'head'});
         await tester.pumpAndSettle();
-        expect(find.text('白色 / 小'), findsOneWidget);
+        expect(
+          find.text('白色 / 小'),
+          kind == 'default' ? findsNothing : findsOneWidget,
+        );
+        expect(find.text('訂單處理中(綠界已收到訂單資料)'), findsOneWidget);
         await tester.tap(find.text('行動電源'));
         await tester.pumpAndSettle();
         expect(
           tester.widget<SimpleAppBar>(find.byType(SimpleAppBar)).subtitle,
-          '白色 / 小',
+          kind == 'default' ? null : '白色 / 小',
         );
         expect(tester.takeException(), isNull);
         await tester.pumpWidget(const SizedBox.shrink());
