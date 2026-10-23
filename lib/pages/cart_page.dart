@@ -27,6 +27,7 @@ import 'package:flutter_ad_ecommerce/shared/widgets/receiver_info_panel.dart';
 import 'package:flutter_ad_ecommerce/utils/api_call_manager.dart';
 import 'package:flutter_ad_ecommerce/utils/coin_utils.dart';
 import 'package:flutter_ad_ecommerce/utils/number_formatter_extension.dart';
+import 'package:flutter_ad_ecommerce/utils/result.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -321,6 +322,14 @@ class _CartPageState extends ConsumerState<CartPage> {
     );
   }
 
+  Future<void> _showCartUpdateFailure(Future<Result<bool>> operation) async {
+    final result = await operation;
+    if (!mounted || result.isSuccess) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(result.error ?? '修改購物車失敗，請稍後再試')));
+  }
+
   Future<String?> _checkoutValidation(
     AccountInfo mAccountInfo,
     List<CartItem> mCartItems,
@@ -331,6 +340,11 @@ class _CartPageState extends ConsumerState<CartPage> {
         .read(cartProvider.notifier)
         .validateCheckoutItems(mCartItems);
     if (availability.isFailure) return availability.error;
+    if (!mounted) return '結帳已中止';
+    // Carry the validated seller/product data through logistics and navigation.
+    mCartItems
+      ..clear()
+      ..addAll(availability.data!);
 
     if (mAccountInfo.name.isEmpty) {
       return "收件人姓名未填寫";
@@ -355,22 +369,28 @@ class _CartPageState extends ConsumerState<CartPage> {
         .map((item) => item.product.seller?.phone)
         .toList();
 
-    final response = await ref
-        .read(dioProvider)
-        .post(
-          "/api/ecpay/express/validate",
-          data: {
-            "SenderNames": senderNames,
-            "SenderCellPhones": senderCellPhones,
-            "ReceiverName": mAccountInfo.name,
-            "ReceiverCellPhone": mAccountInfo.phone,
-            "ReceiverEmail": mAccountInfo.email,
-            "GoodsNames": mCartItems.map((item) => item.product.name).toList(),
-            "GoodsAmount": mSubTotal,
-          },
-        );
-    if (response.data['success'] == true) return null;
-    return response.data['message'];
+    try {
+      final response = await ref
+          .read(dioProvider)
+          .post(
+            "/api/ecpay/express/validate",
+            data: {
+              "SenderNames": senderNames,
+              "SenderCellPhones": senderCellPhones,
+              "ReceiverName": mAccountInfo.name,
+              "ReceiverCellPhone": mAccountInfo.phone,
+              "ReceiverEmail": mAccountInfo.email,
+              "GoodsNames": mCartItems
+                  .map((item) => item.product.name)
+                  .toList(),
+              "GoodsAmount": mSubTotal,
+            },
+          );
+      if (response.data['success'] == true) return null;
+      return response.data['message'] as String? ?? '無法確認配送資料，請稍後再試';
+    } catch (_) {
+      return '無法確認配送資料，請稍後再試';
+    }
   }
 
   @override
@@ -408,81 +428,93 @@ class _CartPageState extends ConsumerState<CartPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  ListView.builder(
-                    itemCount: cartItems.length,
-                    shrinkWrap: true,
-                    physics: NeverScrollableScrollPhysics(),
-                    itemBuilder: (context, index) {
-                      final currentItem = cartItems[index];
-                      final availableVariants =
-                          currentItem.product.availableVariants;
-                      final currentVariant =
-                          currentItem.variant ??
-                          ProductVariant(
-                            id: currentItem.productVariantId,
-                            productId: currentItem.productId,
-                          );
-                      final dialogVariants = availableVariants.isNotEmpty
-                          ? availableVariants
-                          : [currentVariant];
-                      final selectedVariant = availableVariants.firstWhere(
-                        (variant) => variant.id == currentItem.productVariantId,
-                        orElse: () => currentVariant,
-                      );
-                      return CartItemCard(
-                        key: UniqueKey(),
-                        product: currentItem.product,
-                        variant: currentItem.variant,
-                        productVariantId: currentItem.productVariantId,
-                        quantity: currentItem.quantity,
-                        checked: currentItem.checked,
-                        onCheckedChange: (value) {
-                          if (value != null) {
-                            ref
-                                .read(cartProvider.notifier)
-                                .toggleCartItem(
-                                  currentItem.productId,
-                                  value,
-                                  productVariantId:
-                                      currentItem.productVariantId,
+                  AbsorbPointer(
+                    absorbing: _isProcessingTransaction,
+                    child: ListView.builder(
+                      itemCount: cartItems.length,
+                      shrinkWrap: true,
+                      physics: NeverScrollableScrollPhysics(),
+                      itemBuilder: (context, index) {
+                        final currentItem = cartItems[index];
+                        final dialogVariants =
+                            currentItem.product.activeVariants;
+                        final currentVariant =
+                            currentItem.variant ??
+                            ProductVariant(
+                              id: currentItem.productVariantId,
+                              productId: currentItem.productId,
+                            );
+                        final selectedVariant = dialogVariants.firstWhere(
+                          (variant) =>
+                              variant.id == currentItem.productVariantId,
+                          orElse: () => currentVariant,
+                        );
+                        return CartItemCard(
+                          key: ValueKey(currentItem.id),
+                          product: currentItem.product,
+                          variant: currentItem.variant,
+                          productVariantId: currentItem.productVariantId,
+                          quantity: currentItem.quantity,
+                          checked: currentItem.checked,
+                          onCheckedChange: (value) {
+                            if (_isProcessingTransaction) return;
+                            if (value != null) {
+                              _showCartUpdateFailure(
+                                ref
+                                    .read(cartProvider.notifier)
+                                    .toggleCartItem(
+                                      currentItem.productId,
+                                      value,
+                                      productVariantId:
+                                          currentItem.productVariantId,
+                                    ),
+                              );
+                            }
+                          },
+                          onQuantityChange: () {
+                            if (_isProcessingTransaction) return;
+                            showDialog(
+                              context: context,
+                              builder: (context) {
+                                return QuantityDialog(
+                                  quantity: currentItem.quantity,
+                                  variants: dialogVariants,
+                                  selectedVariant: selectedVariant,
+                                  onSubmit: (value) async {
+                                    if (value.quantity !=
+                                            currentItem.quantity ||
+                                        value.variant.id !=
+                                            currentItem.productVariantId) {
+                                      final result = await ref
+                                          .read(cartProvider.notifier)
+                                          .updateCartItem(
+                                            currentItem,
+                                            quantity: value.quantity,
+                                            productVariantId: value.variant.id,
+                                          );
+                                      if (result.isFailure) return result.error;
+                                    }
+                                    return null;
+                                  },
                                 );
-                          }
-                        },
-                        onQuantityChange: () {
-                          showDialog(
-                            context: context,
-                            builder: (context) {
-                              return QuantityDialog(
-                                quantity: currentItem.quantity,
-                                variants: dialogVariants,
-                                selectedVariant: selectedVariant,
-                                onSuccess: (value) {
-                                  if (value.quantity != currentItem.quantity ||
-                                      value.variant.id !=
-                                          currentItem.productVariantId) {
-                                    ref
-                                        .read(cartProvider.notifier)
-                                        .updateCartItem(
-                                          currentItem,
-                                          quantity: value.quantity,
-                                          productVariantId: value.variant.id,
-                                        );
-                                  }
-                                },
-                              );
-                            },
-                          );
-                        },
-                        onDelete: () {
-                          ref
-                              .read(cartProvider.notifier)
-                              .removeItem(
-                                currentItem.productId,
-                                productVariantId: currentItem.productVariantId,
-                              );
-                        },
-                      );
-                    },
+                              },
+                            );
+                          },
+                          onDelete: () {
+                            if (_isProcessingTransaction) return;
+                            _showCartUpdateFailure(
+                              ref
+                                  .read(cartProvider.notifier)
+                                  .removeItem(
+                                    currentItem.productId,
+                                    productVariantId:
+                                        currentItem.productVariantId,
+                                  ),
+                            );
+                          },
+                        );
+                      },
+                    ),
                   ),
                   if (totalCheckedItems > 0) ...[
                     SizedBox(height: 12),
@@ -501,6 +533,12 @@ class _CartPageState extends ConsumerState<CartPage> {
                                 errorDiscountText != null)
                             ? null
                             : () async {
+                                // A cart mutation can start before this button
+                                // has rebuilt with its disabled state.
+                                if (_isProcessingTransaction ||
+                                    !ref.read(cartProvider).isDone) {
+                                  return;
+                                }
                                 var shouldRefreshProducts = false;
                                 setState(() {
                                   _isProcessingTransaction = true;
@@ -560,20 +598,6 @@ class _CartPageState extends ConsumerState<CartPage> {
                                       _isProcessingTransaction = false;
                                     });
                                   });
-                                }
-                                final refreshedItems = ref
-                                    .read(cartProvider)
-                                    .data!;
-                                for (
-                                  var i = 0;
-                                  i < checkedCartItems.length;
-                                  i++
-                                ) {
-                                  checkedCartItems[i] = refreshedItems
-                                      .firstWhere(
-                                        (item) =>
-                                            item.id == checkedCartItems[i].id,
-                                      );
                                 }
                                 final shippingFeeResult = await ref
                                     .read(

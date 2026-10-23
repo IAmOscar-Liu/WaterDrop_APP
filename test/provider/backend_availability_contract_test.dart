@@ -1,3 +1,4 @@
+import '../support/checkout_fixture.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_ad_ecommerce/models/product.dart';
 import 'package:flutter_ad_ecommerce/provider/cart_provider.dart';
@@ -14,6 +15,7 @@ Map<String, dynamic> cartRow({int quantity = 1}) => {
   'productVariantId': 'variant',
   'quantity': quantity,
   'checked': true,
+  'variant': {'id': 'variant', 'price': 0},
   'product': {'id': 'product', 'name': '商品', 'status': 'active'},
 };
 
@@ -155,9 +157,17 @@ void main() {
                 'success': true,
                 'data': !refresh
                     ? [cartRow()]
-                    : changed
-                    ? [cartRow(quantity: 2)]
-                    : [],
+                    : checkoutFixture(
+                        [cartRow()],
+                        cartItems: changed ? [cartRow(quantity: 2)] : [],
+                        itemIssues: {
+                          'cart-item': [
+                            changed
+                                ? 'CART_ITEM_CHANGED'
+                                : 'CART_ITEM_UNAVAILABLE',
+                          ],
+                        },
+                      ),
               },
             ),
           );
@@ -173,7 +183,7 @@ void main() {
           changed ? latest.single.quantity : latest.length,
           changed ? 2 : 0,
         );
-        expect(requests, ['api/cart/list', 'api/cart/list']);
+        expect(requests, ['api/cart/list', '/api/cart/validate-checkout']);
       },
     );
   }
@@ -197,13 +207,12 @@ void main() {
             'success': true,
             'data': options.path == 'api/cart/list'
                 ? [cartRow()]
-                : {
-                    'status': 'active',
-                    'deletedAt': '2026-09-17T00:00:00Z',
-                    'variants': [
-                      {'id': 'variant', 'status': 'active'},
-                    ],
-                  },
+                : checkoutFixture(
+                    [cartRow()],
+                    itemIssues: {
+                      'cart-item': ['PRODUCT_UNAVAILABLE'],
+                    },
+                  ),
           },
         ),
       );

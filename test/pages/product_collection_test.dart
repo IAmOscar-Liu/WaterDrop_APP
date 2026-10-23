@@ -73,6 +73,8 @@ class _CollectionApi {
               ),
             );
             return;
+          } else if (options.path == '/api/cart/item') {
+            response = {'success': true};
           } else if (options.path == '/api/collection') {
             if (options.method == 'DELETE' && collectionMissing) {
               saved = false;
@@ -173,6 +175,134 @@ Future<void> _tapAction(WidgetTester tester, String label) async {
 
 void main() {
   testWidgets(
+    'named variants stay visible and cart uses the selected in-stock variant',
+    (tester) async {
+      final api = _CollectionApi()
+        ..variants = [
+          {
+            'id': 'sold-out',
+            'name': 'ＴＥＳＴ',
+            'status': 'active',
+            'price': 500,
+            'availableStock': 0,
+          },
+          {
+            'id': 'in-stock',
+            'name': 'ＷＡＥ',
+            'status': 'active',
+            'price': 299,
+            'availableStock': 2,
+          },
+        ];
+      await _openProduct(tester, api, source: 'collection');
+      expect(find.text('選擇規格'), findsOneWidget);
+      final options = tester
+          .widgetList<SelectionOptionTile>(find.byType(SelectionOptionTile))
+          .toList();
+      expect(options.length, 2);
+      expect(options.first.onTap, isNull);
+      expect(options.first.secondaryText, '已售完');
+      expect(options.last.isSelected, isTrue);
+      expect(find.text('庫存：2'), findsOneWidget);
+      await tester.ensureVisible(find.text('ＴＥＳＴ'));
+      await tester.tap(find.text('ＴＥＳＴ'));
+      await tester.pump();
+      await _tapAction(tester, '加入購物車');
+      expect(
+        api.requests
+            .where((r) => r.path == '/api/cart/item')
+            .single
+            .data['productVariantId'],
+        'in-stock',
+      );
+    },
+  );
+
+  for (final source in ['cart', 'collection']) {
+    testWidgets('one named variant stays visible from $source', (tester) async {
+      final api = _CollectionApi()
+        ..variants = [
+          {
+            'id': 'only',
+            'name': '12個月',
+            'status': 'active',
+            'availableStock': 2,
+          },
+        ];
+      await _openProduct(tester, api, source: source);
+      expect(find.text('12個月'), findsOneWidget);
+      expect(find.text(source == 'cart' ? '商品規格' : '選擇規格'), findsOneWidget);
+    });
+  }
+
+  for (final defaultStock in [null, 0, 2]) {
+    testWidgets(
+      'no variants or a single unnamed default hides the list: $defaultStock',
+      (tester) async {
+        final api = _CollectionApi()
+          ..variants = [
+            if (defaultStock != null)
+              {
+                'id': 'default',
+                'name': null,
+                'status': 'active',
+                'availableStock': defaultStock,
+              },
+          ];
+        await _openProduct(tester, api, source: 'collection');
+        expect(find.text('選擇規格'), findsNothing);
+        expect(find.text('商品規格'), findsNothing);
+        expect(find.byType(SelectionOptionTile), findsNothing);
+        if (defaultStock == 2) {
+          await _tapAction(tester, '加入購物車');
+          expect(
+            api.requests
+                .where((r) => r.path == '/api/cart/item')
+                .single
+                .data['productVariantId'],
+            'default',
+          );
+        }
+      },
+    );
+  }
+
+  testWidgets(
+    'all sold-out named variants remain visible and cannot be added',
+    (tester) async {
+      final api = _CollectionApi()
+        ..variants = [
+          {'id': 'a', 'name': 'A', 'status': 'active', 'availableStock': 0},
+          {'id': 'b', 'name': 'B', 'status': 'active', 'availableStock': 0},
+          {
+            'id': 'historical',
+            'name': 'Historical',
+            'status': 'inactive',
+            'availableStock': 5,
+          },
+        ];
+      await _openProduct(tester, api, source: 'collection');
+      final options = tester
+          .widgetList<SelectionOptionTile>(find.byType(SelectionOptionTile))
+          .toList();
+      expect(options.length, 2);
+      expect(
+        options.every((option) => option.onTap == null && !option.isSelected),
+        isTrue,
+      );
+      expect(find.text('Historical'), findsNothing);
+      expect(
+        tester
+            .widget<ElevatedButton>(
+              find.widgetWithText(ElevatedButton, '加入購物車'),
+            )
+            .onPressed,
+        isNull,
+      );
+    },
+  );
+
+  testWidgets(
     'Soft-deleted active product is read-only and cannot be purchased',
     (tester) async {
       final api = _CollectionApi(saved: true)
@@ -234,7 +364,8 @@ void main() {
         api.requests.where((r) => r.path == '/api/product/product').length,
         1,
       );
-      expect(api.requests.where((r) => r.path == 'api/cart/list').length, 1);
+      // Load the current cart before adding, then reconcile after the failure.
+      expect(api.requests.where((r) => r.path == 'api/cart/list').length, 2);
       expect(
         api.requests
             .where((r) => r.path == '/api/cart/item')

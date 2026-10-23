@@ -1,3 +1,4 @@
+import '../support/checkout_fixture.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_ad_ecommerce/models/product.dart';
 import 'package:flutter_ad_ecommerce/provider/cart_provider.dart';
@@ -9,6 +10,7 @@ Map<String, dynamic> row(String id, {bool checked = true}) => {
   'id': id,
   'productId': id == 'valid' ? 'active-product' : 'stale-product',
   'productVariantId': id,
+  'variant': {'id': id, 'price': 0},
   'checked': checked,
   'quantity': 1,
   'product': {'id': id, 'name': id, 'status': 'active'},
@@ -75,34 +77,22 @@ void main() {
                 return;
               }
               data = {};
-            } else if (options.path == '/api/product/active-product') {
+            } else {
+              expect(options.path, '/api/cart/validate-checkout');
+              data = checkoutFixture(
+                rows.take(2).toList(),
+                cartItems: List.of(rows),
+                itemIssues: {
+                  'stale': [
+                    scenario.contains('variant')
+                        ? 'VARIANT_UNAVAILABLE'
+                        : 'PRODUCT_UNAVAILABLE',
+                  ],
+                },
+              );
               if (scenario == 'already removed') {
-                // Lifecycle cleanup wins the race before our removal request.
                 rows.removeWhere((row) => row['id'] == 'stale');
               }
-              data = {
-                'status': 'active',
-                'variants': [
-                  {'id': 'valid', 'status': 'active'},
-                ],
-              };
-            } else {
-              expect(options.path, '/api/product/stale-product');
-              if (scenario == 'missing product') {
-                reject(404);
-                return;
-              }
-              data = {
-                'status': scenario == 'inactive product'
-                    ? 'inactive'
-                    : 'active',
-                if (scenario == 'deleted product')
-                  'deletedAt': '2026-09-17T00:00:00Z',
-                'variants': [
-                  if (scenario != 'missing variant')
-                    {'id': 'stale', 'status': 'inactive'},
-                ],
-              };
             }
             handler.resolve(
               Response(
@@ -126,9 +116,7 @@ void main() {
       // Checkout must stop even after successful cleanup.
       expect(result.isFailure, isTrue);
       expect(requests.map((r) => r.path), [
-        'api/cart/list',
-        '/api/product/stale-product',
-        '/api/product/active-product',
+        '/api/cart/validate-checkout',
         '/api/cart/item',
         'api/cart/list',
       ]);
@@ -174,7 +162,13 @@ void main() {
               rows.removeWhere((row) => row['id'] == 'second');
               data = {};
             } else {
-              data = {'status': 'inactive'};
+              data = checkoutFixture(
+                rows,
+                itemIssues: {
+                  for (final row in rows)
+                    row['id'] as String: ['PRODUCT_UNAVAILABLE'],
+                },
+              );
             }
             handler.resolve(
               Response(
@@ -196,8 +190,7 @@ void main() {
       expect(result.error, contains('尚未移除'));
       expect(container.read(cartProvider).data!.single.id, 'first');
       expect(requests.map((r) => r.path), [
-        'api/cart/list',
-        '/api/product/stale-product',
+        '/api/cart/validate-checkout',
         '/api/cart/item',
         '/api/cart/item',
         'api/cart/list',

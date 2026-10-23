@@ -18,13 +18,15 @@ class QuantityDialog extends StatefulWidget {
     required this.quantity,
     required this.variants,
     required this.selectedVariant,
-    required this.onSuccess,
+    required this.onSubmit,
   });
 
   final int quantity;
   final List<ProductVariant> variants;
   final ProductVariant selectedVariant;
-  final ValueChanged<CartItemEditResult> onSuccess;
+
+  /// Runs after dismissal; an error message is shown in the parent Snackbar.
+  final Future<String?> Function(CartItemEditResult) onSubmit;
 
   @override
   State<QuantityDialog> createState() => _QuantityDialogState();
@@ -34,6 +36,30 @@ class _QuantityDialogState extends State<QuantityDialog> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _quantityController;
   late ProductVariant _selectedVariant;
+  bool _isSubmitting = false;
+
+  String? get _quantityError {
+    final text = _quantityController.text;
+    if (text.isEmpty) return '請輸入數量';
+    final quantity = int.tryParse(text);
+    if (quantity == null) return '輸入無效';
+    if (quantity < 1) return '數量最少為1';
+    if (quantity > _selectedVariant.availableStock) {
+      return '數量不可超過庫存';
+    }
+    return null;
+  }
+
+  bool get _showVariants =>
+      widget.variants.isNotEmpty &&
+      !(widget.variants.length == 1 &&
+          (widget.variants.single.name?.trim().isEmpty ?? true));
+
+  bool get _canSubmit =>
+      !_isSubmitting &&
+      _quantityError == null &&
+      _selectedVariant.isAvailable &&
+      widget.variants.any((variant) => variant.id == _selectedVariant.id);
 
   @override
   void initState() {
@@ -43,7 +69,10 @@ class _QuantityDialogState extends State<QuantityDialog> {
       text: widget.quantity.toString(),
     );
     _selectedVariant = widget.selectedVariant;
+    _quantityController.addListener(_onQuantityChanged);
   }
+
+  void _onQuantityChanged() => setState(() {});
 
   @override
   void dispose() {
@@ -80,168 +109,200 @@ class _QuantityDialogState extends State<QuantityDialog> {
   }
 
   // Validates the form and passes the result back
-  void _submit() {
+  Future<void> _submit() async {
+    if (!_canSubmit) return;
     if (_formKey.currentState!.validate()) {
       _formKey.currentState!.save();
       final int quantity = int.parse(_quantityController.text);
-      widget.onSuccess(
-        CartItemEditResult(quantity: quantity, variant: _selectedVariant),
-      );
+      setState(() {
+        _isSubmitting = true;
+      });
+      // Capture the page's messenger before the dialog context is disposed.
+      final messenger = ScaffoldMessenger.of(context);
       Navigator.of(context).pop();
+      String? error;
+      try {
+        error = await widget.onSubmit(
+          CartItemEditResult(quantity: quantity, variant: _selectedVariant),
+        );
+      } catch (_) {
+        error = '修改失敗，請稍後再試';
+      }
+      if (error != null && messenger.mounted) {
+        messenger.showSnackBar(SnackBar(content: Text('修改商品失敗：$error')));
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () => FocusScope.of(context).unfocus(),
-      child: AlertDialog(
-        backgroundColor: AppColors.containerBgColor,
-        surfaceTintColor: Colors.transparent,
-        title: const Text(
-          '修改商品',
-          style: TextStyle(
-            color: AppColors.primaryTextColor,
-            fontWeight: FontWeight.bold,
+    return PopScope(
+      canPop: !_isSubmitting,
+      child: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        child: AlertDialog(
+          backgroundColor: AppColors.containerBgColor,
+          surfaceTintColor: Colors.transparent,
+          title: const Text(
+            '修改商品',
+            style: TextStyle(
+              color: AppColors.primaryTextColor,
+              fontWeight: FontWeight.bold,
+            ),
           ),
-        ),
-        content: Form(
-          key: _formKey,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (widget.variants.length > 1) ...[
-                  const Text(
-                    '選擇規格',
-                    style: TextStyle(
-                      color: AppColors.primaryTextColor,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Column(
-                    children: widget.variants
-                        .map((variant) => _buildVariantOptionRow(variant))
-                        .toList(),
-                  ),
-                  const SizedBox(height: 16),
-                ],
-                const Text(
-                  '商品數量',
-                  style: TextStyle(
-                    color: AppColors.primaryTextColor,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    IconButton(
-                      icon: const Icon(Icons.remove),
-                      color: AppColors.primaryTextColor,
-                      onPressed: _decrement,
-                    ),
-                    SizedBox(
-                      width: 100,
-                      child: TextFormField(
-                        controller: _quantityController,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: AppColors.primaryTextColor,
-                          fontWeight: FontWeight.w600,
-                        ),
-                        keyboardType: TextInputType.number,
-                        inputFormatters: [
-                          FilteringTextInputFormatter.digitsOnly,
-                        ],
-                        decoration: const InputDecoration(
-                          filled: true,
-                          fillColor: AppColors.fieldInputColor,
-                          border: OutlineInputBorder(),
-                          enabledBorder: OutlineInputBorder(
-                            borderSide: BorderSide(
-                              color: AppColors.borderColor,
-                            ),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderSide: BorderSide(
-                              color: AppColors.selectedBorderColor,
-                            ),
-                          ),
-                          errorBorder: OutlineInputBorder(
-                            borderSide: BorderSide(
-                              color: AppColors.dangerButtonColor,
-                            ),
-                          ),
-                          focusedErrorBorder: OutlineInputBorder(
-                            borderSide: BorderSide(
-                              color: AppColors.dangerButtonColor,
-                            ),
-                          ),
-                          contentPadding: EdgeInsets.all(12),
-                          errorStyle: TextStyle(
-                            color: AppColors.dangerButtonColor,
-                          ),
-                        ),
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return '請輸入數量';
-                          }
-                          final int? quantity = int.tryParse(value);
-                          if (quantity == null) {
-                            return '輸入無效';
-                          }
-                          if (quantity < 1) {
-                            return '數量最少為1';
-                          }
-                          return null;
-                        },
+          content: Form(
+            key: _formKey,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (_showVariants) ...[
+                    const Text(
+                      '選擇規格',
+                      style: TextStyle(
+                        color: AppColors.primaryTextColor,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
                       ),
                     ),
-                    IconButton(
-                      icon: const Icon(Icons.add),
-                      color: AppColors.primaryTextColor,
-                      onPressed: _increment,
+                    const SizedBox(height: 8),
+                    Column(
+                      children: widget.variants
+                          .map((variant) => _buildVariantOptionRow(variant))
+                          .toList(),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        '商品數量',
+                        style: TextStyle(
+                          color: AppColors.primaryTextColor,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Text(
+                        _selectedVariant.isAvailable
+                            ? '庫存 ${_selectedVariant.availableStock}'
+                            : '已售完',
+                        style: const TextStyle(
+                          color: AppColors.secondaryTextColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      IconButton(
+                        icon: const Icon(Icons.remove),
+                        color: AppColors.primaryTextColor,
+                        onPressed: _isSubmitting ? null : _decrement,
+                      ),
+                      SizedBox(
+                        width: 100,
+                        child: TextFormField(
+                          enabled: !_isSubmitting,
+                          controller: _quantityController,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: AppColors.primaryTextColor,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          keyboardType: TextInputType.number,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.digitsOnly,
+                          ],
+                          decoration: const InputDecoration(
+                            filled: true,
+                            fillColor: AppColors.fieldInputColor,
+                            border: OutlineInputBorder(),
+                            enabledBorder: OutlineInputBorder(
+                              borderSide: BorderSide(
+                                color: AppColors.borderColor,
+                              ),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderSide: BorderSide(
+                                color: AppColors.selectedBorderColor,
+                              ),
+                            ),
+                            errorBorder: OutlineInputBorder(
+                              borderSide: BorderSide(
+                                color: AppColors.dangerButtonColor,
+                              ),
+                            ),
+                            focusedErrorBorder: OutlineInputBorder(
+                              borderSide: BorderSide(
+                                color: AppColors.dangerButtonColor,
+                              ),
+                            ),
+                            contentPadding: EdgeInsets.all(12),
+                            errorStyle: TextStyle(
+                              color: AppColors.dangerButtonColor,
+                            ),
+                          ),
+                          validator: (_) => _quantityError,
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.add),
+                        color: AppColors.primaryTextColor,
+                        onPressed: _isSubmitting ? null : _increment,
+                      ),
+                    ],
+                  ),
+                  if (_quantityError != null) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      _quantityError!,
+                      style: const TextStyle(
+                        color: AppColors.dangerButtonColor,
+                      ),
                     ),
                   ],
-                ),
-              ],
+                ],
+              ),
             ),
           ),
+          actions: <Widget>[
+            // Cancel Button
+            TextButton(
+              style: TextButton.styleFrom(
+                foregroundColor: AppColors.secondaryTextColor,
+              ),
+              onPressed: _isSubmitting
+                  ? null
+                  : () {
+                      Navigator.of(context).pop();
+                    },
+              child: const Text('取消'),
+            ),
+            // OK Button
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.navbarIndicatorColor,
+                foregroundColor: AppColors.primaryTextColor,
+              ),
+              onPressed: _canSubmit ? _submit : null,
+              child: const Text('確定'),
+            ),
+          ],
         ),
-        actions: <Widget>[
-          // Cancel Button
-          TextButton(
-            style: TextButton.styleFrom(
-              foregroundColor: AppColors.secondaryTextColor,
-            ),
-            child: const Text('取消'),
-            onPressed: () {
-              Navigator.of(context).pop();
-            },
-          ),
-          // OK Button
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.navbarIndicatorColor,
-              foregroundColor: AppColors.primaryTextColor,
-            ),
-            onPressed: _submit,
-            child: const Text('確定'),
-          ),
-        ],
       ),
     );
   }
 
   Widget _buildVariantOptionRow(ProductVariant variant) {
     final isSelected = _selectedVariant.id == variant.id;
-    final stockText = '庫存 ${variant.availableStock}';
+    final stockText = variant.isAvailable
+        ? '庫存 ${variant.availableStock}'
+        : '已售完';
     final priceText = variant.price.toDollarsString(prefix: "NT");
 
     return SelectionOptionTile(
@@ -249,7 +310,12 @@ class _QuantityDialogState extends State<QuantityDialog> {
       primaryText: priceText,
       secondaryText: stockText,
       isSelected: isSelected,
-      onTap: () => setState(() => _selectedVariant = variant),
+      strikeThroughTitle: !variant.isAvailable,
+      onTap: variant.isAvailable && !_isSubmitting
+          ? () => setState(() {
+              _selectedVariant = variant;
+            })
+          : null,
     );
   }
 }

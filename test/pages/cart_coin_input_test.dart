@@ -1,3 +1,4 @@
+import '../support/checkout_fixture.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_ad_ecommerce/models/account_info.dart';
@@ -51,6 +52,10 @@ class _TestCart extends Cart {
       ? CustomAsyncValue.loading()
       : CustomAsyncValue.done(_items());
 
+  void setPending() => state = CustomAsyncValue.processing(state.data!);
+
+  void setRefreshing() => state = CustomAsyncValue.fetching(state.data!);
+
   void setItems({double price = 1000}) =>
       state = CustomAsyncValue.done(_items(price: price));
 
@@ -81,6 +86,7 @@ class _TestCart extends Cart {
       'productVariantId': 'variant',
       'checked': true,
       'quantity': 1,
+      'variant': {'id': 'variant', 'price': price},
       'product': {
         'id': 'product',
         'name': 'Test product',
@@ -108,6 +114,21 @@ class _TestProducts extends ProductNotifier {
   Future<void> refreshProducts() async {}
 }
 
+Map<String, dynamic> _checkoutRow() => {
+  'id': 'item',
+  'productId': 'product',
+  'productVariantId': 'variant',
+  'checked': true,
+  'quantity': 1,
+  'variant': {'id': 'variant', 'price': 1000},
+  'product': {
+    'id': 'product',
+    'name': 'Test product',
+    'price': 1000,
+    'status': 'active',
+  },
+};
+
 Future<ProviderContainer> _showCart(
   WidgetTester tester,
   double coins, {
@@ -126,14 +147,8 @@ Future<ProviderContainer> _showCart(
               requestOptions: options,
               data: {
                 'success': true,
-                'data': options.path == '/api/product/product'
-                    ? {
-                        'id': 'product',
-                        'status': 'active',
-                        'variants': [
-                          {'id': 'variant', 'status': 'active'},
-                        ],
-                      }
+                'data': options.path == '/api/cart/validate-checkout'
+                    ? checkoutFixture([_checkoutRow()])
                     : <String, dynamic>{},
               },
             ),
@@ -192,6 +207,223 @@ void main() {
       expect(field.controller!.text, entry.value);
       expect(field.decoration!.errorText, isNull);
     });
+  }
+
+  testWidgets(
+    'Checkout blocks pending edits, refresh, and a tap before rebuild',
+    (tester) async {
+      final requests = <String>[];
+      final container = await _showCart(
+        tester,
+        125.75,
+        onRequest: (options, handler) {
+          requests.add(options.path);
+          handler.resolve(
+            Response(
+              requestOptions: options,
+              data: {'success': true, 'data': {}},
+            ),
+          );
+        },
+      );
+      final cart = container.read(cartProvider.notifier) as _TestCart;
+      final checkout = find.widgetWithText(ElevatedButton, '確認結帳');
+      final staleTap = tester.widget<ElevatedButton>(checkout).onPressed!;
+      cart.setPending();
+      staleTap();
+      await tester.pumpAndSettle();
+      expect(requests, isEmpty);
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(tester.widget<ElevatedButton>(checkout).onPressed, isNull);
+      cart.setRefreshing();
+      await tester.pumpAndSettle();
+      expect(tester.widget<ElevatedButton>(checkout).onPressed, isNull);
+      cart.setItems();
+      await tester.pumpAndSettle();
+      expect(tester.widget<ElevatedButton>(checkout).onPressed, isNotNull);
+    },
+  );
+
+  for (final failLastToggle in [false, true]) {
+    testWidgets(
+      'Checkbox taps update immediately and reconcile failure=$failLastToggle',
+      (tester) async {
+        final pending = <(RequestOptions, RequestInterceptorHandler)>[];
+        final container = await _showCart(
+          tester,
+          125.75,
+          useCartApi: true,
+          onRequest: (options, handler) => pending.add((options, handler)),
+        );
+        void reply(String path, Object data) {
+          final (options, handler) = pending.removeAt(0);
+          expect(options.path, path);
+          handler.resolve(
+            Response(
+              requestOptions: options,
+              data: {'success': true, 'data': data},
+            ),
+          );
+        }
+
+        List<Map<String, dynamic>> rows(bool checked) => [
+          {
+            'id': 'item',
+            'productId': 'product',
+            'productVariantId': 'variant',
+            'quantity': 1,
+            'checked': checked,
+            'product': {
+              'id': 'product',
+              'name': 'Test product',
+              'price': 1000,
+              'status': 'active',
+            },
+          },
+        ];
+        final checkbox = find.byType(Checkbox);
+        final checkout = find.widgetWithText(ElevatedButton, '確認結帳');
+        await tester.ensureVisible(checkbox);
+        await tester.tap(checkbox);
+        await tester.pumpAndSettle();
+        expect(tester.widget<Checkbox>(checkbox).value, isFalse);
+        expect(checkout, findsNothing);
+        await tester.tap(checkbox);
+        await tester.pumpAndSettle();
+        expect(tester.widget<Checkbox>(checkbox).value, isTrue);
+        expect(tester.widget<ElevatedButton>(checkout).onPressed, isNull);
+        expect(pending.length, 1);
+        expect(pending.first.$1.data['checked'], isFalse);
+        reply('/api/cart/item/toggle', {});
+        await tester.pumpAndSettle();
+        reply('api/cart/list', rows(false));
+        await tester.pumpAndSettle();
+        expect(tester.widget<Checkbox>(checkbox).value, isTrue);
+        expect(tester.widget<ElevatedButton>(checkout).onPressed, isNull);
+        expect(pending.first.$1.data['checked'], isTrue);
+        if (failLastToggle) {
+          final (options, handler) = pending.removeAt(0);
+          handler.reject(
+            DioException(
+              requestOptions: options,
+              type: DioExceptionType.connectionError,
+            ),
+          );
+        } else {
+          reply('/api/cart/item/toggle', {});
+        }
+        await tester.pumpAndSettle();
+        expect(tester.widget<ElevatedButton>(checkout).onPressed, isNull);
+        reply('api/cart/list', rows(!failLastToggle));
+        await tester.pumpAndSettle();
+        expect(container.read(cartProvider).isDone, isTrue);
+        expect(tester.widget<Checkbox>(checkbox).value, !failLastToggle);
+        if (failLastToggle) {
+          expect(find.byType(SnackBar), findsOneWidget);
+          expect(checkout, findsNothing);
+        } else {
+          expect(find.byType(SnackBar), findsNothing);
+          expect(tester.widget<ElevatedButton>(checkout).onPressed, isNotNull);
+        }
+      },
+    );
+  }
+
+  testWidgets(
+    'Checkout stops before logistics validation when current stock is insufficient',
+    (tester) async {
+      final requests = <String>[];
+      await _showCart(
+        tester,
+        125.75,
+        onRequest: (options, handler) {
+          requests.add(options.path);
+          handler.resolve(
+            Response(
+              requestOptions: options,
+              data: {
+                'success': true,
+                'data': checkoutFixture(
+                  [_checkoutRow()],
+                  stock: 0,
+                  itemIssues: {
+                    'item': ['INSUFFICIENT_STOCK'],
+                  },
+                ),
+              },
+            ),
+          );
+        },
+      );
+      final checkout = find.widgetWithText(ElevatedButton, '確認結帳');
+      await tester.ensureVisible(checkout);
+      await tester.tap(checkout);
+      await tester.pumpAndSettle();
+      expect(find.text('無法結帳'), findsOneWidget);
+      expect(find.textContaining('庫存不足（需求：1，剩餘：0）'), findsOneWidget);
+      expect(requests, ['/api/cart/validate-checkout']);
+      expect(find.byType(CartItemCard), findsOneWidget);
+    },
+  );
+
+  for (final networkFailure in [false, true]) {
+    testWidgets(
+      'Logistics uses the validated product and seller, and failure stays in cart ($networkFailure)',
+      (tester) async {
+        final requests = <String>[];
+        final fresh = _checkoutRow();
+        fresh['product'] = <String, dynamic>{
+          ...fresh['product'] as Map,
+          'name': '最新商品名稱',
+          'seller': {'id': 'seller', 'realName': '最新賣家', 'phone': '0987654321'},
+        };
+        await _showCart(
+          tester,
+          125.75,
+          onRequest: (options, handler) {
+            requests.add(options.path);
+            if (options.path == '/api/cart/validate-checkout') {
+              handler.resolve(
+                Response(
+                  requestOptions: options,
+                  data: {
+                    'success': true,
+                    'data': checkoutFixture(
+                      [_checkoutRow()],
+                      cartItems: [fresh],
+                    ),
+                  },
+                ),
+              );
+            } else {
+              expect(options.path, '/api/ecpay/express/validate');
+              expect(options.data['GoodsNames'], ['最新商品名稱']);
+              expect(options.data['SenderNames'], ['最新賣家']);
+              expect(options.data['SenderCellPhones'], ['0987654321']);
+              if (networkFailure) {
+                handler.reject(DioException(requestOptions: options));
+              } else {
+                handler.resolve(
+                  Response(requestOptions: options, data: {'success': false}),
+                );
+              }
+            }
+          },
+        );
+        final checkout = find.widgetWithText(ElevatedButton, '確認結帳');
+        await tester.ensureVisible(checkout);
+        await tester.tap(checkout);
+        await tester.pumpAndSettle();
+        expect(find.text('無法確認配送資料，請稍後再試'), findsOneWidget);
+        expect(requests, [
+          '/api/cart/validate-checkout',
+          '/api/ecpay/express/validate',
+        ]);
+        await tester.tap(find.text('確定'));
+        await tester.pumpAndSettle();
+        expect(tester.widget<ElevatedButton>(checkout).onPressed, isNotNull);
+      },
+    );
   }
 
   testWidgets('Discount must be a multiple of ten and stay within limits', (
@@ -260,21 +492,18 @@ void main() {
               requestOptions: options,
               data: {
                 'success': true,
-                'data': {
-                  'id': 'product',
-                  'status': condition == 'inactive product'
-                      ? 'inactive'
-                      : 'active',
-                  'variants': [
-                    if (condition != 'missing variant')
-                      {
-                        'id': 'variant',
-                        'status': condition == 'inactive variant'
-                            ? 'inactive'
-                            : 'active',
-                      },
-                  ],
-                },
+                'data': options.path == 'api/cart/list'
+                    ? [_checkoutRow()]
+                    : checkoutFixture(
+                        [_checkoutRow()],
+                        itemIssues: {
+                          'item': [
+                            condition == 'inactive product'
+                                ? 'PRODUCT_UNAVAILABLE'
+                                : 'VARIANT_UNAVAILABLE',
+                          ],
+                        },
+                      ),
               },
             ),
           );
@@ -289,13 +518,16 @@ void main() {
       expect(find.text('無法結帳'), findsOneWidget);
       expect(
         find.textContaining(
-          condition == 'network failure' ? '無法確認商品狀態' : '已下架',
+          condition == 'network failure' ? '無法確認購物車狀態' : '已下架',
         ),
         findsOneWidget,
       );
       expect(requests, [
-        '/api/product/product',
-        if (condition != 'network failure') '/api/cart/item',
+        '/api/cart/validate-checkout',
+        if (condition != 'network failure') ...[
+          '/api/cart/item',
+          'api/cart/list',
+        ],
       ]);
       expect(find.byType(CartPage), findsOneWidget);
       await tester.tap(find.text('確定'));
@@ -343,8 +575,13 @@ void main() {
             removed = true;
             data = {};
           } else {
-            expect(options.path, '/api/product/product');
-            data = {'id': 'product', 'status': 'inactive'};
+            expect(options.path, '/api/cart/validate-checkout');
+            data = checkoutFixture(
+              [_checkoutRow()],
+              itemIssues: {
+                'item': ['PRODUCT_UNAVAILABLE'],
+              },
+            );
           }
           handler.resolve(
             Response(
@@ -364,8 +601,7 @@ void main() {
       expect(find.byType(CartItemCard), findsNothing);
       expect(container.read(cartProvider).data, isEmpty);
       expect(requests, [
-        'api/cart/list',
-        '/api/product/product',
+        '/api/cart/validate-checkout',
         '/api/cart/item',
         'api/cart/list',
       ]);

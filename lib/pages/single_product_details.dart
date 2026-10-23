@@ -85,7 +85,9 @@ class _SingleProductDetailsState extends ConsumerState<SingleProductDetails> {
     for (final variant in variants) {
       if (variant.id == previousId) _selectedVariant = variant;
     }
-    if (previousId == null && selectDefault && variants.length == 1) {
+    if (variants.length == 1 &&
+        ((previousId == null && selectDefault) ||
+            _isSingleUnnamedDefaultVariant(product.activeVariants))) {
       _selectedVariant = variants.first;
     }
   }
@@ -319,19 +321,11 @@ class _SingleProductDetailsState extends ConsumerState<SingleProductDetails> {
   Widget _buildVariantSection() {
     final readOnly = !_isProductActive || _hideAddCartItemButton;
     final variants = _isProductActive
-        ? _availableVariants
+        ? (_product?.activeVariants ?? const <ProductVariant>[])
         : (_product?.variants ?? const <ProductVariant>[]);
-    if (variants.isEmpty) {
-      return _buildVariantContainer(
-        child: const Text(
-          '目前沒有可購買規格',
-          style: TextStyle(color: AppColors.secondaryTextColor),
-        ),
-      );
-    }
-
-    if (_isSingleUnnamedDefaultVariant(variants) &&
-        (readOnly || _selectedVariant != null)) {
+    // A named variant remains relevant even when it is sold out or is the
+    // only purchasable choice. Only the backend's simple/default mode is hidden.
+    if (variants.isEmpty || _isSingleUnnamedDefaultVariant(variants)) {
       return const SizedBox.shrink();
     }
 
@@ -353,10 +347,6 @@ class _SingleProductDetailsState extends ConsumerState<SingleProductDetails> {
           ],
         ),
       );
-    }
-
-    if (variants.length <= 1 && _selectedVariant != null) {
-      return const SizedBox.shrink();
     }
 
     return _buildVariantContainer(
@@ -434,7 +424,9 @@ class _SingleProductDetailsState extends ConsumerState<SingleProductDetails> {
 
   Widget _buildVariantOptionRow(ProductVariant variant) {
     final isSelected = _selectedVariant?.id == variant.id;
-    final stockText = '庫存 ${variant.availableStock}';
+    final stockText = variant.isAvailable
+        ? '庫存 ${variant.availableStock}'
+        : '已售完';
     final priceText = variant.price > 0
         ? variant.price.toDollarsString(prefix: "NT")
         : (_product?.price ?? 0).toDollarsString(prefix: "NT");
@@ -444,14 +436,19 @@ class _SingleProductDetailsState extends ConsumerState<SingleProductDetails> {
       primaryText: priceText,
       secondaryText: stockText,
       isSelected: isSelected,
-      onTap: () => setState(() => _selectedVariant = variant),
+      strikeThroughTitle: !variant.isAvailable,
+      onTap: variant.isAvailable
+          ? () => setState(() => _selectedVariant = variant)
+          : null,
       detailsSpacing: 8,
       trailing: _buildVariantPreviewButton(variant),
     );
   }
 
   Widget _buildVariantReadOnlyRow(ProductVariant variant) {
-    final stockText = '庫存 ${variant.availableStock}';
+    final stockText = variant.availableStock > 0
+        ? '庫存 ${variant.availableStock}'
+        : '已售完';
     final priceText = variant.price > 0
         ? variant.price.toDollarsString(prefix: "NT")
         : (_product?.price ?? 0).toDollarsString(prefix: "NT");

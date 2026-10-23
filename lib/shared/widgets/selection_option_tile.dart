@@ -13,15 +13,17 @@ class SelectionOptionTile extends StatelessWidget {
     required this.onTap,
     this.trailing,
     this.detailsSpacing = 12,
+    this.strikeThroughTitle = false,
   });
 
   final String title;
   final String primaryText;
   final String secondaryText;
   final bool isSelected;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
   final Widget? trailing;
   final double detailsSpacing;
+  final bool strikeThroughTitle;
 
   @override
   Widget build(BuildContext context) {
@@ -61,10 +63,18 @@ class SelectionOptionTile extends StatelessWidget {
                   title,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: AppColors.primaryTextColor,
+                  style: TextStyle(
+                    color: onTap == null
+                        ? AppColors.secondaryTextColor
+                        : AppColors.primaryTextColor,
                     fontSize: 15,
                     fontWeight: FontWeight.w700,
+                    decoration: strikeThroughTitle
+                        ? TextDecoration.lineThrough
+                        : TextDecoration.none,
+                    decorationColor: onTap == null
+                        ? AppColors.secondaryTextColor
+                        : AppColors.primaryTextColor,
                   ),
                 ),
               ),
@@ -75,8 +85,10 @@ class SelectionOptionTile extends StatelessWidget {
                 children: [
                   Text(
                     primaryText,
-                    style: const TextStyle(
-                      color: AppColors.goldColor,
+                    style: TextStyle(
+                      color: onTap == null
+                          ? AppColors.secondaryTextColor
+                          : AppColors.goldColor,
                       fontSize: 14,
                       fontWeight: FontWeight.w700,
                     ),

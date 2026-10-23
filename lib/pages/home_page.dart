@@ -189,14 +189,20 @@ class _HomePageState extends ConsumerState<HomePage>
               ),
               Builder(
                 builder: (context) {
-                  final claimableBoxCount = ref.watch(
+                  final confirmedBoxCount = ref.watch(
                     claimableTreasureBoxCountProvider,
                   );
+                  final optimisticBoxCount = ref
+                      .read(treasureBoxNotifierProvider.notifier)
+                      .optimisticClaimableBoxCount;
+                  final claimableBoxCount =
+                      optimisticBoxCount ?? confirmedBoxCount;
                   final emptyBoxCount = ref.watch(
                     emptyTreasureBoxCountProvider,
                   );
                   final badge = ref.watch(appBadgeProvider);
-                  final statusText = badge.snapshot == null
+                  final statusText =
+                      badge.snapshot == null && optimisticBoxCount == null
                       ? badge.error != null
                             ? '暫時無法更新寶箱數量'
                             : '寶箱數量更新中…'
@@ -244,26 +250,34 @@ class _HomePageState extends ConsumerState<HomePage>
                                     .openBox(box.id);
                                 if (!mounted) return;
                                 if (result.isSuccess) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(
-                                        result.data == 0
-                                            ? '很抱歉，由於您昨天未觀看廣告，無法獲得金幣'
-                                            : '開啟寶箱，獲得${result.data!.formatCoinValue()}金幣',
+                                  ScaffoldMessenger.of(context)
+                                    ..clearSnackBars()
+                                    ..removeCurrentSnackBar()
+                                    ..showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          result.data == 0
+                                              ? '很抱歉，由於您昨天未觀看廣告，無法獲得金幣'
+                                              : '開啟寶箱，獲得${result.data!.formatCoinValue()}金幣',
+                                        ),
+                                        backgroundColor: Colors.green,
+                                        duration: const Duration(seconds: 2),
                                       ),
-                                      backgroundColor: Colors.green,
-                                      duration: const Duration(seconds: 2),
-                                    ),
-                                  );
+                                    );
                                 } else if (result.error != 'processing' &&
                                     result.error != 'target not available') {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text('寶箱開啟失敗，正在重新整理寶箱列表，請稍後再試。'),
-                                      backgroundColor: Colors.red,
-                                      duration: Duration(seconds: 3),
-                                    ),
-                                  );
+                                  ScaffoldMessenger.of(context)
+                                    ..clearSnackBars()
+                                    ..removeCurrentSnackBar()
+                                    ..showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                          '寶箱開啟失敗，正在重新整理寶箱列表，請稍後再試。',
+                                        ),
+                                        backgroundColor: Colors.red,
+                                        duration: Duration(seconds: 3),
+                                      ),
+                                    );
                                 }
                               }
                             : null,

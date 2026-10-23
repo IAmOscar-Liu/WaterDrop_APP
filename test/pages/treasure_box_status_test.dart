@@ -143,6 +143,131 @@ Future<ProviderContainer> _showHome(WidgetTester tester, Dio dio) async {
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
+  testWidgets('Home accepts the next box while the previous open is pending', (
+    tester,
+  ) async {
+    final api = _BoxApi()..additionalBox = true;
+    final dio = api.createDio();
+    addTearDown(() => dio.close());
+    final pending = <(RequestOptions, RequestInterceptorHandler)>[];
+    dio.interceptors.insert(
+      0,
+      InterceptorsWrapper(
+        onRequest: (options, handler) {
+          if (options.path.startsWith('/api/treasureBox/open/')) {
+            pending.add((options, handler));
+          } else {
+            handler.next(options);
+          }
+        },
+      ),
+    );
+    final container = await _showHome(tester, dio);
+    await tester.tap(find.text('1'));
+    await _settle(tester);
+    expect(find.text('您有 1 個寶箱可以開啟!'), findsOneWidget);
+    await tester.tap(find.text('2'));
+    await _settle(tester);
+    expect(find.text('您已開啟所有寶箱！'), findsOneWidget);
+    expect(
+      container
+          .read(treasureBoxNotifierProvider)
+          .data!
+          .take(2)
+          .every((box) => box.isOpened),
+      isTrue,
+    );
+    expect(pending.length, 1);
+    // An already pending box is disabled even before its response arrives.
+    await tester.tap(find.text('1'));
+    await _settle(tester);
+    expect(pending.length, 1);
+    void finish(String id, {int reward = 5}) {
+      final (options, handler) = pending.removeAt(0);
+      expect(options.path, '/api/treasureBox/open/$id');
+      handler.resolve(
+        Response(
+          requestOptions: options,
+          statusCode: 200,
+          data: {
+            'success': true,
+            'data': {
+              'id': id,
+              'userId': 'user',
+              'isActive': true,
+              'isOpened': true,
+              'accountingStatus': 'acquired',
+              'coinsAwarded': reward,
+            },
+          },
+        ),
+      );
+    }
+
+    api.opened = true;
+    finish('box');
+    await _settle(tester);
+    expect(find.text('您已開啟所有寶箱！'), findsOneWidget);
+    expect(pending.length, 1);
+    expect(
+      container
+          .read(treasureBoxNotifierProvider)
+          .data!
+          .take(2)
+          .every((box) => box.isOpened),
+      isTrue,
+    );
+    api.badgeCount = 0;
+    finish('another-box', reward: 7);
+    await _settle(tester);
+    expect(container.read(treasureBoxNotifierProvider).isDone, isTrue);
+    expect(container.read(totalOpenedBoxAmountProvider), 12);
+    expect(find.text('開啟寶箱，獲得7金幣'), findsOneWidget);
+    expect(find.text('開啟寶箱，獲得5金幣'), findsNothing);
+    await tester.pump(const Duration(seconds: 3));
+    await tester.pumpAndSettle();
+    expect(find.byType(SnackBar), findsNothing);
+    expect(find.text('您已開啟所有寶箱！'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('Header restores remaining count when an optimistic open fails', (
+    tester,
+  ) async {
+    final api = _BoxApi();
+    final dio = api.createDio();
+    addTearDown(() => dio.close());
+    RequestOptions? opening;
+    RequestInterceptorHandler? pending;
+    dio.interceptors.insert(
+      0,
+      InterceptorsWrapper(
+        onRequest: (options, handler) {
+          if (options.path == '/api/treasureBox/open/box') {
+            opening = options;
+            pending = handler;
+          } else {
+            handler.next(options);
+          }
+        },
+      ),
+    );
+    await _showHome(tester, dio);
+    await tester.tap(find.text('1'));
+    await _settle(tester);
+    expect(find.text('您已開啟所有寶箱！'), findsOneWidget);
+    pending!.reject(
+      DioException(
+        requestOptions: opening!,
+        type: DioExceptionType.connectionError,
+      ),
+    );
+    await _settle(tester);
+    expect(find.text('您有 1 個寶箱可以開啟!'), findsOneWidget);
+    expect(find.text('您已開啟所有寶箱！'), findsNothing);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
   testWidgets('A new day with no earned boxes shows the no-boxes message', (
     tester,
   ) async {

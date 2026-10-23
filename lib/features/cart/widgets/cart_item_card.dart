@@ -49,8 +49,7 @@ class CartItemCard extends ConsumerWidget {
         product.variants.first.id == variant!.id;
     final shouldShowVariantName =
         variantName.isNotEmpty && !hasOnlyMatchingDefaultVariant;
-    final variantPrice = variant?.price ?? 0;
-    final unitPrice = variantPrice > 0 ? variantPrice : product.price;
+    final unitPrice = variant?.price ?? product.price;
     final productImages = product.images ?? const <String>[];
     final variantImages = variant?.images ?? const <String>[];
     final imageUrl = variantImages.isNotEmpty

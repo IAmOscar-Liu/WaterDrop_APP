@@ -492,8 +492,7 @@ class CartItem {
   }
 
   double get unitPrice {
-    final variantPrice = variant?.price ?? 0;
-    return variantPrice > 0 ? variantPrice : product.price;
+    return variant?.price ?? product.price;
   }
 
   double get lineTotal => unitPrice * quantity;

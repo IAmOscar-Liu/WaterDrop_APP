@@ -19,7 +19,7 @@ class RefundEligibilityInfo extends StatelessWidget {
     final deadline = item.refundDeadlineAt?.toLocal();
     final deadlineText = deadline == null
         ? null
-        : '新申請截止時間：${DateFormat('yyyy-MM-dd HH:mm:ss').format(deadline)}';
+        : '新申請截止時間：${DateFormat('yyyy-MM-dd HH:mm').format(deadline)}';
     final notes = [if (deadlineText != null) deadlineText, conversionNote];
     final reason = switch (item.refundBlockReason) {
       'ORDER_NOT_PAID' => '訂單尚未付款',

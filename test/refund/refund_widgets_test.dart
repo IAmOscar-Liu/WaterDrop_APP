@@ -70,10 +70,10 @@ void main() {
         ],
       );
       final currentDeadlineText = DateFormat(
-        'yyyy-MM-dd HH:mm:ss',
+        'yyyy-MM-dd HH:mm',
       ).format(orderItem.refundDeadlineAt!.toLocal());
       final decisionDeadlineText = DateFormat(
-        'yyyy-MM-dd HH:mm:ss',
+        'yyyy-MM-dd HH:mm',
       ).format(decisionDeadline.toLocal());
       await tester.pumpWidget(
         app(

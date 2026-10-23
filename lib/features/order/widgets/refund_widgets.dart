@@ -327,7 +327,7 @@ class _RefundItemCardState extends State<_RefundItemCard> {
             DetailRow(
               label: '重新申請截止時間:',
               value: DateFormat(
-                'yyyy-MM-dd HH:mm:ss',
+                'yyyy-MM-dd HH:mm',
               ).format(refundItem.rejectionDeadlineAfter!.toLocal()),
             ),
           DetailRow(label: '退貨數量:', value: refundItem.quantity.toString()),
