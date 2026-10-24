@@ -17,10 +17,12 @@ class RefundEligibilityInfo extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final deadline = item.refundDeadlineAt?.toLocal();
-    final deadlineText = deadline == null
+    final formattedDeadline = deadline == null
         ? null
-        : '新申請截止時間：${DateFormat('yyyy-MM-dd HH:mm').format(deadline)}';
-    final notes = [if (deadlineText != null) deadlineText, conversionNote];
+        : DateFormat('yyyy-MM-dd HH:mm').format(deadline);
+    final deadlineText = formattedDeadline == null
+        ? null
+        : '新申請截止時間：$formattedDeadline';
     final reason = switch (item.refundBlockReason) {
       'ORDER_NOT_PAID' => '訂單尚未付款',
       'RECEIPT_TIME_UNKNOWN' => '無法確認取貨時間，請聯絡客服協助',
@@ -28,6 +30,12 @@ class RefundEligibilityInfo extends StatelessWidget {
       'REFUND_WINDOW_EXPIRED' => '已超過新申請期限，已受理申請不受影響',
       _ => null,
     };
+    final expired =
+        !item.canRefund && item.refundBlockReason == 'REFUND_WINDOW_EXPIRED';
+    final deadlineNote = expired
+        ? '已超過新申請期限${formattedDeadline == null ? '' : '（$formattedDeadline）'}，已受理申請不受影響'
+        : deadlineText;
+    final notes = [if (deadlineNote != null) deadlineNote, conversionNote];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -75,7 +83,9 @@ class RefundEligibilityInfo extends StatelessWidget {
               fontSize: 12,
             ),
           ),
-        if (!item.canRefund && reason != null)
+        if (!item.canRefund &&
+            reason != null &&
+            !(includeConversionNote && expired))
           Text(
             reason,
             style: const TextStyle(

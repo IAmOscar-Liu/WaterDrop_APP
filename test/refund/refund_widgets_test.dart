@@ -236,7 +236,8 @@ void main() {
       await tester.tap(find.text('open'));
       await tester.pumpAndSettle();
       expect(find.text('新增'), findsNothing);
-      expect(find.textContaining('新申請截止時間：'), findsOneWidget);
+      expect(find.textContaining('新申請截止時間：'), findsNothing);
+      expect(find.textContaining('已超過新申請期限（'), findsOneWidget);
       expect(find.text('已拒絕'), findsOneWidget);
       expect(tester.takeException(), isNull);
     },
@@ -264,7 +265,8 @@ void main() {
       expect(find.text('新增'), findsNothing);
       expect(find.text('已拒絕'), findsOneWidget);
       expect(find.text('請補充照片'), findsOneWidget);
-      expect(find.textContaining('新申請截止時間：'), findsOneWidget);
+      expect(find.textContaining('新申請截止時間：'), findsNothing);
+      expect(find.textContaining('已超過新申請期限（'), findsOneWidget);
       expect(find.textContaining('已受理申請不受影響'), findsOneWidget);
       expect(tester.takeException(), isNull);
     },
