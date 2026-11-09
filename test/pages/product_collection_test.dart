@@ -1,3 +1,4 @@
+import 'package:flutter_ad_ecommerce/constants/colors.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_ad_ecommerce/models/product.dart';
@@ -22,6 +23,7 @@ class _CollectionApi {
   bool collectionMissing = false;
   bool secondPage = false;
   List<Map<String, dynamic>> variants = [];
+  Map<String, dynamic> refundPolicy = {};
   final requests = <RequestOptions>[];
   Object? navigationResult;
 
@@ -31,6 +33,7 @@ class _CollectionApi {
     'price': 100,
     'isCollected': saved,
     'variants': variants,
+    ...refundPolicy,
     'deletedAt': deletedAt,
     if (status != null) 'status': status,
   };
@@ -174,6 +177,48 @@ Future<void> _tapAction(WidgetTester tester, String label) async {
 }
 
 void main() {
+  for (final policy in <Map<String, dynamic>>[
+    {'refundWindowDays': 8},
+    {'refundWindowDays': 3},
+    {'refundWindowDays': 0},
+    {'refundWindowDays': null},
+    {},
+  ]) {
+    testWidgets('product refund badge respects policy $policy', (tester) async {
+      final api = _CollectionApi()..refundPolicy = policy;
+      await _openProduct(tester, api);
+      final days = policy['refundWindowDays'] as int?;
+      final label = days != null && days > 0
+          ? '$days日鑑賞期'
+          : days == 0
+          ? '無鑑賞期'
+          : null;
+      if (label == null) {
+        expect(find.textContaining('鑑賞期'), findsNothing);
+      } else {
+        expect(find.text(label), findsOneWidget);
+        final chips = tester.widget<Wrap>(
+          find
+              .ancestor(of: find.text(label), matching: find.byType(Wrap))
+              .first,
+        );
+        expect(chips.children.last, isA<Container>());
+        final texts = chips.children.map(
+          (chip) => ((chip as Container).child as Text).data,
+        );
+        expect(texts, ['狀態：上架中', '庫存：0', label]);
+      }
+      final copied = Product.fromApiResponseMap(
+        api.product,
+      ).copyWith(isCollected: true);
+      expect(
+        copied.toMap().containsKey('refundWindowDays'),
+        policy.containsKey('refundWindowDays'),
+      );
+      expect(copied.refundWindowDays, days);
+    });
+  }
+
   testWidgets(
     'named variants stay visible and cart uses the selected in-stock variant',
     (tester) async {
@@ -421,7 +466,7 @@ void main() {
     expect(find.text('加入收藏'), findsOneWidget);
     expect(
       tester.widget<SnackBar>(find.byType(SnackBar)).backgroundColor,
-      Colors.red,
+      AppColors.snackbarErrorColor,
     );
     api.failMutation = false;
     await _tapAction(tester, '加入收藏');
@@ -469,7 +514,7 @@ void main() {
     expect(api.navigationResult, isNull);
     expect(
       tester.widget<SnackBar>(find.byType(SnackBar)).backgroundColor,
-      Colors.red,
+      AppColors.snackbarErrorColor,
     );
     api.failMutation = false;
     await _tapAction(tester, '移除收藏');

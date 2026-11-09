@@ -1,3 +1,4 @@
+import 'package:flutter_ad_ecommerce/shared/widgets/app_dialog.dart';
 import 'package:flutter_ad_ecommerce/shared/widgets/pagination_footer.dart';
 import 'dart:async';
 import 'dart:developer';
@@ -14,7 +15,6 @@ import 'package:flutter_ad_ecommerce/shared/widgets/filter_button.dart';
 import 'package:flutter_ad_ecommerce/shared/widgets/messaging_app_bar.dart';
 import 'package:flutter_ad_ecommerce/shared/widgets/page_status.dart';
 import 'package:flutter_ad_ecommerce/shared/widgets/search_filter_button.dart';
-import 'package:flutter_ad_ecommerce/utils/api_call_manager.dart';
 import 'package:flutter_ad_ecommerce/utils/events.dart';
 import 'package:flutter_ad_ecommerce/utils/number_formatter_extension.dart';
 import 'package:flutter_masonry_view/flutter_masonry_view.dart';
@@ -40,20 +40,14 @@ class _ProductPageState extends ConsumerState<ProductPage> {
   @override
   void initState() {
     super.initState();
-    _loadProducts(reuseExisting: true);
+    _loadProducts();
 
     _routeChangeSubscription = eventBus.on<RouterChangeEvent>().listen((
       event,
     ) async {
       if (event.to == Routes.productPage && event.to != event.from) {
         log('[Home] re-enter product page');
-        final isOutdated = await ApiCallManager.isOlderThan(
-          productListApiCacheKey,
-          const Duration(minutes: 10),
-        );
-        if (isOutdated) {
-          _loadProducts();
-        }
+        _loadProducts();
       }
     });
   }
@@ -64,16 +58,8 @@ class _ProductPageState extends ConsumerState<ProductPage> {
     _routeChangeSubscription.cancel();
   }
 
-  void _loadProducts({bool reuseExisting = false}) {
+  void _loadProducts() {
     Future.delayed(Duration.zero, () async {
-      if (!mounted) return;
-      final canReuse =
-          reuseExisting &&
-          !await ApiCallManager.isOlderThan(
-            productListApiCacheKey,
-            const Duration(minutes: 10),
-          );
-      await ApiCallManager.updateApiCallTimestamp(productListApiCacheKey);
       if (!mounted) return;
       await ref
           .read(productNotifierProvider.notifier)
@@ -84,7 +70,7 @@ class _ProductPageState extends ConsumerState<ProductPage> {
             search: _textSearch.isEmpty ? null : _textSearch,
             minPrice: _minPrice,
             maxPrice: _maxPrice,
-            reuseExisting: canReuse,
+            reuseExisting: true,
           );
     });
   }
@@ -125,9 +111,6 @@ class _ProductPageState extends ConsumerState<ProductPage> {
   @override
   Widget build(BuildContext context) {
     final productProvider = ref.watch(productNotifierProvider);
-    if (productProvider.isInitial || productProvider.isLoading) {
-      return _buildLayout(child: PageLoading('載入商品中......'));
-    }
 
     final List<Product> products = productProvider.data?.products ?? [];
     final List<Category> productCategories = ref.watch(productCategoryProvider);
@@ -207,7 +190,7 @@ class _ProductPageState extends ConsumerState<ProductPage> {
                   }
 
                   void onSelectPriceRange() {
-                    showDialog(
+                    showAppDialog(
                       context: context,
                       builder: (context) {
                         return PriceRangeDialog(
@@ -243,10 +226,20 @@ class _ProductPageState extends ConsumerState<ProductPage> {
                 },
               ),
             ),
+            if (productProvider.hasData &&
+                productProvider.failure != null &&
+                !productProvider.paginationFailed)
+              DataRefreshNotice(
+                error: productProvider.failure,
+                onRetry: () => _loadProducts(),
+              ),
             Expanded(
-              child: productProvider.hasError
+              child: productProvider.isInitial || productProvider.isLoading
+                  ? PageLoading('載入商品中......')
+                  : productProvider.hasError
                   ? PageError(
-                      "Failed to load products: ${productProvider.error}",
+                      productProvider.error,
+                      onRetry: () => _loadProducts(),
                     )
                   : productProvider.data!.products.isEmpty
                   ? Center(child: EmptyState("很抱歉，找不到您想要的相關商品"))
@@ -264,7 +257,8 @@ class _ProductPageState extends ConsumerState<ProductPage> {
                                 return VisibilityDetector(
                                   key: Key(product.id),
                                   onVisibilityChanged: (visibilityInfo) {
-                                    if (visibilityInfo.visibleFraction > 0.2) {
+                                    if (productProvider.failure == null &&
+                                        visibilityInfo.visibleFraction > 0.2) {
                                       ref
                                           .read(
                                             productNotifierProvider.notifier,
@@ -280,6 +274,7 @@ class _ProductPageState extends ConsumerState<ProductPage> {
                           ),
                           PaginationFooter(
                             loading: productProvider.isFetching,
+                            error: productProvider.failure,
                             onLoadMore:
                                 productProvider.data!.page <
                                     productProvider.data!.totalPages

@@ -19,16 +19,20 @@ const _customLimit = AppConstants.paginationPageSize;
 @Riverpod()
 class CollectionNotifier extends _$CollectionNotifier {
   int _page = 1;
+  int _generation = 0;
   int _limit = _customLimit;
   String? _search;
 
   @override
   CustomAsyncValue<CollectionPagination> build() {
+    ref.onDispose(() => _generation++);
     // Start with an empty list - products will be loaded from API
     return CustomAsyncValue.initial();
   }
 
   void reset() {
+    _generation++;
+    _page = 1;
     state = CustomAsyncValue.initial();
   }
 
@@ -38,12 +42,16 @@ class CollectionNotifier extends _$CollectionNotifier {
     int? minPrice,
     int? maxPrice,
   }) async {
+    final previousData = search == _search ? state.data : null;
+    final generation = ++_generation;
     try {
       _page = 1;
       _limit = _customLimit;
       _search = search;
 
-      state = CustomAsyncValue.loading();
+      state = previousData == null
+          ? CustomAsyncValue.loading()
+          : CustomAsyncValue.fetching(previousData);
       final response = await ref
           .read(dioProvider)
           .get(
@@ -55,6 +63,7 @@ class CollectionNotifier extends _$CollectionNotifier {
             },
           );
 
+      if (generation != _generation) return;
       final data = response.data;
       if (data['success'] != true || data['data']?['collections'] is! List) {
         throw Exception("Failed to get response data");
@@ -76,11 +85,17 @@ class CollectionNotifier extends _$CollectionNotifier {
         ),
       );
     } on DioException catch (e) {
+      if (generation != _generation) return;
       log('Error loading collections: $e');
-      state = CustomAsyncValue.error(getDioExceptionMessage(e));
+      state = previousData == null
+          ? CustomAsyncValue.error(AppFailure.from(e))
+          : CustomAsyncValue.retained(previousData, e);
     } catch (e) {
+      if (generation != _generation) return;
       log('Error loading collections: $e');
-      state = CustomAsyncValue.error('Error loading collections: $e');
+      state = previousData == null
+          ? CustomAsyncValue.error(AppFailure.from(e))
+          : CustomAsyncValue.retained(previousData, e);
     }
   }
 
@@ -88,7 +103,8 @@ class CollectionNotifier extends _$CollectionNotifier {
     if (!state.isDone || _page >= (state.data?.totalPages ?? double.infinity)) {
       return;
     }
-    _page++;
+    final generation = _generation;
+    final nextPage = _page + 1;
     try {
       state = CustomAsyncValue.fetching(state.data);
       final response = await ref
@@ -96,12 +112,13 @@ class CollectionNotifier extends _$CollectionNotifier {
           .get(
             "/api/collection/list",
             queryParameters: {
-              "page": _page,
+              "page": nextPage,
               "limit": _limit,
               "search": _search,
             },
           );
 
+      if (generation != _generation) return;
       final data = response.data;
       if (data['success'] != true || data['data']?['collections'] is! List) {
         throw Exception("Failed to get response data");
@@ -113,6 +130,7 @@ class CollectionNotifier extends _$CollectionNotifier {
         return Collection.fromApiResponseMap(map);
       });
 
+      _page = nextPage;
       state = CustomAsyncValue.done(
         CollectionPagination(
           collections: [...(state.data?.collections ?? []), ...collections],
@@ -123,13 +141,14 @@ class CollectionNotifier extends _$CollectionNotifier {
         ),
       );
     } catch (e) {
+      if (generation != _generation) return;
       log('Error loading collections: $e');
       state = state.data != null
-          ? CustomAsyncValue.done(state.data!)
+          ? CustomAsyncValue.retained(state.data!, e, pagination: true)
           : CustomAsyncValue.error(
               e is DioException
                   ? getDioExceptionMessage(e)
-                  : 'Error loading collections: $e',
+                  : AppFailure.from(e),
             );
     }
   }
@@ -166,9 +185,7 @@ class CollectionNotifier extends _$CollectionNotifier {
         await loadCollections(search: _search);
       }
       return Result.failure(
-        e is DioException
-            ? productMutationErrorMessage(e)
-            : 'Failed to add collection: $e',
+        e is DioException ? productMutationErrorMessage(e) : AppFailure.from(e),
       );
     } finally {
       state = CustomAsyncValue.done(
@@ -208,9 +225,26 @@ class CollectionNotifier extends _$CollectionNotifier {
       log('Failed to remove collection: $e');
       if (e is DioException &&
           e.response?.statusCode == 404 &&
-          getDioExceptionMessage(e) == 'Collection not found') {
+          (AppFailure.from(e).code == 'RESOURCE_NOT_FOUND' ||
+              (e.response?.data is Map &&
+                  e.response!.data['message'] == 'Collection not found'))) {
         // Product deletion may have already removed the saved record.
         // Refresh cached results and let the caller clear its saved state.
+        final current = state.data;
+        if (current != null) {
+          final remaining = current.collections
+              .where((item) => item.productId != productId)
+              .toList();
+          state = CustomAsyncValue.done(
+            current.copyWith(
+              collections: remaining,
+              total:
+                  (current.total -
+                          (current.collections.length - remaining.length))
+                      .clamp(0, current.total),
+            ),
+          );
+        }
         await loadCollections(search: _search);
         ref
             .read(productNotifierProvider.notifier)
@@ -218,9 +252,7 @@ class CollectionNotifier extends _$CollectionNotifier {
         return Result.success('此商品已不在我的收藏中');
       }
       return Result.failure(
-        e is DioException
-            ? getDioExceptionMessage(e)
-            : 'Failed to remove collection: $e',
+        e is DioException ? getDioExceptionMessage(e) : AppFailure.from(e),
       );
     } finally {
       if (state.isProcessing) {

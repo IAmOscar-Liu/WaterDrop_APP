@@ -28,10 +28,10 @@ class PaymentSettingsNotifier extends _$PaymentSettingsNotifier {
       state = CustomAsyncValue.done(PaymentSettings.fromJson(data['data']));
     } on DioException catch (e) {
       log('Error loading PaymentSettings: $e');
-      state = CustomAsyncValue.error(getDioExceptionMessage(e));
+      state = CustomAsyncValue.error(AppFailure.from(e));
     } catch (e) {
       log('Error loading PaymentSettings: $e');
-      state = CustomAsyncValue.error('Error loading orders: $e');
+      state = CustomAsyncValue.error(AppFailure.from(e));
     }
   }
 
@@ -55,7 +55,7 @@ class PaymentSettingsNotifier extends _$PaymentSettingsNotifier {
       return Result.success(result);
     } catch (e) {
       log('Error loading shipping fee: $e');
-      return Result.failure(e.toString());
+      return Result.failure(AppFailure.from(e));
     }
   }
 }

@@ -20,7 +20,7 @@ enum TextSearchSource {
     TextSearchSource.message => '訊息搜尋記錄',
   };
 
-  bool get showsPopularSearches => this != TextSearchSource.message;
+  bool get showsPopularSearches => this == TextSearchSource.product;
 }
 
 class TextSearchPage extends ConsumerStatefulWidget {

@@ -95,7 +95,7 @@ void main() {
     },
   );
 
-  test('400 shows BE field errors with user-facing labels', () {
+  test('400 legacy field strings use safe local feedback', () {
     final result = LogisticsVerificationResult.fromResponse(
       response({
         'success': false,
@@ -106,7 +106,7 @@ void main() {
         ],
       }, status: 400),
     );
-    expect(result.message, '收件人姓名：姓名長度不符\n收件人手機號碼：手機格式不符\n收件人電子郵件：電子郵件格式不符');
+    expect(result.message, '收件資料不完整或格式不正確，請確認後再試。');
     expect(result.validated, isFalse);
   });
 

@@ -69,6 +69,19 @@ Dio dio(Ref ref) {
   );
   dio.interceptors.add(
     InterceptorsWrapper(
+      onResponse: (response, handler) {
+        if (response.data is Map && response.data['success'] == false) {
+          handler.reject(
+            DioException(
+              requestOptions: response.requestOptions,
+              response: response,
+              type: DioExceptionType.badResponse,
+            ),
+          );
+          return;
+        }
+        handler.next(response);
+      },
       onRequest: (options, handler) {
         if (options.extra['requiresAuth'] != false) {
           final owner = ref.read(accountNotifierProvider).id;

@@ -194,6 +194,9 @@ class Product {
   final String? variantImage;
   // Embedded products from cart/order APIs may not include this user-specific field.
   final bool? isCollected;
+  final int? refundWindowDays;
+  // Distinguish an older API's missing field from an explicit unlimited policy.
+  final bool hasRefundWindowPolicy;
 
   Product({
     required this.id,
@@ -220,6 +223,8 @@ class Product {
     this.variantName,
     this.variantImage,
     this.isCollected,
+    this.refundWindowDays,
+    this.hasRefundWindowPolicy = false,
   });
 
   // Simple factory for demonstration, could be from JSON in a real app
@@ -280,6 +285,11 @@ class Product {
       isCollected: map['isCollected'] is bool
           ? map['isCollected'] as bool
           : null,
+      refundWindowDays: ParseUtils.parseInt(map['refundWindowDays']),
+      hasRefundWindowPolicy:
+          map.containsKey('refundWindowDays') &&
+          (map['refundWindowDays'] == null ||
+              ParseUtils.parseInt(map['refundWindowDays']) != null),
     );
   }
 
@@ -316,6 +326,8 @@ class Product {
       'variantName': variantName,
       'variantImage': variantImage,
       'isCollected': isCollected,
+      if (hasRefundWindowPolicy || refundWindowDays != null)
+        'refundWindowDays': refundWindowDays,
     };
   }
 
@@ -379,6 +391,8 @@ class Product {
       variantName: variantName ?? this.variantName,
       variantImage: variantImage ?? this.variantImage,
       isCollected: isCollected ?? this.isCollected,
+      refundWindowDays: refundWindowDays,
+      hasRefundWindowPolicy: hasRefundWindowPolicy,
     );
   }
 }

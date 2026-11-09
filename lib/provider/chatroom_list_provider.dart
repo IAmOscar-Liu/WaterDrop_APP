@@ -19,19 +19,25 @@ const _chatroomLimit = AppConstants.paginationPageSize;
 ) // `keepAlive: true` makes the provider persist across hot restarts
 class ChatroomListNotifier extends _$ChatroomListNotifier {
   int _page = 1;
+  int _generation = 0;
   int _limit = _chatroomLimit;
 
   @override
   CustomAsyncValue<ChatRoomPagination> build() {
+    ref.onDispose(() => _generation++);
     return CustomAsyncValue.initial();
   }
 
   Future<void> loadChatRooms() async {
+    final generation = ++_generation;
+    final previousData = state.data;
     try {
       _page = 1;
       _limit = _chatroomLimit;
 
-      state = CustomAsyncValue.loading();
+      state = previousData == null
+          ? CustomAsyncValue.loading()
+          : CustomAsyncValue.fetching(previousData);
       final response = await ref
           .read(dioProvider)
           .get(
@@ -39,6 +45,7 @@ class ChatroomListNotifier extends _$ChatroomListNotifier {
             queryParameters: {"page": _page, "limit": _limit},
           );
 
+      if (generation != _generation) return;
       final data = response.data;
       if (data['success'] != true || data['data']?['rooms'] is! List) {
         throw Exception("Failed to get response data");
@@ -57,11 +64,17 @@ class ChatroomListNotifier extends _$ChatroomListNotifier {
         ),
       );
     } on DioException catch (e) {
+      if (generation != _generation) return;
       log('Error loading chatRooms: $e');
-      state = CustomAsyncValue.error(getDioExceptionMessage(e));
+      state = previousData == null
+          ? CustomAsyncValue.error(AppFailure.from(e))
+          : CustomAsyncValue.retained(previousData, e);
     } catch (e) {
+      if (generation != _generation) return;
       log('Error loading orders: $e');
-      state = CustomAsyncValue.error('Error loading chatRooms: $e');
+      state = previousData == null
+          ? CustomAsyncValue.error(AppFailure.from(e))
+          : CustomAsyncValue.retained(previousData, e);
     }
   }
 
@@ -69,16 +82,18 @@ class ChatroomListNotifier extends _$ChatroomListNotifier {
     if (!state.isDone || _page >= (state.data?.totalPages ?? double.infinity)) {
       return;
     }
-    _page++;
+    final generation = _generation;
+    final nextPage = _page + 1;
     try {
       state = CustomAsyncValue.fetching(state.data);
       final response = await ref
           .read(dioProvider)
           .get(
             "/api/chatroom/list",
-            queryParameters: {"page": _page, "limit": _limit},
+            queryParameters: {"page": nextPage, "limit": _limit},
           );
 
+      if (generation != _generation) return;
       final data = response.data;
       if (data['success'] != true || data['data']?['rooms'] is! List) {
         throw Exception("Failed to get response data");
@@ -88,6 +103,7 @@ class ChatroomListNotifier extends _$ChatroomListNotifier {
         return Chatroom.fromApiResponseMap(map);
       });
 
+      _page = nextPage;
       state = CustomAsyncValue.done(
         ChatRoomPagination(
           rooms: [...(state.data?.rooms ?? []), ...chatRooms],
@@ -98,13 +114,14 @@ class ChatroomListNotifier extends _$ChatroomListNotifier {
         ),
       );
     } catch (e) {
+      if (generation != _generation) return;
       log('Error loading chatRooms: $e');
       state = state.data != null
-          ? CustomAsyncValue.done(state.data!)
+          ? CustomAsyncValue.retained(state.data!, e, pagination: true)
           : CustomAsyncValue.error(
               e is DioException
                   ? getDioExceptionMessage(e)
-                  : 'Error loading chatRooms: $e',
+                  : AppFailure.from(e),
             );
     }
   }

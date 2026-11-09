@@ -1,3 +1,5 @@
+import 'package:flutter_ad_ecommerce/shared/widgets/app_snackbar.dart';
+import 'package:flutter_ad_ecommerce/shared/widgets/app_dialog.dart';
 // account_delivery_page.dart
 
 import 'package:flutter_ad_ecommerce/shared/layouts/app_scaffold.dart';
@@ -98,17 +100,17 @@ class _AccountDeliveryPageState extends ConsumerState<AccountDeliveryPage> {
 
       if (result.isSuccess) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
+          AppSnackBar(
             content: Text('寄貨資訊已成功儲存！'),
-            backgroundColor: Colors.green,
+            kind: AppSnackBarKind.success,
           ),
         );
       } else {
-        await showDialog<void>(
+        await showAppDialog<void>(
           context: context,
           builder: (context) {
             return AlertDialog(
-              backgroundColor: const Color(0xFF262A33),
+              backgroundColor: AppColors.dialogBgColor,
               title: const Text('儲存失敗', style: TextStyle(color: Colors.white)),
               content: Text(
                 result.error ?? '寄貨資訊儲存失敗，請稍後再試。',
@@ -131,11 +133,11 @@ class _AccountDeliveryPageState extends ConsumerState<AccountDeliveryPage> {
   }
 
   Future<bool> _confirmBankAccountUpdate(String reminder) async {
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppDialog<bool>(
       context: context,
       builder: (context) {
         return AlertDialog(
-          backgroundColor: const Color(0xFF262A33),
+          backgroundColor: AppColors.dialogBgColor,
           title: const Text('確認銀行帳戶', style: TextStyle(color: Colors.white)),
           content: Text(reminder, style: TextStyle(color: Colors.white)),
           actions: [

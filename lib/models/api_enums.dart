@@ -144,7 +144,7 @@ enum OrderStatus {
   String get displayName {
     return switch (this) {
       OrderStatus.paid => "交易成功",
-      OrderStatus.paymentProcessing => "待付款",
+      OrderStatus.paymentProcessing => "付款確認中",
       OrderStatus.pending => "PENDING",
       OrderStatus.failed => "FAILED",
       OrderStatus.expired => "EXPIRED",

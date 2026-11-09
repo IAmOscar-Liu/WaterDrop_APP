@@ -1,3 +1,4 @@
+import 'package:flutter_ad_ecommerce/shared/widgets/app_snackbar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_ad_ecommerce/constants/colors.dart';
@@ -129,7 +130,12 @@ class _QuantityDialogState extends State<QuantityDialog> {
         error = '修改失敗，請稍後再試';
       }
       if (error != null && messenger.mounted) {
-        messenger.showSnackBar(SnackBar(content: Text('修改商品失敗：$error')));
+        messenger.showSnackBar(
+          AppSnackBar(
+            kind: AppSnackBarKind.error,
+            content: Text('修改商品失敗：$error'),
+          ),
+        );
       }
     }
   }
@@ -141,7 +147,7 @@ class _QuantityDialogState extends State<QuantityDialog> {
       child: GestureDetector(
         onTap: () => FocusScope.of(context).unfocus(),
         child: AlertDialog(
-          backgroundColor: AppColors.containerBgColor,
+          backgroundColor: AppColors.dialogBgColor,
           surfaceTintColor: Colors.transparent,
           title: const Text(
             '修改商品',

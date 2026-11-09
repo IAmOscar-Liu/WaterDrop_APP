@@ -1,4 +1,4 @@
-import 'dart:developer';
+import 'package:flutter_ad_ecommerce/shared/widgets/recoverable_webview.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_ad_ecommerce/constants/app_constants.dart';
@@ -28,14 +28,14 @@ class TradeDocumentPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return _buildLayout(
       child: SizedBox.expand(
-        child: InAppWebView(
+        child: RecoverableWebView(
           onPermissionRequest: (controller, request) async {
             return PermissionResponse(
               resources: request.resources,
               action: PermissionResponseAction.GRANT,
             );
           },
-          onWebViewCreated: (controller) async {
+          onCreated: (controller) async {
             final urlWithAddedParams = UriUtils.addQueryParamsToUrl(
               baseUrl:
                   "${AppConstants.apiBaseUrl}api/ecpay/helper/printTradeDocument",
@@ -47,7 +47,6 @@ class TradeDocumentPage extends ConsumerWidget {
                 "CVSValidationNo": delivery.cvsValidationNo,
               },
             );
-            log(urlWithAddedParams.toString());
             await controller.loadUrl(
               urlRequest: URLRequest(url: WebUri.uri(urlWithAddedParams)),
             );

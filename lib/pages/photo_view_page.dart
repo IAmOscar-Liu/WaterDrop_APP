@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 // ignore_for_file: public_member_api_docs, sort_constructors_first
 import 'dart:io';
 
@@ -40,7 +41,7 @@ class _PhotoViewPageState extends State<PhotoViewPage> {
               final urlImage = widget.urlImages[index];
 
               return PhotoViewGalleryPageOptions(
-                imageProvider: NetworkImage(urlImage),
+                imageProvider: CachedNetworkImageProvider(urlImage),
                 minScale: PhotoViewComputedScale.contained,
                 maxScale: PhotoViewComputedScale.contained * 4,
                 errorBuilder: (context, error, stackTrace) {

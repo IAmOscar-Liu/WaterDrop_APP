@@ -1,6 +1,10 @@
+import 'package:flutter_ad_ecommerce/shared/widgets/app_snackbar.dart';
+import 'package:flutter_ad_ecommerce/shared/widgets/app_network_image.dart';
 import 'package:flutter_ad_ecommerce/shared/widgets/pagination_footer.dart';
 import 'package:flutter_ad_ecommerce/constants/app_constants.dart';
 import 'package:flutter_ad_ecommerce/provider/chat_sync_provider.dart';
+import 'package:flutter_ad_ecommerce/provider/chat_message_provider.dart';
+import 'package:flutter_ad_ecommerce/shared/widgets/swipe_action_pane.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_ad_ecommerce/shared/widgets/anchored_list_scroll_controller.dart';
 import 'package:flutter_ad_ecommerce/constants/colors.dart';
@@ -31,6 +35,35 @@ class _ChatroomListPageState extends ConsumerState<ChatroomListPage>
   final _viewportKey = GlobalKey();
   final _roomKeys = <String, GlobalKey>{};
   ModalRoute<dynamic>? _route;
+  String? _openRoomId;
+  String? _markingReadId;
+
+  Future<void> _markRoomRead(String id) async {
+    if (_markingReadId != null) return;
+    setState(() {
+      _markingReadId = id;
+      _openRoomId = null;
+    });
+    bool success;
+    if (AppConstants.chatSseEnabled) {
+      success = await ref.read(chatSyncProvider).markReadFromList(id);
+    } else {
+      final result = await ref
+          .read(chatMessageNotifierProvider.notifier)
+          .markMessageAsRead(chatRoomId: id);
+      success = result.isSuccess;
+      if (success && mounted) {
+        await ref.read(chatroomListNotifierProvider.notifier).loadChatRooms();
+      }
+    }
+    if (!mounted) return;
+    setState(() => _markingReadId = null);
+    if (!success) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        AppSnackBar(kind: AppSnackBarKind.error, content: Text('標為已讀失敗，請稍後再試')),
+      );
+    }
+  }
 
   @override
   void didChangeDependencies() {
@@ -200,7 +233,8 @@ class _ChatroomListPageState extends ConsumerState<ChatroomListPage>
               key: _viewportKey,
               child: chatRoomProvider.hasError
                   ? PageError(
-                      "Failed to load chatRooms: ${chatRoomProvider.error}",
+                      chatRoomProvider.error,
+                      onRetry: () => _loadChatRooms(),
                     )
                   : chatRoomProvider.data!.rooms.isEmpty
                   ? Center(
@@ -212,6 +246,7 @@ class _ChatroomListPageState extends ConsumerState<ChatroomListPage>
                               ref.watch(chatSyncProvider).hasMoreRooms)
                             PaginationFooter(
                               loading: chatRoomProvider.isFetching,
+                              error: chatRoomProvider.failure,
                               hasError:
                                   ref.watch(chatSyncProvider).listError != null,
                               onLoadMore: () => ref
@@ -242,6 +277,7 @@ class _ChatroomListPageState extends ConsumerState<ChatroomListPage>
                           return PaginationFooter(
                             loading: chatRoomProvider.isFetching,
                             hasError: sync?.listError != null,
+                            error: sync?.listFailure,
                             onLoadMore: hasMore || sync?.listError != null
                                 ? () => sync != null
                                       ? sync.loadList(more: hasMore)
@@ -278,6 +314,11 @@ class _ChatroomListPageState extends ConsumerState<ChatroomListPage>
                           onTap: !isSupportChat && chatRoom.product == null
                               ? null
                               : () {
+                                  if (_markingReadId != null) return;
+                                  if (_openRoomId != null) {
+                                    setState(() => _openRoomId = null);
+                                    return;
+                                  }
                                   context.push(
                                     Routes.chatroomPage,
                                     extra: {
@@ -316,21 +357,7 @@ class _ChatroomListPageState extends ConsumerState<ChatroomListPage>
                                           fit: BoxFit.cover,
                                         )
                                       : imageUrl != null
-                                      ? FadeInImage.assetNetwork(
-                                          placeholder:
-                                              "assets/images/photo_loading.gif",
-                                          image: imageUrl,
-                                          fit: BoxFit.cover,
-                                          imageErrorBuilder:
-                                              (context, error, stackTrace) {
-                                                // This builder is used if the network image fails to load.
-                                                return Image.asset(
-                                                  "assets/images/photo_not_found.jpg",
-                                                  width: double.infinity,
-                                                  fit: BoxFit.cover,
-                                                );
-                                              },
-                                        )
+                                      ? AppNetworkImage(imageUrl: imageUrl)
                                       : InitialImage(name: chatTitle),
                                 ),
                                 const SizedBox(width: 12),
@@ -441,12 +468,48 @@ class _ChatroomListPageState extends ConsumerState<ChatroomListPage>
                           ),
                         );
 
-                        Widget card = chatroomCard;
+                        Widget card = SwipeActionPane(
+                          open: _openRoomId == chatRoom.id,
+                          enabled:
+                              (chatRoom.totalUnread ?? 0) > 0 &&
+                              _markingReadId == null,
+                          width: 88,
+                          onOpenChanged: (open) => setState(
+                            () => _openRoomId = open ? chatRoom.id : null,
+                          ),
+                          actions: [
+                            Expanded(
+                              child: TextButton(
+                                onPressed: _markingReadId != null
+                                    ? null
+                                    : () => _markRoomRead(chatRoom.id),
+                                style: TextButton.styleFrom(
+                                  foregroundColor: AppColors.infoColor,
+                                  backgroundColor: AppColors.tileColor,
+                                  shape: const RoundedRectangleBorder(),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 4,
+                                  ),
+                                ),
+                                child: const Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(Icons.mark_chat_read_outlined),
+                                    SizedBox(height: 4),
+                                    Text('標為已讀'),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                          child: chatroomCard,
+                        );
                         if (index == chatRooms.length - 1) {
                           card = VisibilityDetector(
                             key: Key(chatRoom.id),
                             onVisibilityChanged: (visibilityInfo) {
-                              if (visibilityInfo.visibleFraction > 0.2) {
+                              if (chatRoomProvider.failure == null &&
+                                  visibilityInfo.visibleFraction > 0.2) {
                                 if (AppConstants.chatSseEnabled) {
                                   ref
                                       .read(chatSyncProvider)

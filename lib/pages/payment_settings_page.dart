@@ -1,3 +1,5 @@
+import 'package:flutter_ad_ecommerce/shared/widgets/app_snackbar.dart';
+import 'package:flutter_ad_ecommerce/shared/widgets/app_dialog.dart';
 // ignore_for_file: constant_identifier_names
 
 import 'dart:async';
@@ -47,6 +49,7 @@ class _PaymentSettingsPageState extends ConsumerState<PaymentSettingsPage> {
   CheckoutStat _checkoutStat = CheckoutStat.validating;
   bool _finishingPaidOrder = false;
   bool _returnedToCart = false;
+  bool _checkoutStatusUnknown = false;
   LogisticsSubType _logisticsSubType = AppConstants.logisticsSubType == "B2C"
       ? LogisticsSubType.FAMI
       : LogisticsSubType.FAMIC2C;
@@ -110,9 +113,12 @@ class _PaymentSettingsPageState extends ConsumerState<PaymentSettingsPage> {
     }
     if (!mounted || _returnedToCart) return;
     if (latest.deliveries.length < expectedDeliveries) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('部分商品尚未確認運單，請至「訂單記錄」查看')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        AppSnackBar(
+          kind: AppSnackBarKind.info,
+          content: Text('部分商品尚未確認運單，請至「訂單記錄」查看'),
+        ),
+      );
     }
     ref.read(systemNotifierProvider.notifier).setCurrentOrder(latest);
     unawaited(
@@ -170,11 +176,11 @@ class _PaymentSettingsPageState extends ConsumerState<PaymentSettingsPage> {
   // }
 
   Future<bool> _confirmBeforePayment() async {
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppDialog<bool>(
       context: context,
       builder: (context) {
         return AlertDialog(
-          backgroundColor: const Color(0xFF262A33),
+          backgroundColor: AppColors.dialogBgColor,
           title: const Text("前往付款", style: TextStyle(color: Colors.white)),
           content: const Text(
             "您即將前往付款。為保障你的權益，請確認收件人資訊填寫正確。",
@@ -198,11 +204,11 @@ class _PaymentSettingsPageState extends ConsumerState<PaymentSettingsPage> {
   }
 
   Future<void> _showBankAccountRequiredAlert() {
-    return showDialog<void>(
+    return showAppDialog<void>(
       context: context,
       builder: (context) {
         return AlertDialog(
-          backgroundColor: const Color(0xFF262A33),
+          backgroundColor: AppColors.dialogBgColor,
           title: const Text("需設定銀行帳戶", style: TextStyle(color: Colors.white)),
           content: const Text(
             "選擇 ATM 轉帳前，請先至「我的」→「帳號設定與支援」→「寄貨資料」設定銀行帳戶資料。",
@@ -807,6 +813,7 @@ class _PaymentSettingsPageState extends ConsumerState<PaymentSettingsPage> {
                                   // If currentOrder's status is pending, refetch currentOrder
                                   .then((value) async {
                                     if (!mounted || _returnedToCart) return;
+                                    _checkoutStatusUnknown = false;
                                     final resultOrder = ref
                                         .read(systemNotifierProvider)
                                         .currentOrder;
@@ -823,6 +830,8 @@ class _PaymentSettingsPageState extends ConsumerState<PaymentSettingsPage> {
                                               systemNotifierProvider.notifier,
                                             )
                                             .setCurrentOrder(result.data);
+                                      } else {
+                                        _checkoutStatusUnknown = true;
                                       }
                                     }
                                   })
@@ -832,7 +841,8 @@ class _PaymentSettingsPageState extends ConsumerState<PaymentSettingsPage> {
                                     final resultOrder = ref
                                         .read(systemNotifierProvider)
                                         .currentOrder;
-                                    if (resultOrder != null &&
+                                    if (!_checkoutStatusUnknown &&
+                                        resultOrder != null &&
                                         resultOrder.orderStatus ==
                                             OrderStatus.pending) {
                                       final result = await ref
@@ -848,6 +858,8 @@ class _PaymentSettingsPageState extends ConsumerState<PaymentSettingsPage> {
                                               systemNotifierProvider.notifier,
                                             )
                                             .setCurrentOrder(result.data);
+                                      } else {
+                                        _checkoutStatusUnknown = true;
                                       }
                                     }
                                   })
@@ -858,6 +870,23 @@ class _PaymentSettingsPageState extends ConsumerState<PaymentSettingsPage> {
                                     final resultOrder = ref
                                         .read(systemNotifierProvider)
                                         .currentOrder;
+                                    if (_checkoutStatusUnknown ||
+                                        resultOrder?.orderStatus ==
+                                            OrderStatus.pending) {
+                                      if (!context.mounted) return;
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        AppSnackBar(
+                                          kind: AppSnackBarKind.info,
+                                          content: Text(
+                                            '尚無法確認付款結果，請至訂單記錄查看原訂單，避免重複付款。',
+                                          ),
+                                        ),
+                                      );
+                                      _returnToCart();
+                                      return;
+                                    }
                                     if (resultOrder == null ||
                                         resultOrder.orderStatus ==
                                             OrderStatus.paymentProcessing) {
@@ -886,14 +915,13 @@ class _PaymentSettingsPageState extends ConsumerState<PaymentSettingsPage> {
                                     }
                                     final orderStatus = resultOrder.orderStatus;
                                     if (orderStatus != OrderStatus.paid) {
-                                      showDialog(
+                                      showAppDialog(
                                         // ignore: use_build_context_synchronously
                                         context: context,
                                         builder: (context) {
                                           return AlertDialog(
-                                            backgroundColor: const Color(
-                                              0xFF262A33,
-                                            ),
+                                            backgroundColor:
+                                                AppColors.dialogBgColor,
                                             title: Text(
                                               orderStatus ==
                                                       OrderStatus.canceled

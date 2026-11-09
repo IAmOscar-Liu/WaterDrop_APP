@@ -74,9 +74,7 @@ class ChatMessageNotifier extends _$ChatMessageNotifier {
     } catch (e) {
       log('Error loading messages: $e');
       state = CustomAsyncValue.error(
-        e is DioException
-            ? getDioExceptionMessage(e)
-            : 'Error loading messages: $e',
+        e is DioException ? getDioExceptionMessage(e) : AppFailure.from(e),
       );
     }
   }
@@ -182,7 +180,7 @@ class ChatMessageNotifier extends _$ChatMessageNotifier {
     } catch (e) {
       log('Failed to send message: $e');
       return Result.failure(
-        e is DioException ? getDioExceptionMessage(e) : 'Error: $e',
+        e is DioException ? getDioExceptionMessage(e) : AppFailure.from(e),
       );
     } finally {
       state = CustomAsyncValue.done(state.data!);
@@ -263,9 +261,7 @@ class ChatMessageNotifier extends _$ChatMessageNotifier {
     } catch (e) {
       log('Failed to create chatroom: $e');
       return Result.failure(
-        e is DioException
-            ? getDioExceptionMessage(e)
-            : 'Failed to create chatroom: $e',
+        e is DioException ? getDioExceptionMessage(e) : AppFailure.from(e),
       );
     }
   }
@@ -285,9 +281,7 @@ class ChatMessageNotifier extends _$ChatMessageNotifier {
     } catch (e) {
       log('Failed to find chatroom: $e');
       return Result.failure(
-        e is DioException
-            ? getDioExceptionMessage(e)
-            : 'Failed to find chatroom: $e',
+        e is DioException ? getDioExceptionMessage(e) : AppFailure.from(e),
       );
     }
   }
@@ -314,7 +308,7 @@ class ChatMessageNotifier extends _$ChatMessageNotifier {
     } catch (e) {
       log('Failed to send message: $e');
       return Result.failure(
-        e is DioException ? getDioExceptionMessage(e) : 'Error: $e',
+        e is DioException ? getDioExceptionMessage(e) : AppFailure.from(e),
       );
     } finally {
       if (onCompleted != null) onCompleted();

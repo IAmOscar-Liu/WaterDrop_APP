@@ -1,3 +1,4 @@
+import 'package:flutter_ad_ecommerce/utils/app_failure.dart';
 import 'dart:async';
 
 import 'package:dio/dio.dart';
@@ -76,6 +77,17 @@ class ChatHistory {
   }
 }
 
+// Subtract only the unread messages present at the user's action. Later room
+// events may add new unread messages; keep those visible until a read summary
+// (following a user receipt) or a post-acknowledgement REST snapshot arrives.
+class _OptimisticRoomRead {
+  _OptimisticRoomRead(this.room);
+  final Chatroom room;
+  bool receipt = false;
+  bool httpConfirmed = false;
+  int? confirmedVersion;
+}
+
 /// Shared session state. REST completions are guarded by session and snapshot
 /// generations; streams route synchronously before their checkpoint advances.
 class ChatSyncController extends ChangeNotifier {
@@ -100,6 +112,7 @@ class ChatSyncController extends ChangeNotifier {
   final Map<String, int> _removed = {};
   final Map<String, int> _opened = {};
   final Set<String> _reading = {};
+  int _readGeneration = 0;
   final Set<String> _readAgain = {};
   String? _user;
   bool _foreground = false;
@@ -110,7 +123,49 @@ class ChatSyncController extends ChangeNotifier {
   Object? visibleOwner;
   bool get isDisposed => _disposed;
   int listVersion = 0;
-  int totalUnread = 0;
+  int _totalUnread = 0;
+  final _optimisticReads = <String, _OptimisticRoomRead>{};
+  Map<String, dynamic>? _deferredListState;
+
+  int _readDebit(_OptimisticRoomRead read) {
+    if (read.confirmedVersion != null) {
+      return listVersion >= read.confirmedVersion!
+          ? 0
+          : (read.room.totalUnread ?? 0);
+    }
+    final current = _rooms[read.room.id]?.totalUnread ?? 0;
+    return (read.room.totalUnread ?? 0).clamp(0, current);
+  }
+
+  int get totalUnread =>
+      (_totalUnread -
+              _optimisticReads.values.fold<int>(
+                0,
+                (total, read) => total + _readDebit(read),
+              ))
+          .clamp(0, _totalUnread);
+
+  Chatroom _displayRoom(Chatroom room) {
+    final read = _optimisticReads[room.id];
+    if (read == null || read.confirmedVersion != null) return room;
+    return room.copyWith(
+      totalUnread: ((room.totalUnread ?? 0) - (read.room.totalUnread ?? 0))
+          .clamp(0, room.totalUnread ?? 0),
+    );
+  }
+
+  void _flushReadState() {
+    if (!_optimisticReads.values.any((r) => r.confirmedVersion == null)) {
+      final deferred = _deferredListState;
+      _deferredListState = null;
+      if (deferred != null) _listState(deferred);
+    }
+    _optimisticReads.removeWhere(
+      (_, r) =>
+          r.confirmedVersion != null && listVersion >= r.confirmedVersion!,
+    );
+  }
+
   int totalRooms = 0;
   int _listGeneration = 0;
   int _page = 0;
@@ -124,24 +179,26 @@ class ChatSyncController extends ChangeNotifier {
   bool _refreshingListMetadata = false;
   int _listMetadataPages = 0;
   String? listError;
+  AppFailure? listFailure;
 
   bool get connected => stream.ready && connectionStatus == 'connected';
   bool get hasMoreRooms => _page < _totalPages;
   List<Chatroom> get rooms =>
-      _rooms.values.where((room) => room.listVisible).toList()..sort((a, b) {
-        final at =
-            a.lastActivityAt ??
-            a.lastMessage?.createdAt ??
-            a.createdAt ??
-            DateTime(1970);
-        final bt =
-            b.lastActivityAt ??
-            b.lastMessage?.createdAt ??
-            b.createdAt ??
-            DateTime(1970);
-        final time = bt.compareTo(at);
-        return time != 0 ? time : b.id.compareTo(a.id);
-      });
+      _rooms.values.where((room) => room.listVisible).map(_displayRoom).toList()
+        ..sort((a, b) {
+          final at =
+              a.lastActivityAt ??
+              a.lastMessage?.createdAt ??
+              a.createdAt ??
+              DateTime(1970);
+          final bt =
+              b.lastActivityAt ??
+              b.lastMessage?.createdAt ??
+              b.createdAt ??
+              DateTime(1970);
+          final time = bt.compareTo(at);
+          return time != 0 ? time : b.id.compareTo(a.id);
+        });
 
   CustomAsyncValue<ChatRoomPagination> get listValue {
     if (!_listLoaded) {
@@ -149,7 +206,9 @@ class ChatSyncController extends ChangeNotifier {
           connectionStatus == 'unavailable') {
         return CustomAsyncValue.error('聊天室連線不可用，請重新登入或稍後再試');
       }
-      if (listError != null) return CustomAsyncValue.error(listError);
+      if (listError != null) {
+        return CustomAsyncValue.error(listFailure ?? listError);
+      }
       return CustomAsyncValue.loading();
     }
     final value = ChatRoomPagination(
@@ -159,6 +218,13 @@ class ChatSyncController extends ChangeNotifier {
       limit: AppConstants.paginationPageSize,
       totalPages: _totalPages,
     );
+    if (listError != null) {
+      return CustomAsyncValue.retained(
+        value,
+        listFailure ?? AppFailure.from(listError),
+        pagination: true,
+      );
+    }
     return _listLoading
         ? CustomAsyncValue.fetching(value)
         : CustomAsyncValue.done(value);
@@ -204,6 +270,7 @@ class ChatSyncController extends ChangeNotifier {
     histories.clear();
     _rooms.clear();
     _removed.clear();
+    _readGeneration++;
     _reading.clear();
     _readAgain.clear();
     _listLoaded = false;
@@ -212,12 +279,15 @@ class ChatSyncController extends ChangeNotifier {
     _refreshingListMetadata = false;
     _listMetadataPages = 0;
     listError = null;
+    listFailure = null;
     _listSnapshot = null;
     _snapshotExpires = null;
     _page = 0;
     _totalPages = 0;
     listVersion = 0;
-    totalUnread = 0;
+    _totalUnread = 0;
+    _optimisticReads.clear();
+    _deferredListState = null;
     totalRooms = 0;
   }
 
@@ -241,13 +311,20 @@ class ChatSyncController extends ChangeNotifier {
     if (visibleRoom != null) unawaited(markRead(visibleRoom!));
   }
 
-  void _listState(dynamic raw) {
+  void _listState(dynamic raw, {bool rest = false}) {
     final data = Map<String, dynamic>.from(raw as Map);
     final version = data['version'] as int;
+    if (rest &&
+        _optimisticReads.values.any((r) => r.confirmedVersion == null)) {
+      if (version >= (_deferredListState?['version'] as int? ?? -1)) {
+        _deferredListState = data;
+      }
+      return;
+    }
     if (version < listVersion) return;
     listVersion = version;
     totalRooms = data['totalRooms'] as int;
-    totalUnread = data['totalUnread'] as int;
+    _totalUnread = data['totalUnread'] as int;
   }
 
   void _upsertRoom(Chatroom room, {bool rest = false}) {
@@ -300,6 +377,11 @@ class ChatSyncController extends ChangeNotifier {
             retain: drafts[id]?.isNotEmpty ?? false,
           );
         }
+        final read = _optimisticReads[id];
+        if (data['readerType'] == 'user' &&
+            (data['messages'] as List).isNotEmpty) {
+          read?.receipt = true;
+        }
       case 'chatroom.updated':
         final room = Chatroom.fromApiResponseMap(
           Map<String, dynamic>.from(data['room'] as Map),
@@ -308,7 +390,18 @@ class ChatSyncController extends ChangeNotifier {
           throw const FormatException('Invalid room');
         }
         _upsertRoom(room);
+        final read = _optimisticReads[id];
+        if (read?.receipt == true &&
+            room.version > read!.room.version &&
+            room.version >= (_rooms[id]?.version ?? 0)) {
+          read.confirmedVersion = (data['listState'] as Map)['version'] as int;
+        } else if (read != null) {
+          // A replayed receipt followed by an older summary cannot acknowledge
+          // unread messages from the newer snapshot used by this action.
+          read.receipt = false;
+        }
         _listState(data['listState']);
+        _flushReadState();
         if (histories[id]?.removed == true && !_removed.containsKey(id)) {
           histories.remove(id);
           if (_opened.containsKey(id)) unawaited(loadHistory(id));
@@ -319,6 +412,7 @@ class ChatSyncController extends ChangeNotifier {
             version > (_removed[id] ?? 0)) {
           _removed[id] = version;
           _rooms.remove(id);
+          _optimisticReads.remove(id);
           histories[id]?.request?.cancel();
           histories[id] = ChatHistory()..removed = true;
           for (final draft in drafts.remove(id) ?? <ChatDraft>[]) {
@@ -326,6 +420,7 @@ class ChatSyncController extends ChangeNotifier {
           }
         }
         _listState(data['listState']);
+        _flushReadState();
       default:
         throw FormatException('Unsupported chat event: $type');
     }
@@ -390,6 +485,11 @@ class ChatSyncController extends ChangeNotifier {
     final snapshot = _listSnapshot;
     final page = more && _listSnapshot != null ? _page + 1 : 1;
     final gen = ++_listGeneration;
+    // Only a snapshot started after HTTP acknowledgement can reconcile a read.
+    final acknowledgedReads = {
+      for (final entry in _optimisticReads.entries)
+        if (entry.value.httpConfirmed) entry.key: entry.value,
+    };
     final session = _session;
     _listRequest?.cancel();
     final cancel = _listRequest = CancelToken();
@@ -399,6 +499,7 @@ class ChatSyncController extends ChangeNotifier {
     }
     _listLoading = true;
     listError = null;
+    listFailure = null;
     _notify();
     try {
       final response = await dio.get(
@@ -420,12 +521,24 @@ class ChatSyncController extends ChangeNotifier {
         data['listSnapshotExpiresAt'] as String? ?? '',
       );
       for (final raw in data['rooms'] as List) {
-        _upsertRoom(
-          Chatroom.fromApiResponseMap(Map<String, dynamic>.from(raw)),
-          rest: true,
+        final room = Chatroom.fromApiResponseMap(
+          Map<String, dynamic>.from(raw),
         );
+        final read = _optimisticReads[room.id];
+        if (read != null &&
+            read.confirmedVersion == null &&
+            !identical(acknowledgedReads[room.id], read)) {
+          continue;
+        }
+        _upsertRoom(room, rest: true);
+        if (read != null &&
+            identical(acknowledgedReads[room.id], read) &&
+            room.version > read.room.version) {
+          read.confirmedVersion = (data['listState'] as Map)['version'] as int;
+        }
       }
-      _listState(data['listState']);
+      _listState(data['listState'], rest: true);
+      _flushReadState();
       _page = page;
       _totalPages = data['totalPages'] as int;
       _listLoaded = true;
@@ -440,6 +553,7 @@ class ChatSyncController extends ChangeNotifier {
         return _loadList(metadataRefresh: metadataRefresh);
       }
       listError = _error(error);
+      listFailure = AppFailure.from(error);
     } finally {
       if (_valid(session) && gen == _listGeneration) {
         _listLoading = false;
@@ -557,24 +671,46 @@ class ChatSyncController extends ChangeNotifier {
       _valid(session) && identical(histories[id], h) && h.generation == gen;
 
   Future<void> markRead(String id) async {
+    await _markRead(id);
+  }
+
+  Future<bool> markReadFromList(String id) => _markRead(id, fromList: true);
+
+  Future<bool> _markRead(String id, {bool fromList = false}) async {
     if (!_foreground ||
-        visibleRoom != id ||
-        histories[id]?.loaded != true ||
-        histories[id]?.removed == true) {
-      return;
+        _user == null ||
+        (!fromList &&
+            (visibleRoom != id ||
+                histories[id]?.loaded != true ||
+                histories[id]?.removed == true))) {
+      return false;
     }
     if (_reading.contains(id)) {
       _readAgain.add(id);
-      return;
+      return !fromList;
     }
     _reading.add(id);
     final session = _session;
+    final generation = _readGeneration;
+    bool valid() => _valid(session) && generation == _readGeneration;
+    final room = _rooms[id];
+    final optimistic = fromList && room != null && (room.totalUnread ?? 0) > 0
+        ? _OptimisticRoomRead(room)
+        : null;
+    if (optimistic != null) {
+      _optimisticReads[id] = optimistic;
+      _notify();
+    }
+    bool success = false;
     try {
       final response = await dio.put(
         '/api/chatroom/sync/message/$id/read',
         data: {'readerType': 'user'},
       );
-      if (!_valid(session)) return;
+      if (!valid()) return false;
+      if (response.data['success'] != true) {
+        throw const FormatException('Read request failed');
+      }
       // The authoritative stream also delivers these patches; tolerate either
       // documented changed-message envelope while keeping SSE as the fallback.
       final body = response.data['data'];
@@ -597,11 +733,23 @@ class ChatSyncController extends ChangeNotifier {
         }
         _notify();
       }
+      success = true;
+      if (optimistic != null) optimistic.httpConfirmed = true;
+      if (fromList) await refreshListMetadata();
+      return valid();
     } catch (_) {
-      /* Re-entry/reconnect or the next incoming message retries. */
+      // Require the newer room summary paired with the user receipt: a receipt
+      // replayed before our baseline snapshot cannot confirm this operation.
+      success = optimistic?.confirmedVersion != null;
+      return valid() && success;
     } finally {
-      if (_valid(session)) {
+      if (valid()) {
+        if (!success && identical(_optimisticReads[id], optimistic)) {
+          _optimisticReads.remove(id);
+        }
+        _flushReadState();
         _reading.remove(id);
+        _notify();
         if (_readAgain.remove(id)) unawaited(markRead(id));
       }
     }
@@ -710,10 +858,7 @@ class ChatSyncController extends ChangeNotifier {
       error is DioException && error.response?.data is Map
       ? error.response!.data['code'] as String?
       : null;
-  String _error(Object error) =>
-      error is DioException && error.response?.data is Map
-      ? (error.response!.data['message'] ?? '連線失敗，請重試').toString()
-      : '載入或傳送失敗，請重試';
+  String _error(Object error) => AppFailure.from(error).message;
 
   @override
   void dispose() {

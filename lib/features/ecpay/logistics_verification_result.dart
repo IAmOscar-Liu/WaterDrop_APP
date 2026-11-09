@@ -1,3 +1,4 @@
+import 'package:flutter_ad_ecommerce/utils/app_failure.dart';
 import 'package:dio/dio.dart';
 
 /// Only the explicit synchronous BE result can unlock checkout.
@@ -27,30 +28,26 @@ class LogisticsVerificationResult {
       );
     }
     if (response.statusCode == 429) {
-      final seconds = int.tryParse(response.headers.value('retry-after') ?? '');
+      final now = DateTime.now();
+      final deadline = AppFailure.parseRetryAfter(
+        response.headers.value('retry-after'),
+        now,
+      );
+      final seconds = deadline == null
+          ? null
+          : (deadline.difference(now).inMilliseconds / 1000).ceil();
       return LogisticsVerificationResult(
         message: '物流驗證請求過於頻繁，請稍後重試。',
         retryAfterSeconds: seconds != null && seconds > 0 ? seconds : 60,
       );
     }
-    if (response.statusCode == 400 && body is Map && body['message'] is List) {
-      const labels = {
-        'ReceiverName': '收件人姓名',
-        'ReceiverCellPhone': '收件人手機號碼',
-        'ReceiverEmail': '收件人電子郵件',
-      };
-      final messages = <String>[];
-      for (final issue in body['message'] as List) {
-        if (issue is Map && issue['message'] is String) {
-          final label = labels[issue['field']];
-          messages.add(
-            label == null ? issue['message'] : '$label：${issue['message']}',
-          );
-        }
-      }
-      if (messages.isNotEmpty) {
-        return LogisticsVerificationResult(message: messages.join('\n'));
-      }
+    if (response.statusCode == 400) {
+      final failure = AppFailure.from(body);
+      return LogisticsVerificationResult(
+        message: failure.fieldErrors.isNotEmpty
+            ? failure.message
+            : '收件資料不完整或格式不正確，請確認後再試。',
+      );
     }
     if (response.statusCode == 401 || response.statusCode == 403) {
       return const LogisticsVerificationResult(

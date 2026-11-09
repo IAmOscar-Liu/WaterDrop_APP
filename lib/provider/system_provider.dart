@@ -35,9 +35,7 @@ class SystemNotifier extends _$SystemNotifier {
       return Result.success(data['data']);
     } catch (e) {
       return Result.failure(
-        e is DioException
-            ? getDioExceptionMessage(e)
-            : "Failed to load system info: $e",
+        e is DioException ? getDioExceptionMessage(e) : AppFailure.from(e),
       );
     }
   }
@@ -58,9 +56,7 @@ class SystemNotifier extends _$SystemNotifier {
       return Result.success(data['data']);
     } catch (e) {
       return Result.failure(
-        e is DioException
-            ? getDioExceptionMessage(e)
-            : "Failed to load product recommendation: $e",
+        e is DioException ? getDioExceptionMessage(e) : AppFailure.from(e),
       );
     }
   }
@@ -81,9 +77,7 @@ class SystemNotifier extends _$SystemNotifier {
       return Result.success(data['data']);
     } catch (e) {
       return Result.failure(
-        e is DioException
-            ? getDioExceptionMessage(e)
-            : "Failed to load customer support content: $e",
+        e is DioException ? getDioExceptionMessage(e) : AppFailure.from(e),
       );
     }
   }
@@ -102,9 +96,7 @@ class SystemNotifier extends _$SystemNotifier {
       return Result.success(data['data']);
     } catch (e) {
       return Result.failure(
-        e is DioException
-            ? getDioExceptionMessage(e)
-            : "Failed to load bank list: $e",
+        e is DioException ? getDioExceptionMessage(e) : AppFailure.from(e),
       );
     }
   }
@@ -134,9 +126,7 @@ class SystemNotifier extends _$SystemNotifier {
       return Result.success(data['data']['fcmToken']);
     } catch (e) {
       return Result.failure(
-        e is DioException
-            ? getDioExceptionMessage(e)
-            : "Failed to send fcmToken: $e",
+        e is DioException ? getDioExceptionMessage(e) : AppFailure.from(e),
       );
     }
   }
@@ -163,9 +153,7 @@ class SystemNotifier extends _$SystemNotifier {
       return Result.success(true);
     } catch (e) {
       return Result.failure(
-        e is DioException
-            ? getDioExceptionMessage(e)
-            : "Failed to delete fcmToken: $e",
+        e is DioException ? getDioExceptionMessage(e) : AppFailure.from(e),
       );
     }
   }
@@ -201,7 +189,7 @@ class SystemNotifier extends _$SystemNotifier {
       return Result.failure(getDioExceptionMessage(e));
     } catch (e) {
       log('Error loading ad daily statistics: $e');
-      return Result.failure('Error loading ad daily statistics: $e');
+      return Result.failure(AppFailure.from(e));
     } finally {
       state = state.copyWith(isLoadingDailyStats: false);
     }
@@ -300,7 +288,7 @@ class SystemNotifier extends _$SystemNotifier {
       );
     } catch (e) {
       log('Error checking referral code: $e');
-      return Result.failure("$e");
+      return Result.failure(AppFailure.from(e));
     } finally {
       state = state.copyWith(isSendingReferralCode: false);
     }

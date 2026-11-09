@@ -6,6 +6,7 @@ import 'package:flutter_ad_ecommerce/constants/app_constants.dart';
 import 'package:flutter_ad_ecommerce/models/api_enums.dart';
 import 'package:flutter_ad_ecommerce/models/message.dart';
 import 'package:flutter_ad_ecommerce/provider/dio_provider.dart';
+import 'package:flutter_ad_ecommerce/provider/notification_cache_provider.dart';
 import 'package:flutter_ad_ecommerce/provider/message_stats_provider.dart';
 import 'package:flutter_ad_ecommerce/utils/custom_async_value.dart';
 import 'package:flutter_ad_ecommerce/utils/exception_handler.dart';
@@ -20,18 +21,38 @@ const _customLimit = AppConstants.paginationPageSize;
 @Riverpod(keepAlive: true)
 class MessageNotifier extends _$MessageNotifier {
   int _page = 1;
+  int _generation = 0;
   int _limit = _customLimit;
   String? _search;
   NotificationType? _type;
   bool? _onlyUnread;
+  void invalidateCache() => _cache.clear();
+  final _cache =
+      <NotificationQueryKey, ({DateTime fetchedAt, MessagePagination data})>{};
+  NotificationQueryKey get _query =>
+      (type: _type, search: _search ?? '', onlyUnread: _onlyUnread == true);
+  void _remember(MessagePagination data, {DateTime? fetchedAt}) {
+    _cache.remove(_query);
+    _cache[_query] = (
+      fetchedAt: fetchedAt ?? ref.read(notificationCacheClockProvider)(),
+      data: data,
+    );
+    while (_cache.length > 30) {
+      _cache.remove(_cache.keys.first);
+    }
+  }
 
   @override
   CustomAsyncValue<MessagePagination> build() {
+    ref.onDispose(() => _generation++);
     // Start with an empty list - message will be loaded from API
     return CustomAsyncValue.initial();
   }
 
   void reset() {
+    _generation++;
+    _cache.clear();
+    _page = 1;
     state = CustomAsyncValue.initial();
   }
 
@@ -41,7 +62,15 @@ class MessageNotifier extends _$MessageNotifier {
     bool? onlyUnread,
     int? minPrice,
     int? maxPrice,
+    bool reuseExisting = false,
   }) async {
+    final previousData =
+        (search ?? '') == (_search ?? '') &&
+            type == _type &&
+            (onlyUnread == true) == (_onlyUnread == true)
+        ? state.data
+        : null;
+    final generation = ++_generation;
     try {
       _page = 1;
       _limit = _customLimit;
@@ -49,7 +78,22 @@ class MessageNotifier extends _$MessageNotifier {
       _type = type;
       _onlyUnread = onlyUnread;
 
-      state = CustomAsyncValue.loading();
+      final cached = _cache[_query];
+      if (reuseExisting && cached != null) {
+        final age = ref
+            .read(notificationCacheClockProvider)()
+            .difference(cached.fetchedAt);
+        if (!age.isNegative && age < notificationCacheDuration) {
+          _page = cached.data.page;
+          state = CustomAsyncValue.done(cached.data);
+          return;
+        }
+      }
+      _cache.remove(_query);
+
+      state = previousData == null
+          ? CustomAsyncValue.loading()
+          : CustomAsyncValue.fetching(previousData);
       final response = await ref
           .read(dioProvider)
           .get(
@@ -63,6 +107,7 @@ class MessageNotifier extends _$MessageNotifier {
             },
           );
 
+      if (generation != _generation) return;
       final data = response.data;
       if (data['success'] != true || data['data']?['notifications'] is! List) {
         throw Exception("Failed to get response data");
@@ -83,12 +128,19 @@ class MessageNotifier extends _$MessageNotifier {
           totalPages: ParseUtils.parseInt(data['data']['totalPages']) ?? 1,
         ),
       );
+      _remember(state.data!);
     } on DioException catch (e) {
+      if (generation != _generation) return;
       log('Error loading messages: $e');
-      state = CustomAsyncValue.error(getDioExceptionMessage(e));
+      state = previousData == null
+          ? CustomAsyncValue.error(AppFailure.from(e))
+          : CustomAsyncValue.retained(previousData, e);
     } catch (e) {
+      if (generation != _generation) return;
       log('Error loading messages: $e');
-      state = CustomAsyncValue.error('Error loading messages: $e');
+      state = previousData == null
+          ? CustomAsyncValue.error(AppFailure.from(e))
+          : CustomAsyncValue.retained(previousData, e);
     }
   }
 
@@ -96,7 +148,8 @@ class MessageNotifier extends _$MessageNotifier {
     if (!state.isDone || _page >= (state.data?.totalPages ?? double.infinity)) {
       return;
     }
-    _page++;
+    final generation = _generation;
+    final nextPage = _page + 1;
     try {
       state = CustomAsyncValue.fetching(state.data);
       final response = await ref
@@ -104,7 +157,7 @@ class MessageNotifier extends _$MessageNotifier {
           .get(
             "/api/notification/list",
             queryParameters: {
-              "page": _page,
+              "page": nextPage,
               "limit": _limit,
               "search": _search,
               "types": _type == null ? null : [_type!.wireValue],
@@ -112,6 +165,7 @@ class MessageNotifier extends _$MessageNotifier {
             },
           );
 
+      if (generation != _generation) return;
       final data = response.data;
       if (data['success'] != true || data['data']?['notifications'] is! List) {
         throw Exception("Failed to get response data");
@@ -123,6 +177,7 @@ class MessageNotifier extends _$MessageNotifier {
         return Message.fromApiResponseMap(map);
       });
 
+      _page = nextPage;
       state = CustomAsyncValue.done(
         MessagePagination(
           messages: [...(state.data?.messages ?? []), ...messages],
@@ -132,14 +187,16 @@ class MessageNotifier extends _$MessageNotifier {
           totalPages: ParseUtils.parseInt(data['data']['totalPages']) ?? 1,
         ),
       );
+      _remember(state.data!, fetchedAt: _cache[_query]?.fetchedAt);
     } catch (e) {
+      if (generation != _generation) return;
       log('Error loading collections: $e');
       state = state.data != null
-          ? CustomAsyncValue.done(state.data!)
+          ? CustomAsyncValue.retained(state.data!, e, pagination: true)
           : CustomAsyncValue.error(
               e is DioException
                   ? getDioExceptionMessage(e)
-                  : 'Error loading collections: $e',
+                  : AppFailure.from(e),
             );
     }
   }
@@ -172,10 +229,13 @@ class MessageNotifier extends _$MessageNotifier {
         throw Exception('Request failed');
       }
 
+      _cache.clear();
+
       ref.read(messageStatsNotifierProvider.notifier).loadMessageStats();
       final refreshedMessages = await _handleUpdateAftermath();
 
       state = CustomAsyncValue.done(refreshedMessages);
+      _remember(refreshedMessages);
       return Result.success(true);
     } catch (e) {
       log('Failed to mark message as read: $e');
@@ -191,67 +251,51 @@ class MessageNotifier extends _$MessageNotifier {
       );
 
       return Result.failure(
-        e is DioException ? getDioExceptionMessage(e) : '$e',
+        e is DioException ? getDioExceptionMessage(e) : AppFailure.from(e),
       );
     }
   }
 
-  Future<Result<bool>> deleteMessage(String messageId) async {
+  Future<Result<bool>> deleteMessage(String messageId) =>
+      deleteMessages([messageId]);
+
+  Future<Result<bool>> deleteMessages(Iterable<String> messageIds) async {
     if (state.isProcessing || state.data == null) {
       return Result.failure('processing');
     }
-    final int targetIndex = state.data!.messages.indexWhere(
-      (message) => message.id == messageId,
-    );
-    if (targetIndex == -1) {
-      return Result.failure('target not found');
+    final ids = messageIds.toSet();
+    if (ids.isEmpty || ids.length > 200) {
+      return Result.failure('請選取 1 至 200 則訊息');
     }
-    final Message target = state.data!.messages.firstWhere(
-      (message) => message.id == messageId,
+    final previous = state.data!;
+    final remaining = previous.copyWith(
+      messages: previous.messages
+          .where((message) => !ids.contains(message.id))
+          .toList(),
+      total: (previous.total - ids.length).clamp(0, previous.total),
     );
+    state = CustomAsyncValue.processing(remaining);
     try {
-      state = CustomAsyncValue.processing(
-        state.data!.copyWith(
-          messages: state.data!.messages
-              .where((message) => message.id != messageId)
-              .toList(),
-        ),
-      );
-
       final response = await ref
           .read(dioProvider)
-          .delete(
-            "/api/notification",
-            data: {
-              "notificationIds": [messageId],
-            },
-          );
-      if (response.data['success'] != true) {
-        throw Exception('Request failed');
-      }
-
-      ref.read(messageStatsNotifierProvider.notifier).loadMessageStats();
-      final refreshedMessages = await _handleUpdateAftermath();
-
-      state = CustomAsyncValue.done(refreshedMessages);
-      return Result.success(true);
+          .delete('/api/notification', data: {'notificationIds': ids.toList()});
+      if (response.data['success'] != true) throw Exception('Request failed');
+      _cache.clear();
     } catch (e) {
-      log('Failed to delete message: $e');
-      // Revert state
-      state = CustomAsyncValue.done(
-        state.data!.copyWith(
-          messages: [
-            ...state.data!.messages.sublist(0, targetIndex),
-            target,
-            ...state.data!.messages.sublist(targetIndex),
-          ],
-        ),
-      );
-
+      state = CustomAsyncValue.done(previous);
       return Result.failure(
-        e is DioException ? getDioExceptionMessage(e) : '$e',
+        e is DioException ? getDioExceptionMessage(e) : AppFailure.from(e),
       );
     }
+    ref.read(messageStatsNotifierProvider.notifier).loadMessageStats();
+    try {
+      state = CustomAsyncValue.done(await _handleUpdateAftermath());
+      _remember(state.data!);
+    } catch (_) {
+      // Deletion already committed; a refresh failure must not restore deleted rows.
+      state = CustomAsyncValue.done(remaining);
+    }
+    return Result.success(true);
   }
 
   Future<MessagePagination> _handleUpdateAftermath() async {

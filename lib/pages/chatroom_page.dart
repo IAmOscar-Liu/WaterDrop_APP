@@ -198,7 +198,15 @@ class _ChatroomPageState extends ConsumerState<LegacyChatroomPage> {
 
     if (_errorMsg != null || chatMessageProvider.hasError) {
       return _buildLayout(
-        child: PageError('${_errorMsg ?? chatMessageProvider.error}'),
+        child: PageError(
+          chatMessageProvider.error ?? _errorMsg,
+          onRetry: () {
+            if (_chatroom != null) {
+              setState(() => _errorMsg = null);
+              _loadChatMessages(chatRoomId: _chatroom!.id);
+            }
+          },
+        ),
       );
     }
 

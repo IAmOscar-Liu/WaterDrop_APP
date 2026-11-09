@@ -9,6 +9,7 @@ class FilterButton extends StatelessWidget {
     required this.onPressed,
     required this.child,
     this.icon,
+    this.preserveStyleWhenDisabled = false,
   });
 
   final bool isSelected;
@@ -16,15 +17,29 @@ class FilterButton extends StatelessWidget {
   final Widget child;
   final Widget? icon;
 
+  /// Keep filters visually stable while an in-flight action blocks interaction.
+  final bool preserveStyleWhenDisabled;
+
   @override
   Widget build(BuildContext context) {
     if (isSelected) {
-      final style = ElevatedButton.styleFrom(
-        foregroundColor: AppColors.primaryTextColor,
-        backgroundColor: AppColors.navbarIndicatorColor,
-        shape: const StadiumBorder(),
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-      );
+      final style =
+          ElevatedButton.styleFrom(
+            foregroundColor: AppColors.primaryTextColor,
+            backgroundColor: AppColors.navbarIndicatorColor,
+            disabledForegroundColor: preserveStyleWhenDisabled
+                ? AppColors.primaryTextColor
+                : null,
+            disabledBackgroundColor: preserveStyleWhenDisabled
+                ? AppColors.navbarIndicatorColor
+                : null,
+            shape: const StadiumBorder(),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+          ).copyWith(
+            elevation: preserveStyleWhenDisabled
+                ? const WidgetStatePropertyAll(0)
+                : null,
+          );
       return icon == null
           ? ElevatedButton(onPressed: onPressed, style: style, child: child)
           : ElevatedButton.icon(
@@ -37,6 +52,9 @@ class FilterButton extends StatelessWidget {
 
     final style = OutlinedButton.styleFrom(
       foregroundColor: AppColors.secondaryTextColor,
+      disabledForegroundColor: preserveStyleWhenDisabled
+          ? AppColors.secondaryTextColor
+          : null,
       side: const BorderSide(color: AppColors.borderColor),
       shape: const StadiumBorder(),
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),

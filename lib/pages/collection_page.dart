@@ -49,9 +49,6 @@ class _CollectionPageState extends ConsumerState<CollectionPage> {
   @override
   Widget build(BuildContext context) {
     final collectionProvider = ref.watch(collectionNotifierProvider);
-    if (collectionProvider.isInitial || collectionProvider.isLoading) {
-      return _buildLayout(child: PageLoading('載入收藏中......'));
-    }
 
     final List<Collection> collections =
         collectionProvider.data?.collections ?? [];
@@ -103,10 +100,21 @@ class _CollectionPageState extends ConsumerState<CollectionPage> {
                 },
               ),
             ),
+            if (collectionProvider.hasData &&
+                collectionProvider.failure != null &&
+                !collectionProvider.paginationFailed)
+              DataRefreshNotice(
+                error: collectionProvider.failure,
+                onRetry: () => _loadCollections(),
+              ),
             Expanded(
-              child: collectionProvider.hasError
+              child:
+                  collectionProvider.isInitial || collectionProvider.isLoading
+                  ? PageLoading('載入收藏中......')
+                  : collectionProvider.hasError
                   ? PageError(
-                      "Failed to load collections: ${collectionProvider.error}",
+                      collectionProvider.error,
+                      onRetry: () => _loadCollections(),
                     )
                   : collectionProvider.data!.collections.isEmpty
                   ? Center(
@@ -159,7 +167,8 @@ class _CollectionPageState extends ConsumerState<CollectionPage> {
                                 return VisibilityDetector(
                                   key: Key(collection.id),
                                   onVisibilityChanged: (visibilityInfo) {
-                                    if (visibilityInfo.visibleFraction > 0.2) {
+                                    if (collectionProvider.failure == null &&
+                                        visibilityInfo.visibleFraction > 0.2) {
                                       ref
                                           .read(
                                             collectionNotifierProvider.notifier,
@@ -181,6 +190,7 @@ class _CollectionPageState extends ConsumerState<CollectionPage> {
                           ),
                           PaginationFooter(
                             loading: collectionProvider.isFetching,
+                            error: collectionProvider.failure,
                             onLoadMore:
                                 collectionProvider.data!.page <
                                     collectionProvider.data!.totalPages

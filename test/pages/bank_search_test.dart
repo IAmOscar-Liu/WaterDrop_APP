@@ -107,9 +107,9 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(find.text('銀行資料載入失敗，點擊重試'), findsOneWidget);
+    expect(find.text('重試'), findsOneWidget);
     failed = false;
-    await tester.tap(find.text('銀行資料載入失敗，點擊重試'));
+    await tester.tap(find.text('重試'));
     await tester.pumpAndSettle();
     expect(find.text('004 臺灣銀行'), findsOneWidget);
     await tester.pumpWidget(const SizedBox.shrink());

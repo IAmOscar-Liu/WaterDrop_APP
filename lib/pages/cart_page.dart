@@ -1,3 +1,6 @@
+import 'package:flutter_ad_ecommerce/shared/widgets/app_snackbar.dart';
+import 'package:flutter_ad_ecommerce/shared/widgets/app_dialog.dart';
+import 'package:flutter_ad_ecommerce/utils/app_failure.dart';
 import 'dart:async';
 import 'dart:math' show min;
 
@@ -326,9 +329,12 @@ class _CartPageState extends ConsumerState<CartPage> {
   Future<void> _showCartUpdateFailure(Future<Result<bool>> operation) async {
     final result = await operation;
     if (!mounted || result.isSuccess) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(result.error ?? '修改購物車失敗，請稍後再試')));
+    ScaffoldMessenger.of(context).showSnackBar(
+      AppSnackBar(
+        kind: AppSnackBarKind.error,
+        content: Text(result.error ?? '修改購物車失敗，請稍後再試'),
+      ),
+    );
   }
 
   Future<String?> _checkoutValidation(
@@ -388,9 +394,9 @@ class _CartPageState extends ConsumerState<CartPage> {
             },
           );
       if (response.data['success'] == true) return null;
-      return response.data['message'] as String? ?? '無法確認配送資料，請稍後再試';
-    } catch (_) {
-      return '無法確認配送資料，請稍後再試';
+      return AppFailure.from(response.data).message;
+    } catch (error) {
+      return AppFailure.from(error).message;
     }
   }
 
@@ -402,6 +408,14 @@ class _CartPageState extends ConsumerState<CartPage> {
       return _buildLayout(child: PageLoading('載入購物清單中......'));
     }
 
+    if (cartData.hasError && !cartData.hasData) {
+      return _buildLayout(
+        child: PageError(
+          cartData.error,
+          onRetry: () => ref.read(cartProvider.notifier).loadCartItems(),
+        ),
+      );
+    }
     final List<CartItem> cartItems = cartData.data ?? [];
 
     // Prefill only when the first selection is ready. Navigation and later
@@ -429,6 +443,12 @@ class _CartPageState extends ConsumerState<CartPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  if (cartData.failure != null)
+                    DataRefreshNotice(
+                      error: cartData.failure,
+                      onRetry: () =>
+                          ref.read(cartProvider.notifier).loadCartItems(),
+                    ),
                   AbsorbPointer(
                     absorbing: _isProcessingTransaction,
                     child: ListView.builder(
@@ -474,7 +494,7 @@ class _CartPageState extends ConsumerState<CartPage> {
                           },
                           onQuantityChange: () {
                             if (_isProcessingTransaction) return;
-                            showDialog(
+                            showAppDialog(
                               context: context,
                               builder: (context) {
                                 return QuantityDialog(
@@ -559,14 +579,13 @@ class _CartPageState extends ConsumerState<CartPage> {
                                 );
                                 if (!mounted) return;
                                 if (invalidMsg != null) {
-                                  return showDialog(
+                                  return showAppDialog(
                                     // ignore: use_build_context_synchronously
                                     context: context,
                                     builder: (context) {
                                       return AlertDialog(
-                                        backgroundColor: const Color(
-                                          0xFF262A33,
-                                        ),
+                                        backgroundColor:
+                                            AppColors.dialogBgColor,
                                         title: Text(
                                           "無法結帳",
                                           style: TextStyle(color: Colors.white),
@@ -611,14 +630,13 @@ class _CartPageState extends ConsumerState<CartPage> {
                                           .toList(),
                                     );
                                 if (!shippingFeeResult.isSuccess) {
-                                  return showDialog(
+                                  return showAppDialog(
                                     // ignore: use_build_context_synchronously
                                     context: context,
                                     builder: (context) {
                                       return AlertDialog(
-                                        backgroundColor: const Color(
-                                          0xFF262A33,
-                                        ),
+                                        backgroundColor:
+                                            AppColors.dialogBgColor,
                                         title: Text(
                                           "資料有誤",
                                           style: TextStyle(color: Colors.white),
@@ -699,18 +717,17 @@ class _CartPageState extends ConsumerState<CartPage> {
                                               )
                                               .refreshChatroomsAfterCheckout(),
                                         );
-                                        return showDialog(
+                                        return showAppDialog(
                                           // ignore: use_build_context_synchronously
                                           context: context,
                                           builder: (context) {
                                             return AlertDialog(
-                                              backgroundColor: const Color(
-                                                0xFF262A33,
-                                              ),
+                                              backgroundColor:
+                                                  AppColors.dialogBgColor,
                                               title: Text(
                                                 orderStatus == OrderStatus.paid
                                                     ? "交易成功"
-                                                    : "訂單已送出，請於指定期限內完成付款(如已付款，請於訂單紀錄確認付款狀態)",
+                                                    : "付款確認中，請至訂單記錄查看原訂單狀態，避免重複付款。ATM轉帳請依原付款資訊完成付款。",
                                                 style: TextStyle(
                                                   color: Colors.white,
                                                 ),

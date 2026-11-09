@@ -1,3 +1,4 @@
+import 'package:flutter_ad_ecommerce/shared/widgets/app_snackbar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_ad_ecommerce/constants/colors.dart';
 import 'package:flutter_ad_ecommerce/models/api_enums.dart';
@@ -267,9 +268,11 @@ class CartItemCard extends ConsumerWidget {
                                     : result.error;
                                 if (message == null) return;
                                 messenger.showSnackBar(
-                                  SnackBar(
+                                  AppSnackBar(
                                     content: Text(message),
-                                    backgroundColor: Colors.green,
+                                    kind: result.isFailure
+                                        ? AppSnackBarKind.error
+                                        : AppSnackBarKind.success,
                                     duration: const Duration(seconds: 2),
                                   ),
                                 );

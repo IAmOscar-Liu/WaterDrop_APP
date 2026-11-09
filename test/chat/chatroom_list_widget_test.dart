@@ -7,6 +7,7 @@ import 'package:flutter_ad_ecommerce/pages/chatroom_list_page.dart';
 import 'package:flutter_ad_ecommerce/provider/chat_sync_provider.dart';
 import 'package:flutter_ad_ecommerce/provider/dio_provider.dart';
 import 'package:flutter_ad_ecommerce/router/chat_route_observer.dart';
+import 'package:flutter_ad_ecommerce/shared/widgets/swipe_action_pane.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:visibility_detector/visibility_detector.dart';
@@ -14,6 +15,113 @@ import 'package:visibility_detector/visibility_detector.dart';
 import 'chat_test_support.dart';
 
 void main() {
+  for (final failure in [false, true]) {
+    testWidgets(
+      'swipe marks an unread room without opening its history (failure=$failure)',
+      (tester) async {
+        final interval = VisibilityDetectorController.instance.updateInterval;
+        VisibilityDetectorController.instance.updateInterval = Duration.zero;
+        addTearDown(
+          () => VisibilityDetectorController.instance.updateInterval = interval,
+        );
+        final api = ChatAdapter();
+        final dio = Dio(BaseOptions(baseUrl: 'https://example.test'))
+          ..httpClientAdapter = api;
+        final sync = ChatSyncController(dio, () async => false);
+        var read = false;
+        api.handler = (r) async {
+          if (r.method == 'PUT') {
+            if (failure) {
+              return jsonResponse({'message': 'failed'}, status: 503);
+            }
+            read = true;
+            return jsonResponse([]);
+          }
+          return jsonResponse({
+            ...listResponse([
+              {
+                ...room('a', version: read ? 2 : 1),
+                'totalUnread': read ? 0 : 2,
+                'accountId': 'seller',
+                'product': {'name': '商品 a'},
+              },
+              {
+                ...room('b'),
+                'totalUnread': 0,
+                'accountId': 'seller',
+                'product': {'name': '商品 b'},
+              },
+            ]),
+            'listState': listState(read ? 2 : 1, unread: read ? 0 : 2),
+          });
+        };
+        sync.configureSession('u', foreground: true);
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              chatSyncProvider.overrideWith((ref) => sync),
+              dioProvider.overrideWithValue(dio),
+            ],
+            child: MaterialApp(
+              navigatorObservers: [chatRouteObserver],
+              home: const ChatroomListPage(),
+            ),
+          ),
+        );
+        addTearDown(() async {
+          await tester.pumpWidget(const SizedBox.shrink());
+          dio.close(force: true);
+        });
+        for (var i = 0; i < 10 && api.connections.isEmpty; i++) {
+          await tester.pump(const Duration(milliseconds: 1));
+        }
+        api.event('stream.ready', {'schemaVersion': 1, 'cursor': 'head'});
+        await tester.pumpAndSettle();
+        await tester.drag(
+          find.ancestor(
+            of: find.text('商品 b'),
+            matching: find.byType(SwipeActionPane),
+          ),
+          const Offset(-130, 0),
+        );
+        await tester.pumpAndSettle();
+        expect(find.text('標為已讀'), findsNothing);
+        await tester.drag(
+          find.ancestor(
+            of: find.text('商品 a'),
+            matching: find.byType(SwipeActionPane),
+          ),
+          const Offset(-130, 0),
+        );
+        await tester.pumpAndSettle();
+        expect(find.text('標為已讀'), findsOneWidget);
+        expect(api.requests.where((r) => r.method == 'PUT'), isEmpty);
+        await tester.tap(find.text('標為已讀'));
+        await tester.pumpAndSettle();
+        final request = api.requests.singleWhere((r) => r.method == 'PUT');
+        expect(request.path, '/api/chatroom/sync/message/a/read');
+        expect(request.data, {'readerType': 'user'});
+        expect(sync.histories, isEmpty);
+        expect(sync.totalUnread, failure ? 2 : 0);
+        expect(find.text('2'), failure ? findsOneWidget : findsNothing);
+        if (failure) {
+          expect(find.text('標為已讀失敗，請稍後再試'), findsOneWidget);
+          await tester.drag(
+            find.ancestor(
+              of: find.text('商品 a'),
+              matching: find.byType(SwipeActionPane),
+            ),
+            const Offset(-130, 0),
+          );
+          await tester.pumpAndSettle();
+          expect(find.text('標為已讀'), findsOneWidget);
+        }
+        expect(tester.takeException(), isNull);
+      },
+      skip: !AppConstants.chatSseEnabled,
+    );
+  }
+
   for (final returning in [false, true]) {
     testWidgets(
       'paid metadata refreshes on ${returning ? "return to" : "entering"} list behind an old request',

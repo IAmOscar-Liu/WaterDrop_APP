@@ -1,3 +1,7 @@
+import 'package:flutter_ad_ecommerce/shared/widgets/app_snackbar.dart';
+import 'package:flutter_ad_ecommerce/shared/widgets/app_dialog.dart';
+import 'package:flutter_ad_ecommerce/shared/widgets/page_status.dart';
+import 'package:flutter_ad_ecommerce/utils/app_failure.dart';
 import 'package:flutter_ad_ecommerce/constants/app_constants.dart';
 import 'package:flutter_ad_ecommerce/provider/notification_sync_provider.dart';
 import 'package:flutter_ad_ecommerce/router/chat_route_observer.dart';
@@ -98,11 +102,38 @@ class _SingleMessageDetailsState extends ConsumerState<SingleMessageDetails>
       }
       final messenger = ScaffoldMessenger.of(context);
       context.pushReplacement(Routes.messagePage);
-      messenger.showSnackBar(const SnackBar(content: Text('此訊息已刪除或無法存取')));
+      messenger.showSnackBar(
+        AppSnackBar(
+          kind: AppSnackBarKind.info,
+          content: Text('此訊息已刪除或無法存取'),
+        ),
+      );
     });
   }
 
   String _getTypeLabel(NotificationType type) => type.displayName;
+
+  Future<void> _retryMessage() async {
+    if (_detail != null) {
+      await _sync!.loadDetail(_detail!);
+      return;
+    }
+    final id =
+        _message?.id ??
+        (widget.extra is Map ? widget.extra['messageId'] : null);
+    if (id is! String || _isLoading) return;
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+    final result = await _loadSingleMessage(id);
+    if (!mounted) return;
+    setState(() {
+      _isLoading = false;
+      _message = result.data;
+      _error = result.failureInfo ?? result.error;
+    });
+  }
 
   @override
   void initState() {
@@ -138,9 +169,7 @@ class _SingleMessageDetailsState extends ConsumerState<SingleMessageDetails>
         } else {
           setState(() {
             _isLoading = false;
-            _error =
-                value.error ??
-                "Failed to load message ${widget.extra['messageId']}";
+            _error = value.failureInfo ?? value.error;
           });
         }
       });
@@ -176,16 +205,68 @@ class _SingleMessageDetailsState extends ConsumerState<SingleMessageDetails>
         _returnToMessageCenterIfPushed();
       }
       log("Error loading Message $messageId: $e");
-      return Result.failure("Error loading Message $messageId: $e");
+      return Result.failure(AppFailure.from(e));
     }
   }
 
   Widget _buildLayout({required Widget child}) {
     return AppScaffold(
       backgroundColor: AppColors.primaryColor,
-      appBar: SimpleAppBar(title: '訊息詳情'),
+      appBar: SimpleAppBar(
+        title: '訊息詳情',
+        actions: [
+          if (!_isLoading &&
+              _error == null &&
+              _message != null &&
+              !(widget.extra is Map &&
+                  widget.extra['hideDeleteMessageButton'] == true))
+            IconButton(
+              tooltip: '刪除訊息',
+              onPressed: _isDeleting ? null : _confirmDeleteMessage,
+              icon: const Icon(Icons.delete_outline),
+            ),
+        ],
+      ),
       body: child,
     );
+  }
+
+  Future<void> _confirmDeleteMessage() async {
+    final message = _message;
+    if (message == null || _isDeleting) return;
+    final confirmed = await showAppDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: AppColors.dialogBgColor,
+        title: const Text(
+          '刪除訊息',
+          style: TextStyle(color: AppColors.primaryTextColor),
+        ),
+        content: const Text(
+          '確定要刪除此訊息嗎？',
+          style: TextStyle(color: AppColors.primaryTextColor),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            style: TextButton.styleFrom(
+              foregroundColor: AppColors.primaryTextColor,
+            ),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            style: TextButton.styleFrom(
+              foregroundColor: AppColors.dangerButtonColor,
+            ),
+            child: const Text('刪除'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted || confirmed != true || _isDeleting) return;
+    if (_detail != null && _sync!.unavailable(_detail!.id)) return;
+    deleteMessage(message);
   }
 
   void deleteMessage(Message message) async {
@@ -193,11 +274,18 @@ class _SingleMessageDetailsState extends ConsumerState<SingleMessageDetails>
       final result = await _sync!.delete(message.id);
       if (!mounted) return;
       if (result.isSuccess) {
+        final messenger = ScaffoldMessenger.of(context);
         context.pop();
+        messenger.showSnackBar(
+          AppSnackBar(kind: AppSnackBarKind.success, content: Text('訊息已刪除')),
+        );
       } else {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(result.error ?? '無法刪除訊息')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          AppSnackBar(
+            kind: AppSnackBarKind.error,
+            content: Text(result.error ?? '無法刪除訊息'),
+          ),
+        );
       }
       return;
     }
@@ -214,14 +302,15 @@ class _SingleMessageDetailsState extends ConsumerState<SingleMessageDetails>
           },
         );
 
+    if (!mounted) return;
     if (response.data['success'] != true) {
       ScaffoldMessenger.of(
         // ignore: use_build_context_synchronously
         context,
       ).showSnackBar(
-        SnackBar(
+        AppSnackBar(
           content: Text('無法刪除訊息'),
-          backgroundColor: Colors.red,
+          kind: AppSnackBarKind.error,
           duration: const Duration(seconds: 2),
         ),
       );
@@ -230,8 +319,11 @@ class _SingleMessageDetailsState extends ConsumerState<SingleMessageDetails>
       });
       return;
     }
-    // ignore: use_build_context_synchronously
+    final messenger = ScaffoldMessenger.of(context);
     context.pop({'reload': true});
+    messenger.showSnackBar(
+      AppSnackBar(kind: AppSnackBarKind.success, content: Text('訊息已刪除')),
+    );
   }
 
   @override
@@ -250,20 +342,16 @@ class _SingleMessageDetailsState extends ConsumerState<SingleMessageDetails>
       _isLoading = !_detail!.loaded && _error == null;
     }
     if (_error != null) {
-      return _buildLayout(
-        child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text('$_error', style: const TextStyle(color: Colors.white)),
-              if (_detail != null && !_sync!.unavailable(_detail!.id))
-                TextButton(
-                  onPressed: () => _sync!.loadDetail(_detail!),
-                  child: const Text('重試'),
-                ),
-            ],
+      if (_detail != null && _sync!.unavailable(_detail!.id)) {
+        return _buildLayout(
+          child: const PageError(
+            AppFailure(kind: FailureKind.notFound),
+            message: '此訊息已刪除或無法存取',
           ),
-        ),
+        );
+      }
+      return _buildLayout(
+        child: PageError(_detail?.failure ?? _error, onRetry: _retryMessage),
       );
     }
     if (_isLoading || _message == null) {
@@ -357,33 +445,6 @@ class _SingleMessageDetailsState extends ConsumerState<SingleMessageDetails>
                         color: AppColors.infoColor,
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ),
-              const SizedBox(height: 32),
-              if (widget.extra['hideDeleteMessageButton'] != true)
-                Padding(
-                  padding: EdgeInsetsGeometry.symmetric(horizontal: 24),
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: _isDeleting
-                          ? null
-                          : () => deleteMessage(_message!),
-                      icon: const Icon(Icons.delete_outline),
-                      label: const Text('刪除訊息'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.dangerButtonColor,
-                        foregroundColor: AppColors.primaryTextColor,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        textStyle: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
                       ),
                     ),
                   ),

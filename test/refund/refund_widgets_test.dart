@@ -151,7 +151,7 @@ void main() {
   );
 
   testWidgets(
-    'optional reason and absent seller do not block; quantity capped',
+    'reason required, absent seller does not block, and quantity capped',
     (tester) async {
       adapter.handler = (_) async =>
           jsonResponse({'id': 'refund', 'status': 'pending'});
@@ -174,6 +174,23 @@ void main() {
       );
       await tester.tap(find.text('open'));
       await tester.pumpAndSettle();
+      expect(find.text('退貨原因（必填）'), findsOneWidget);
+      expect(
+        tester
+            .widget<ElevatedButton>(find.widgetWithText(ElevatedButton, '送出'))
+            .onPressed,
+        isNull,
+      );
+      await tester.enterText(find.byType(TextField).at(1), '   ');
+      await tester.pump();
+      expect(
+        tester
+            .widget<ElevatedButton>(find.widgetWithText(ElevatedButton, '送出'))
+            .onPressed,
+        isNull,
+      );
+      await tester.enterText(find.byType(TextField).at(1), '商品損壞');
+      await tester.pump();
       expect(
         tester
             .widget<ElevatedButton>(find.widgetWithText(ElevatedButton, '送出'))
@@ -195,6 +212,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byType(AlertDialog), findsNothing);
       expect((adapter.requests.single.data as Map)['quantity'], 2);
+      expect((adapter.requests.single.data as Map)['reason'], '商品損壞');
     },
   );
 

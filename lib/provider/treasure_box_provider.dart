@@ -23,7 +23,7 @@ class TreasureBoxNotifier extends _$TreasureBoxNotifier {
   int _pendingWork = 0;
   final _pendingBoxIds = <String>{};
   List<TreasureBox>? _confirmedBoxes;
-  String? _loadError;
+  AppFailure? _loadError;
   bool _disposed = false;
   int? _optimisticClaimableCount;
   Object? _badgeAtLastOpenCompletion;
@@ -118,9 +118,7 @@ class TreasureBoxNotifier extends _$TreasureBoxNotifier {
       );
       _loadError = null;
     } catch (e) {
-      _loadError = e is DioException
-          ? getDioExceptionMessage(e)
-          : 'Error loading treasureBoxes: $e';
+      _loadError = AppFailure.from(e);
       log('Error loading treasureBoxes: $e');
     }
   }
@@ -185,7 +183,7 @@ class TreasureBoxNotifier extends _$TreasureBoxNotifier {
           }
         }
         return Result.failure<double>(
-          e is DioException ? getDioExceptionMessage(e) : '$e',
+          e is DioException ? getDioExceptionMessage(e) : AppFailure.from(e),
         );
       }
     }, boxId: boxId);

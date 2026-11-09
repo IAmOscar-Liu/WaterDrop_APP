@@ -1,3 +1,4 @@
+import 'package:flutter_ad_ecommerce/shared/widgets/app_snackbar.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -98,8 +99,11 @@ final sessionLogoutProvider = Provider<Future<Result<bool>> Function()>((ref) {
 Future<void> signOutWithFeedback(BuildContext context, WidgetRef ref) async {
   final result = await ref.read(sessionLogoutProvider)();
   if (context.mounted && result.isFailure) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(result.error ?? '無法登出')));
+    ScaffoldMessenger.of(context).showSnackBar(
+      AppSnackBar(
+        kind: AppSnackBarKind.error,
+        content: Text(result.error ?? '無法登出'),
+      ),
+    );
   }
 }

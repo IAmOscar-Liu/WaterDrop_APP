@@ -1,3 +1,4 @@
+import 'package:flutter_ad_ecommerce/utils/app_failure.dart';
 import 'dart:async';
 
 import 'package:dio/dio.dart';
@@ -6,6 +7,7 @@ import 'package:flutter_ad_ecommerce/constants/app_constants.dart';
 import 'package:flutter_ad_ecommerce/models/api_enums.dart';
 import 'package:flutter_ad_ecommerce/models/message.dart';
 import 'package:flutter_ad_ecommerce/provider/dio_provider.dart';
+import 'package:flutter_ad_ecommerce/provider/notification_cache_provider.dart';
 import 'package:flutter_ad_ecommerce/service/user_sse_service.dart';
 import 'package:flutter_ad_ecommerce/utils/custom_async_value.dart';
 import 'package:flutter_ad_ecommerce/utils/result.dart';
@@ -16,6 +18,7 @@ final notificationSyncProvider =
       return NotificationSyncController(
         ref.watch(dioProvider),
         ref.read(chatTokenRefreshProvider),
+        now: ref.read(notificationCacheClockProvider),
       );
     });
 
@@ -41,7 +44,9 @@ class NotificationQuery {
   String? snapshot;
   DateTime? expires;
   DateTime? retryAt;
+  DateTime? fetchedAt;
   String? error;
+  AppFailure? failure;
   CancelToken? request;
   Timer? debounce;
   bool get hasMore => page < totalPages;
@@ -56,11 +61,25 @@ class NotificationDetail {
   bool loading = false;
   bool loaded = false;
   String? error;
+  AppFailure? failure;
   CancelToken? request;
 }
 
+// Keep query membership and server revisions authoritative so rollback never
+// restores a stale snapshot over a newer SSE event.
+class _PendingNotification {
+  _PendingNotification(this.original);
+  final Message? original;
+  bool pending = true;
+  int? confirmedVersion;
+}
+
 class NotificationSyncController extends ChangeNotifier {
-  NotificationSyncController(this.dio, Future<bool> Function() refreshToken) {
+  NotificationSyncController(
+    this.dio,
+    Future<bool> Function() refreshToken, {
+    DateTime Function()? now,
+  }) : _now = now ?? DateTime.now {
     stream = UserSseService(
       dio: dio,
       path: '/api/notification/events',
@@ -76,6 +95,18 @@ class NotificationSyncController extends ChangeNotifier {
     );
   }
   final Dio dio;
+  final DateTime Function() _now;
+  final _queryCache = <NotificationQueryKey, NotificationQuery>{};
+  NotificationQueryKey _key(NotificationQuery q) =>
+      (type: q.type, search: q.search, onlyUnread: q.onlyUnread);
+  bool _fresh(NotificationQuery q) =>
+      q.fetchedAt != null &&
+      !_now().difference(q.fetchedAt!).isNegative &&
+      _now().difference(q.fetchedAt!) < notificationCacheDuration;
+  Iterable<NotificationQuery> get _allQueries => {
+    ..._queries,
+    ..._queryCache.values,
+  };
   late final UserSseService stream;
   final _items = <String, Message>{};
   final _deleted = <String, int>{};
@@ -89,7 +120,93 @@ class NotificationSyncController extends ChangeNotifier {
   bool _foreground = false;
   bool _disposed = false;
   bool _statsLoading = false;
-  MessageStats? stats;
+  MessageStats? _stats;
+  MessageStats? _deferredStats;
+  final _optimistic = <String, _PendingNotification>{};
+
+  MessageStats? get stats {
+    final baseline = _stats;
+    if (baseline == null) return null;
+    final debits = <String, _PendingNotification>{};
+    for (final operation in _optimistic.values) {
+      final original = operation.original;
+      if (original == null || original.isRead) continue;
+      final previous = debits[original.id];
+      if (previous == null ||
+          (operation.confirmedVersion != null &&
+              (previous.confirmedVersion == null ||
+                  operation.confirmedVersion! < previous.confirmedVersion!))) {
+        debits[original.id] = operation;
+      }
+    }
+    final counts = {
+      NotificationType.systemAlert: baseline.systemAlert,
+      NotificationType.orderStatus: baseline.orderStatus,
+      NotificationType.promotion: baseline.promotion,
+      NotificationType.coinsEarned: baseline.coinsEarned,
+      NotificationType.chatMessage: baseline.chatMessage,
+      NotificationType.other: baseline.other,
+    };
+    for (final operation in debits.values) {
+      if (operation.confirmedVersion == null ||
+          baseline.version < operation.confirmedVersion!) {
+        final type = operation.original!.type;
+        counts[type] = (counts[type]! - 1).clamp(0, baseline.total);
+      }
+    }
+    return baseline.copyWith(
+      total: counts.values.fold<int>(0, (a, b) => a + b),
+      systemAlert: counts[NotificationType.systemAlert],
+      orderStatus: counts[NotificationType.orderStatus],
+      promotion: counts[NotificationType.promotion],
+      coinsEarned: counts[NotificationType.coinsEarned],
+      chatMessage: counts[NotificationType.chatMessage],
+      other: counts[NotificationType.other],
+    );
+  }
+
+  Message? _displayItem(String id) {
+    if (_optimistic['delete:$id']?.pending == true) return null;
+    final value = item(id);
+    return _optimistic['read:$id']?.pending == true
+        ? value?.copyWith(isRead: true)
+        : value;
+  }
+
+  void _beginOptimistic(String key, String id) {
+    _optimistic[key] = _PendingNotification(item(id));
+  }
+
+  void _confirmUnread(String id, int version) {
+    for (final entry in _optimistic.entries) {
+      if (entry.key == 'read:$id' || entry.key == 'delete:$id') {
+        entry.value.confirmedVersion ??= version;
+      }
+    }
+  }
+
+  void _finishOptimistic(Iterable<String> keys) {
+    for (final key in keys) {
+      final operation = _optimistic[key];
+      if (operation == null) continue;
+      operation.pending = false;
+      if (operation.confirmedVersion == null) _optimistic.remove(key);
+    }
+    if (!_optimistic.values.any(
+      (o) => o.pending && o.confirmedVersion == null,
+    )) {
+      final deferred = _deferredStats;
+      _deferredStats = null;
+      if (deferred != null) _mergeStats(deferred);
+    }
+    _optimistic.removeWhere(
+      (_, o) =>
+          !o.pending &&
+          o.confirmedVersion != null &&
+          (_stats?.version ?? -1) >= o.confirmedVersion!,
+    );
+  }
+
   String? statsError;
   String connectionStatus = 'offline';
   bool get connected => stream.ready && connectionStatus == 'connected';
@@ -110,7 +227,7 @@ class NotificationSyncController extends ChangeNotifier {
   List<Message> messages(NotificationQuery query) =>
       [
         for (final id in query.ids)
-          if (item(id) case final Message value)
+          if (_displayItem(id) case final Message value)
             if (query.matches(value)) value,
       ]..sort((a, b) {
         final date = b.createdAt.compareTo(a.createdAt);
@@ -119,7 +236,9 @@ class NotificationSyncController extends ChangeNotifier {
 
   CustomAsyncValue<MessagePagination> listValue(NotificationQuery query) {
     if (!query.loaded) {
-      if (query.error != null) return CustomAsyncValue.error(query.error);
+      if (query.error != null) {
+        return CustomAsyncValue.error(query.failure ?? query.error);
+      }
       if (connectionStatus == 'unauthorized' ||
           connectionStatus == 'unavailable') {
         return CustomAsyncValue.error('訊息連線不可用，請重新登入或稍後再試');
@@ -133,6 +252,13 @@ class NotificationSyncController extends ChangeNotifier {
       limit: AppConstants.paginationPageSize,
       totalPages: query.totalPages,
     );
+    if (query.error != null) {
+      return CustomAsyncValue.retained(
+        result,
+        query.failure ?? AppFailure.from(query.error),
+        pagination: query.retryMore,
+      );
+    }
     return query.loading
         ? CustomAsyncValue.fetching(result)
         : CustomAsyncValue.done(result);
@@ -166,13 +292,16 @@ class NotificationSyncController extends ChangeNotifier {
 
   void _reset() {
     _epoch++;
+    _queryCache.clear();
     for (final request in _requests) {
       request.cancel();
     }
     _requests.clear();
     _mutations.clear();
     _statsLoading = false;
-    stats = null;
+    _stats = null;
+    _deferredStats = null;
+    _optimistic.clear();
     statsError = null;
     _items.clear();
     _deleted.clear();
@@ -186,10 +315,12 @@ class NotificationSyncController extends ChangeNotifier {
       q.snapshot = null;
       q.expires = null;
       q.retryAt = null;
+      q.fetchedAt = null;
       q.page = q.totalPages = q.total = 0;
       q.loading = q.loaded = false;
       q.dirty = true;
       q.error = null;
+      q.failure = null;
     }
     for (final detail in _details) {
       detail.request?.cancel();
@@ -220,11 +351,12 @@ class NotificationSyncController extends ChangeNotifier {
     String search = '',
     bool onlyUnread = false,
   }) {
-    final q = NotificationQuery(
-      type: type,
-      search: search,
-      onlyUnread: onlyUnread,
-    );
+    _queryCache.removeWhere((_, q) => !_fresh(q));
+    final key = (type: type, search: search, onlyUnread: onlyUnread);
+    final q =
+        _queryCache.remove(key) ??
+        NotificationQuery(type: type, search: search, onlyUnread: onlyUnread);
+    q.nearTop = true;
     _queries.add(q);
     return q;
   }
@@ -233,7 +365,17 @@ class NotificationSyncController extends ChangeNotifier {
     q.request?.cancel();
     q.debounce?.cancel();
     q.generation++;
+    q.loading = false;
+    q.visible = false;
+    q.request = null;
     _queries.remove(q);
+    if (q.loaded && q.error == null && _fresh(q)) {
+      _queryCache.remove(_key(q));
+      _queryCache[_key(q)] = q;
+      while (_queryCache.length > 30) {
+        _queryCache.remove(_queryCache.keys.first);
+      }
+    }
     _trimUnused();
   }
 
@@ -256,7 +398,11 @@ class NotificationSyncController extends ChangeNotifier {
   }
 
   void _trimUnused() {
-    if (_queries.isEmpty && _details.isEmpty && _mutations.isEmpty) {
+    _queryCache.removeWhere((_, q) => !_fresh(q));
+    if (_queries.isEmpty &&
+        _queryCache.isEmpty &&
+        _details.isEmpty &&
+        _mutations.isEmpty) {
       _items.clear();
       _deleted.clear();
       _unavailable.clear();
@@ -301,11 +447,28 @@ class NotificationSyncController extends ChangeNotifier {
     return value;
   }
 
-  void _mergeStats(MessageStats value) {
-    if (stats == null || value.version >= stats!.version) {
-      stats = value;
+  void _mergeStats(MessageStats value, {bool fromEvent = false}) {
+    // REST counts can include a pending write whose item event has not arrived.
+    // Delay those snapshots until the write is resolved to avoid double debits.
+    if (!fromEvent &&
+        _optimistic.values.any(
+          (o) => o.pending && o.confirmedVersion == null,
+        )) {
+      if (value.version >= (_deferredStats?.version ?? -1)) {
+        _deferredStats = value;
+      }
+      return;
+    }
+    if (_stats == null || value.version >= _stats!.version) {
+      _stats = value;
       statsError = null;
     }
+    _optimistic.removeWhere(
+      (_, o) =>
+          !o.pending &&
+          o.confirmedVersion != null &&
+          _stats!.version >= o.confirmedVersion!,
+    );
   }
 
   bool _upsert(Message value) {
@@ -325,13 +488,13 @@ class NotificationSyncController extends ChangeNotifier {
     }
     _deleted[id] = version;
     _items.remove(id);
-    for (final q in _queries) {
+    for (final q in _allQueries) {
       q.ids.remove(id);
     }
   }
 
   void _changed(String id) {
-    for (final q in _queries) {
+    for (final q in _allQueries) {
       q.revision++;
       if (q.loading) q.changesDuringLoad.add(id);
       final value = item(id);
@@ -351,12 +514,19 @@ class NotificationSyncController extends ChangeNotifier {
   }
 
   void applyEvent(String type, Map<String, dynamic> data) {
+    _trimUnused();
     final counts = _parseStats(data['stats']);
     if (type == 'notification.created' || type == 'notification.updated') {
       final value = _parseItem(data['notification']);
       // Keep unopened lists invalidated by construction, without storing the feed.
-      if (_queries.isNotEmpty || _details.isNotEmpty || _mutations.isNotEmpty) {
+      if (_queries.isNotEmpty ||
+          _queryCache.isNotEmpty ||
+          _details.isNotEmpty ||
+          _mutations.isNotEmpty) {
         if (_upsert(value)) _changed(value.id);
+        if (item(value.id)?.isRead == true) {
+          _confirmUnread(value.id, counts.version);
+        }
       }
     } else if (type == 'notification.deleted') {
       final id = data['notificationId'];
@@ -364,14 +534,18 @@ class NotificationSyncController extends ChangeNotifier {
       if (id is! String || id.isEmpty || version is! int || version < 1) {
         throw const FormatException('Invalid notification deletion');
       }
-      if (_queries.isNotEmpty || _details.isNotEmpty || _mutations.isNotEmpty) {
+      if (_queries.isNotEmpty ||
+          _queryCache.isNotEmpty ||
+          _details.isNotEmpty ||
+          _mutations.isNotEmpty) {
         _remove(id, version);
         _changed(id);
+        if (unavailable(id)) _confirmUnread(id, counts.version);
       }
     } else {
       throw FormatException('Unsupported notification event: $type');
     }
-    _mergeStats(counts);
+    _mergeStats(counts, fromEvent: true);
     if (_items.length + _deleted.length > 12000) {
       // Transport performs a full resync; never drop overrides silently.
       throw const FormatException('Notification cache limit');
@@ -411,7 +585,19 @@ class NotificationSyncController extends ChangeNotifier {
     }
   }
 
-  Future<void> loadList(NotificationQuery q, {bool more = false}) async {
+  Future<void> loadList(
+    NotificationQuery q, {
+    bool more = false,
+    bool reuseExisting = false,
+  }) async {
+    if (reuseExisting &&
+        !more &&
+        q.loaded &&
+        !q.dirty &&
+        q.error == null &&
+        _fresh(q)) {
+      return;
+    }
     if (!stream.ready ||
         _user == null ||
         !_queries.contains(q) ||
@@ -431,6 +617,7 @@ class NotificationSyncController extends ChangeNotifier {
         _valid(epoch) && _queries.contains(q) && q.generation == generation;
     q.loading = true;
     q.error = null;
+    q.failure = null;
     q.retryMore = more;
     q.changesDuringLoad.clear();
     q.request?.cancel();
@@ -472,6 +659,7 @@ class NotificationSyncController extends ChangeNotifier {
       q.total = data['total'] as int;
       q.totalPages = data['totalPages'] as int;
       q.loaded = true;
+      if (page == 1) q.fetchedAt = _now();
       q.dirty = q.search.isNotEmpty && revision != q.revision;
       _mergeStats(counts);
     } catch (e) {
@@ -486,14 +674,12 @@ class NotificationSyncController extends ChangeNotifier {
         return loadList(q);
       }
       q.error = _error(e);
+      q.failure = AppFailure.from(e);
       if (e is DioException && e.response?.statusCode == 429) {
-        q.retryAt = DateTime.now().add(
-          Duration(
-            seconds:
-                int.tryParse(e.response?.headers.value('retry-after') ?? '') ??
-                15,
-          ),
-        );
+        q.retryAt =
+            q.failure?.retryAt ??
+            DateTime.now().add(const Duration(seconds: 15));
+        q.failure = q.failure!.withRetryAt(q.retryAt);
       }
     } finally {
       if (valid()) {
@@ -542,6 +728,7 @@ class NotificationSyncController extends ChangeNotifier {
     final epoch = _epoch;
     d.loading = true;
     d.error = null;
+    d.failure = null;
     final cancel = d.request = CancelToken();
     _notify();
     try {
@@ -560,6 +747,7 @@ class NotificationSyncController extends ChangeNotifier {
     } catch (e) {
       if (_valid(epoch) && _details.contains(d)) {
         d.error = _error(e);
+        d.failure = AppFailure.from(e);
         if (e is DioException && e.response?.statusCode == 404) {
           _unavailable.add(d.id);
         }
@@ -575,6 +763,34 @@ class NotificationSyncController extends ChangeNotifier {
   Future<Result<bool>> markRead(String id) => _mutate(id, delete: false);
   Future<Result<bool>> delete(String id) => _mutate(id, delete: true);
 
+  Future<Result<bool>> deleteMany(Iterable<String> messageIds) {
+    final ids = messageIds.toSet().toList();
+    if (ids.isEmpty || ids.length > 200) {
+      return Future.value(Result.failure('請選取 1 至 200 則訊息'));
+    }
+    if (_user == null) return Future.value(Result.failure('請先登入'));
+    if (ids.any(deleting)) return Future.value(Result.failure('訊息處理中，請稍後再試'));
+    final epoch = _epoch;
+    final future = Future<Result<bool>>.microtask(
+      () => _performMutation(ids.first, true, epoch, deleteIds: ids),
+    );
+    for (final id in ids) {
+      _mutations['delete:$id'] = future;
+      _beginOptimistic('delete:$id', id);
+    }
+    _notify();
+    future.whenComplete(() {
+      if (!_valid(epoch)) return;
+      for (final id in ids) {
+        _mutations.remove('delete:$id');
+      }
+      _finishOptimistic(ids.map((id) => 'delete:$id'));
+      _trimUnused();
+      _notify();
+    });
+    return future;
+  }
+
   Future<Result<bool>> _mutate(String id, {required bool delete}) {
     final key = '${delete ? 'delete' : 'read'}:$id';
     final existing = _mutations[key];
@@ -586,10 +802,12 @@ class NotificationSyncController extends ChangeNotifier {
       () => _performMutation(id, delete, epoch),
     );
     _mutations[key] = future;
+    _beginOptimistic(key, id);
     _notify();
     future.whenComplete(() {
       if (_valid(epoch)) {
         _mutations.remove(key);
+        _finishOptimistic([key]);
         _trimUnused();
         _notify();
       }
@@ -600,8 +818,10 @@ class NotificationSyncController extends ChangeNotifier {
   Future<Result<bool>> _performMutation(
     String id,
     bool delete,
-    int epoch,
-  ) async {
+    int epoch, {
+    List<String>? deleteIds,
+  }) async {
+    final ids = deleteIds ?? [id];
     if (!_valid(epoch)) return Result.failure('登入狀態已變更');
     final cancel = CancelToken();
     _requests.add(cancel);
@@ -609,9 +829,7 @@ class NotificationSyncController extends ChangeNotifier {
       final response = delete
           ? await dio.delete(
               '/api/notification/sync',
-              data: {
-                'notificationIds': [id],
-              },
+              data: {'notificationIds': ids},
               cancelToken: cancel,
             )
           : await dio.post(
@@ -625,14 +843,21 @@ class NotificationSyncController extends ChangeNotifier {
       final data = _data(response);
       final counts = _parseStats(data['stats']);
       if (delete) {
+        final deletions = <String, int>{};
         for (final raw in data['deleted'] as List) {
           final deletedId = raw['id'] as String;
           final version = raw['version'] as int;
-          if (deletedId != id || version < 1) {
+          if (!ids.contains(deletedId) || version < 1) {
             throw const FormatException('Invalid deletion response');
           }
-          _remove(deletedId, version);
-          _changed(deletedId);
+          deletions[deletedId] = version;
+        }
+        if (deletions.length != ids.length) {
+          throw const FormatException('Incomplete deletion response');
+        }
+        for (final entry in deletions.entries) {
+          _remove(entry.key, entry.value);
+          _changed(entry.key);
         }
       } else {
         for (final raw in data['notifications'] as List) {
@@ -666,19 +891,26 @@ class NotificationSyncController extends ChangeNotifier {
           }
         }
       }
+      for (final changedId in ids) {
+        if (unavailable(changedId) || item(changedId)?.isRead == true) {
+          _confirmUnread(changedId, counts.version);
+        }
+      }
       _mergeStats(counts);
       _notify();
       return Result.success(true);
     } catch (e) {
       if (!_valid(epoch)) return Result.failure('登入狀態已變更');
       if (delete
-          ? _deleted.containsKey(id)
+          ? ids.every(_deleted.containsKey)
           : item(id)?.isRead == true || unavailable(id)) {
         return Result.success(
           true,
         ); // A server event already confirmed the change.
       }
-      if (e is DioException && e.response?.statusCode == 404) {
+      if (ids.length == 1 &&
+          e is DioException &&
+          e.response?.statusCode == 404) {
         _unavailable.add(id);
         _changed(id);
         _notify();
@@ -692,9 +924,7 @@ class NotificationSyncController extends ChangeNotifier {
   String? _code(Object e) => e is DioException && e.response?.data is Map
       ? e.response!.data['code'] as String?
       : null;
-  String _error(Object e) => e is DioException && e.response?.data is Map
-      ? (e.response!.data['message'] ?? '連線失敗，請重試').toString()
-      : '連線失敗，請重試';
+  String _error(Object e) => AppFailure.from(e).message;
 
   @override
   void dispose() {

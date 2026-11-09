@@ -1,4 +1,7 @@
+import 'app_failure.dart';
+
 /// Enum to represent the different states of an asynchronous operation.
+
 enum CustomAsyncValueStatus {
   /// The initial state before any operation has started.
   initial,
@@ -30,9 +33,15 @@ class CustomAsyncValue<T> {
 
   /// The error object if the operation failed. Null otherwise.
   final dynamic error;
+  final bool paginationFailed;
 
   /// Private constructor to enforce usage of factory constructors.
-  const CustomAsyncValue._({required this.status, this.data, this.error});
+  const CustomAsyncValue._({
+    required this.status,
+    this.data,
+    this.error,
+    this.paginationFailed = false,
+  });
 
   /// Creates an instance with the [initial] status.
   factory CustomAsyncValue.initial() {
@@ -67,12 +76,25 @@ class CustomAsyncValue<T> {
   }
 
   /// Creates an instance with the [error] status and an [error] object.
-  factory CustomAsyncValue.error(dynamic error) {
+  factory CustomAsyncValue.error(dynamic error, {T? previousData}) {
     return CustomAsyncValue._(
       status: CustomAsyncValueStatus.error,
-      error: error,
+      error: AppFailure.from(error),
+      data: previousData,
     );
   }
+
+  factory CustomAsyncValue.retained(
+    T data,
+    Object error, {
+    bool pagination = false,
+  }) => CustomAsyncValue._(
+    status: CustomAsyncValueStatus.done,
+    data: data,
+    error: AppFailure.from(error),
+    paginationFailed: pagination,
+  );
+  AppFailure? get failure => error is AppFailure ? error as AppFailure : null;
 
   // --- Convenience Getters ---
 

@@ -2,7 +2,7 @@
 import 'dart:developer';
 
 import 'package:dio/dio.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart' show Ref;
+import 'package:flutter_riverpod/flutter_riverpod.dart' show Ref, Provider;
 import 'package:flutter_ad_ecommerce/constants/app_constants.dart';
 import 'package:flutter_ad_ecommerce/models/product.dart';
 import 'package:flutter_ad_ecommerce/provider/dio_provider.dart';
@@ -15,6 +15,20 @@ part 'product_provider.g.dart';
 
 const _customLimit = AppConstants.paginationPageSize;
 const productListApiCacheKey = 'products';
+const _cacheDuration = Duration(minutes: 10);
+const _maxCachedQueries = 30;
+
+final productCacheClockProvider = Provider<DateTime Function()>(
+  (ref) => DateTime.now,
+);
+
+typedef _ProductQuery = ({
+  String? categoryId,
+  String? search,
+  int? minPrice,
+  int? maxPrice,
+});
+typedef _CachedProducts = ({DateTime fetchedAt, ProductPagination data});
 
 @Riverpod(keepAlive: true)
 class ProductNotifier extends _$ProductNotifier {
@@ -27,6 +41,29 @@ class ProductNotifier extends _$ProductNotifier {
   int _generation = 0;
   int _collectionRevision = 0;
   final _collectionChanges = <String, ({int revision, bool collected})>{};
+  final _cache = <_ProductQuery, _CachedProducts>{};
+
+  _ProductQuery get _query => (
+    categoryId: _categoryId,
+    search: _search,
+    minPrice: _minPrice,
+    maxPrice: _maxPrice,
+  );
+
+  void _remember(
+    _ProductQuery query,
+    ProductPagination data, {
+    DateTime? fetchedAt,
+  }) {
+    _cache.remove(query);
+    _cache[query] = (
+      fetchedAt: fetchedAt ?? ref.read(productCacheClockProvider)(),
+      data: data,
+    );
+    while (_cache.length > _maxCachedQueries) {
+      _cache.remove(_cache.keys.first);
+    }
+  }
 
   @override
   CustomAsyncValue<ProductPagination> build() {
@@ -37,6 +74,7 @@ class ProductNotifier extends _$ProductNotifier {
 
   void reset() {
     _generation++;
+    _cache.clear();
     _collectionChanges.clear();
     _page = 1;
     _categoryId = _search = null;
@@ -51,17 +89,19 @@ class ProductNotifier extends _$ProductNotifier {
     int? minPrice,
     int? maxPrice,
     bool reuseExisting = false,
+    bool forceRefresh = false,
   }) async {
     final sameQuery =
         categoryId == _categoryId &&
         search == _search &&
         minPrice == _minPrice &&
         maxPrice == _maxPrice;
-    if (sameQuery &&
-        (state.isLoading ||
-            (reuseExisting && (state.isDone || state.isFetching)))) {
+    if (!forceRefresh &&
+        sameQuery &&
+        (state.isLoading || (reuseExisting && state.isFetching))) {
       return;
     }
+    final previousData = sameQuery ? state.data : null;
     final generation = ++_generation;
     final collectionRevision = _collectionRevision;
     try {
@@ -72,7 +112,24 @@ class ProductNotifier extends _$ProductNotifier {
       _minPrice = minPrice;
       _maxPrice = maxPrice;
 
-      state = CustomAsyncValue.loading();
+      final query = _query;
+      final cached = _cache[query];
+      if (reuseExisting && !forceRefresh && cached != null) {
+        final age = ref
+            .read(productCacheClockProvider)()
+            .difference(cached.fetchedAt);
+        if (!age.isNegative && age < _cacheDuration) {
+          _page = cached.data.page;
+          _remember(query, cached.data, fetchedAt: cached.fetchedAt);
+          state = CustomAsyncValue.done(cached.data);
+          return;
+        }
+      }
+      _cache.remove(query);
+
+      state = previousData == null
+          ? CustomAsyncValue.loading()
+          : CustomAsyncValue.fetching(previousData);
       final response = await ref
           .read(dioProvider)
           .get(
@@ -110,23 +167,31 @@ class ProductNotifier extends _$ProductNotifier {
           totalPages: ParseUtils.parseInt(data['data']['totalPages']) ?? 1,
         ),
       );
+      _remember(query, state.data!);
     } on DioException catch (e) {
       if (generation != _generation) return;
       log('Error loading products: $e');
-      state = CustomAsyncValue.error(getDioExceptionMessage(e));
+      state = previousData == null
+          ? CustomAsyncValue.error(AppFailure.from(e))
+          : CustomAsyncValue.retained(previousData, e);
     } catch (e) {
       if (generation != _generation) return;
       log('Error loading products: $e');
-      state = CustomAsyncValue.error('Error loading products: $e');
+      state = previousData == null
+          ? CustomAsyncValue.error(AppFailure.from(e))
+          : CustomAsyncValue.retained(previousData, e);
     }
   }
 
   Future<void> refreshProducts() {
+    // Stock/price changes after checkout must invalidate every category.
+    _cache.clear();
     return loadProducts(
       categoryId: _categoryId,
       search: _search,
       minPrice: _minPrice,
       maxPrice: _maxPrice,
+      forceRefresh: true,
     );
   }
 
@@ -135,6 +200,19 @@ class ProductNotifier extends _$ProductNotifier {
       revision: ++_collectionRevision,
       collected: collected,
     );
+    for (final entry in _cache.entries.toList()) {
+      _cache[entry.key] = (
+        fetchedAt: entry.value.fetchedAt,
+        data: entry.value.data.copyWith(
+          products: [
+            for (final product in entry.value.data.products)
+              product.id == productId
+                  ? product.copyWith(isCollected: collected)
+                  : product,
+          ],
+        ),
+      );
+    }
     final data = state.data;
     if (data == null) return;
     final updated = data.copyWith(
@@ -164,6 +242,7 @@ class ProductNotifier extends _$ProductNotifier {
       return;
     }
     final generation = _generation;
+    final query = _query;
     final collectionRevision = _collectionRevision;
     final nextPage = _page + 1;
     try {
@@ -206,15 +285,17 @@ class ProductNotifier extends _$ProductNotifier {
           totalPages: ParseUtils.parseInt(data['data']['totalPages']) ?? 1,
         ),
       );
+      // Loading another page does not renew the age of the original results.
+      _remember(query, state.data!, fetchedAt: _cache[query]?.fetchedAt);
     } catch (e) {
       if (generation != _generation) return;
       log('Error loading products: $e');
       state = state.data != null
-          ? CustomAsyncValue.done(state.data!)
+          ? CustomAsyncValue.retained(state.data!, e, pagination: true)
           : CustomAsyncValue.error(
               e is DioException
                   ? getDioExceptionMessage(e)
-                  : 'Error loading products: $e',
+                  : AppFailure.from(e),
             );
     }
   }

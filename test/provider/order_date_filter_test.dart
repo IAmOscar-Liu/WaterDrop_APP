@@ -196,7 +196,7 @@ void main() {
     await loading;
     final failed = notifier.fetchMoreOrders();
     (await nextRequest()).fail();
-    expect(await failed, 'Invalid start date.\nInvalid end date.');
+    expect(await failed, '資料不完整或格式不正確，請確認後再試。');
     expect(container.read(orderNotifierProvider).data!.page, 1);
     final retrying = notifier.fetchMoreOrders();
     final retried = await nextRequest();
@@ -215,8 +215,8 @@ void main() {
     (await nextRequest()).fail();
     await loading;
     expect(
-      container.read(orderNotifierProvider).error,
-      'Invalid start date.\nInvalid end date.',
+      container.read(orderNotifierProvider).error.toString(),
+      '資料不完整或格式不正確，請確認後再試。',
     );
   });
 }

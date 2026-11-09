@@ -1,8 +1,9 @@
+import 'package:flutter_ad_ecommerce/utils/app_failure.dart';
 import 'dart:async';
 import 'dart:convert';
-import 'dart:developer';
 
-import 'package:flutter_ad_ecommerce/utils/product_availability.dart';
+import 'package:flutter_ad_ecommerce/features/ecpay/payment_preparation.dart';
+import 'package:flutter_ad_ecommerce/provider/dio_provider.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_ad_ecommerce/constants/app_constants.dart';
@@ -39,6 +40,7 @@ class ECPayPage extends ConsumerStatefulWidget {
 class _ECPayPageState extends ConsumerState<ECPayPage>
     with WidgetsBindingObserver {
   String? _errorMsg;
+  bool _paymentError = false;
   bool _isHandlingClientReturn = false;
   bool _isLeaving = false;
   Timer? _checkoutTimer;
@@ -236,13 +238,12 @@ class _ECPayPageState extends ConsumerState<ECPayPage>
     });
   }
 
-  Future<void> _expireOrderIfPending(String orderId) async {
+  Future<void> _refreshOrderAtCheckoutTimeout(String orderId) async {
     var resultOrder = await ref
         .read(orderNotifierProvider.notifier)
         .getOrder(orderId: orderId);
     if (!mounted) return;
     if (resultOrder.isFailure) {
-      ref.read(systemNotifierProvider.notifier).setCurrentOrder(null);
       return;
     }
     if (resultOrder.data == null ||
@@ -253,18 +254,8 @@ class _ECPayPageState extends ConsumerState<ECPayPage>
       await ref.read(accountNotifierProvider.notifier).refreshAccountInfo();
       return;
     }
-    // expire order since it's still pending
-    resultOrder = await ref
-        .read(orderNotifierProvider.notifier)
-        .updateOrder(orderId: orderId, status: OrderStatus.expired);
-    if (!mounted) return;
-    if (resultOrder.isSuccess) {
-      ref
-          .read(systemNotifierProvider.notifier)
-          .setCurrentOrder(resultOrder.data);
-    } else {
-      ref.read(systemNotifierProvider.notifier).setCurrentOrder(null);
-    }
+    // Expiry belongs to the server; a client timer cannot end a payment attempt.
+    ref.read(systemNotifierProvider.notifier).setCurrentOrder(resultOrder.data);
     await ref.read(accountNotifierProvider.notifier).refreshAccountInfo();
   }
 
@@ -274,7 +265,7 @@ class _ECPayPageState extends ConsumerState<ECPayPage>
     if (order == null) return;
     _isLeaving = true;
     _checkoutTimer?.cancel();
-    await _expireOrderIfPending(order.id);
+    await _refreshOrderAtCheckoutTimeout(order.id);
     if (mounted && (ModalRoute.of(context)?.isCurrent ?? false)) context.pop();
   }
 
@@ -305,18 +296,16 @@ class _ECPayPageState extends ConsumerState<ECPayPage>
     if (!mounted) return;
     final totalRetry = 3;
     int retry = 1;
-    Order? orderResult;
+    Order orderResult = order;
     while (retry <= totalRetry) {
       if (!mounted) return;
       final result = await ref
           .read(orderNotifierProvider.notifier)
           .getOrder(orderId: order.id);
       if (!mounted) return;
-      if (result.isSuccess &&
-          (result.data!.orderStatus == OrderStatus.paid ||
-              result.data!.orderStatus == OrderStatus.paymentProcessing)) {
-        orderResult = result.data;
-        break;
+      if (result.isSuccess && result.data != null) {
+        orderResult = result.data!;
+        if (orderResult.orderStatus != OrderStatus.pending) break;
       }
       retry++;
       if (retry <= totalRetry) {
@@ -385,18 +374,19 @@ class _ECPayPageState extends ConsumerState<ECPayPage>
                     style: TextStyle(color: AppColors.secondaryTextColor),
                   ),
                   const SizedBox(height: 16),
-                  ...errors.map((e) {
-                    final name = e['productName'] ?? '未知商品';
-                    final reason = e['reason'];
-                    String reasonText = orderItemReasonText(
-                      reason?.toString() ?? '未知原因',
-                    );
-                    if (reason == 'Insufficient stock') {
-                      reasonText = '庫存不足';
-                      if (e['quantity'] != null && e['remaining'] != null) {
-                        reasonText +=
-                            ' (需求: ${e['quantity']}, 剩餘: ${e['remaining']})';
-                      }
+                  ...errors.whereType<Map>().map((e) {
+                    const name = '訂單商品';
+                    String reasonText = e['code'] is String
+                        ? AppFailure.from({
+                            'statusCode': 400,
+                            'code': e['code'],
+                          }).message
+                        : '商品資料已變更，請重新確認';
+                    if (e['code'] == 'INSUFFICIENT_STOCK' &&
+                        e['quantity'] is num &&
+                        e['remaining'] is num) {
+                      reasonText +=
+                          ' (需求: ${e['quantity']}, 剩餘: ${e['remaining']})';
                     }
 
                     return Container(
@@ -467,9 +457,9 @@ class _ECPayPageState extends ConsumerState<ECPayPage>
                 size: 48,
               ),
               const SizedBox(height: 16),
-              const Text(
-                '訂單建立失敗',
-                style: TextStyle(
+              Text(
+                _paymentError ? '付款尚未完成確認' : '訂單建立失敗',
+                style: const TextStyle(
                   color: AppColors.primaryTextColor,
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
@@ -477,11 +467,25 @@ class _ECPayPageState extends ConsumerState<ECPayPage>
               ),
               const SizedBox(height: 12),
               Text(
-                errMsg,
+                errMsg.startsWith('{') || errMsg.startsWith('[')
+                    ? '無法完成結帳，請返回確認訂單。'
+                    : errMsg,
                 style: const TextStyle(color: AppColors.primaryTextColor),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 24),
+              if (_paymentError)
+                TextButton(
+                  onPressed: _isHandlingClientReturn
+                      ? null
+                      : () {
+                          final order = ref
+                              .read(systemNotifierProvider)
+                              .currentOrder;
+                          if (order != null) _handleClientReturn(order);
+                        },
+                  child: const Text('查詢原訂單付款狀態'),
+                ),
               ElevatedButton(
                 onPressed: () => context.pop(),
                 style: ElevatedButton.styleFrom(
@@ -518,6 +522,22 @@ class _ECPayPageState extends ConsumerState<ECPayPage>
         children: [
           SizedBox.expand(
             child: InAppWebView(
+              onReceivedHttpError: (controller, request, response) {
+                if (request.isForMainFrame == true && mounted && !_isLeaving) {
+                  setState(() {
+                    _paymentError = true;
+                    _errorMsg = '付款頁面暫時無法使用，請先查詢原訂單付款狀態，避免重複付款。';
+                  });
+                }
+              },
+              onReceivedError: (controller, request, error) {
+                if (request.isForMainFrame == true && mounted && !_isLeaving) {
+                  setState(() {
+                    _paymentError = true;
+                    _errorMsg = '付款連線中斷，請先查詢原訂單付款狀態，避免重複付款。';
+                  });
+                }
+              },
               onPermissionRequest: (controller, request) async {
                 return PermissionResponse(
                   resources: request.resources,
@@ -538,19 +558,27 @@ class _ECPayPageState extends ConsumerState<ECPayPage>
                     'ChoosePayment': currentOrder.orderPayment.wireValue,
                   },
                 );
-                log(urlWithAddedParams.toString());
-                await controller.loadUrl(
-                  urlRequest: URLRequest(
-                    url: WebUri.uri(urlWithAddedParams),
-                    // WebUri("${AppConstants.apiBaseUrl}api/ecpay/test"),
-                  ),
-                );
-
                 controller.addJavaScriptHandler(
                   handlerName: 'clientReturn',
                   callback: (args) {
                     _handleClientReturn(currentOrder);
                   },
+                );
+                final form = await preparePaymentForm(
+                  ref.read(dioProvider),
+                  urlWithAddedParams,
+                );
+                if (!mounted || _isLeaving) return;
+                if (form.isFailure) {
+                  setState(() {
+                    _paymentError = true;
+                    _errorMsg = form.error;
+                  });
+                  return;
+                }
+                await controller.loadData(
+                  data: form.data!,
+                  baseUrl: WebUri('${AppConstants.apiBaseUrl}api/ecpay/new'),
                 );
               },
             ),

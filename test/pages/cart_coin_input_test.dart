@@ -426,7 +426,7 @@ void main() {
         await tester.ensureVisible(checkout);
         await tester.tap(checkout);
         await tester.pumpAndSettle();
-        expect(find.text('無法確認配送資料，請稍後再試'), findsOneWidget);
+        expect(find.text('服務暫時無法使用，請稍後再試。'), findsOneWidget);
         expect(requests, [
           '/api/cart/validate-checkout',
           '/api/ecpay/express/validate',

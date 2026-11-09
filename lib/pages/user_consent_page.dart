@@ -1,6 +1,8 @@
+import 'package:flutter_ad_ecommerce/shared/widgets/app_snackbar.dart';
+import 'package:flutter_ad_ecommerce/shared/widgets/app_dialog.dart';
+import 'package:flutter_ad_ecommerce/shared/widgets/recoverable_webview.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_ad_ecommerce/constants/app_constants.dart';
-import 'package:flutter_ad_ecommerce/constants/colors.dart';
 import 'package:flutter_ad_ecommerce/provider/account_provider.dart';
 import 'package:flutter_ad_ecommerce/provider/session_logout_provider.dart';
 import 'package:flutter_ad_ecommerce/shared/layouts/app_scaffold.dart';
@@ -35,7 +37,7 @@ class _UserConsentPageState extends ConsumerState<UserConsentPage> {
   }
 
   Future<void> _showDisagreeDialog() async {
-    await showDialog(
+    await showAppDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text("提醒"),
@@ -120,10 +122,9 @@ class _UserConsentPageState extends ConsumerState<UserConsentPage> {
                                   }
                                   // ignore: use_build_context_synchronously
                                   ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
+                                    AppSnackBar(
                                       content: Text("發生錯誤，請稍後再試"),
-                                      backgroundColor:
-                                          AppColors.dangerButtonColor,
+                                      kind: AppSnackBarKind.error,
                                       duration: const Duration(seconds: 2),
                                     ),
                                   );
@@ -149,14 +150,14 @@ class UserConsentWebview extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox.expand(
-      child: InAppWebView(
+      child: RecoverableWebView(
         onPermissionRequest: (controller, request) async {
           return PermissionResponse(
             resources: request.resources,
             action: PermissionResponseAction.GRANT,
           );
         },
-        onWebViewCreated: (controller) async {
+        onCreated: (controller) async {
           await controller.loadUrl(
             urlRequest: URLRequest(
               url: WebUri("${AppConstants.apiBaseUrl}api/file/user-consent"),

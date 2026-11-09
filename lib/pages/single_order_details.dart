@@ -1,3 +1,8 @@
+import 'package:flutter_ad_ecommerce/shared/widgets/app_snackbar.dart';
+import 'package:flutter_ad_ecommerce/shared/widgets/app_dialog.dart';
+import 'package:flutter_ad_ecommerce/shared/widgets/page_status.dart';
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_ad_ecommerce/provider/refund_request_provider.dart';
 import 'package:flutter/material.dart';
@@ -44,6 +49,31 @@ class _SingleOrderDetailsState extends ConsumerState<SingleOrderDetails>
   Order? _order;
   bool _isLoading = true;
   dynamic _error;
+  Timer? _paymentRefreshTimer;
+
+  Future<void> _retryOrder() async {
+    final extra = widget.extra;
+    final id =
+        _order?.id ??
+        (extra is Map
+            ? (extra['order'] is Order
+                  ? (extra['order'] as Order).id
+                  : extra['orderId'])
+            : null);
+    if (id is! String || _isLoading) return;
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+    final result = await _loadSingleOrder(id);
+    if (!mounted) return;
+    setState(() {
+      _isLoading = false;
+      _order = result.data;
+      _error = result.failureInfo ?? result.error;
+    });
+    _schedulePaymentRefresh();
+  }
 
   @override
   void initState() {
@@ -67,20 +97,33 @@ class _SingleOrderDetailsState extends ConsumerState<SingleOrderDetails>
       setState(() {
         _isLoading = false;
         _order = result.data;
-        _error = result.error;
+        _error = result.failureInfo ?? result.error;
       });
+      _schedulePaymentRefresh();
     });
   }
 
   @override
   void dispose() {
+    _paymentRefreshTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    _paymentRefreshTimer?.cancel();
     if (state == AppLifecycleState.resumed) _refreshOrder();
+  }
+
+  void _schedulePaymentRefresh() {
+    _paymentRefreshTimer?.cancel();
+    if (_order?.orderStatus == OrderStatus.paymentProcessing &&
+        (WidgetsBinding.instance.lifecycleState == null ||
+            WidgetsBinding.instance.lifecycleState ==
+                AppLifecycleState.resumed)) {
+      _paymentRefreshTimer = Timer(const Duration(seconds: 5), _refreshOrder);
+    }
   }
 
   Future<Result<Order>> _loadSingleOrder(String orderId) async {
@@ -100,11 +143,16 @@ class _SingleOrderDetailsState extends ConsumerState<SingleOrderDetails>
     if (orderId == null) return;
 
     final result = await _loadSingleOrder(orderId);
-    if (!mounted || result.isFailure) return;
+    if (!mounted) return;
+    if (result.isFailure) {
+      _schedulePaymentRefresh();
+      return;
+    }
 
     setState(() {
       _order = result.data!;
     });
+    _schedulePaymentRefresh();
   }
 
   Widget _buildLayout({required Widget child}) {
@@ -164,11 +212,11 @@ class _SingleOrderDetailsState extends ConsumerState<SingleOrderDetails>
             )
             .join('\n');
 
-    showDialog(
+    showAppDialog(
       context: context,
       builder: (context) {
         return AlertDialog(
-          backgroundColor: const Color(0xFF262A33),
+          backgroundColor: AppColors.dialogBgColor,
           title: const Text("ATM轉帳資訊", style: TextStyle(color: Colors.white)),
           content: SingleChildScrollView(
             child: SelectableText(
@@ -191,7 +239,8 @@ class _SingleOrderDetailsState extends ConsumerState<SingleOrderDetails>
                 onPressed: () {
                   Clipboard.setData(ClipboardData(text: accountNumber));
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
+                    AppSnackBar(
+                      kind: AppSnackBarKind.success,
                       content: Text('已複製銀行帳號'),
                       duration: Duration(seconds: 1),
                     ),
@@ -225,9 +274,12 @@ class _SingleOrderDetailsState extends ConsumerState<SingleOrderDetails>
     final result = await _loadSingleOrder(item.orderId);
     if (!mounted) return null;
     if (result.isFailure) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('無法更新退貨資格，請稍後再試')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        AppSnackBar(
+          kind: AppSnackBarKind.error,
+          content: Text('無法更新退貨資格，請稍後再試'),
+        ),
+      );
       return null;
     }
     setState(() {
@@ -246,20 +298,23 @@ class _SingleOrderDetailsState extends ConsumerState<SingleOrderDetails>
     if (!mounted) return false;
     if (pending == null &&
         (!fresh.canRefund || fresh.remainingRefundQuantity <= 0)) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('目前無法新增退貨申請，請查看最新退貨資格')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        AppSnackBar(
+          kind: AppSnackBarKind.error,
+          content: Text('目前無法新增退貨申請，請查看最新退貨資格'),
+        ),
+      );
       return false;
     }
     final created = await showCreateRefundDialog(context, item: fresh);
     if (!mounted) return created;
     ref.invalidate(pendingRefundProvider(item.id));
     if (created) {
-      await showDialog<void>(
+      await showAppDialog<void>(
         context: context,
         barrierDismissible: false,
         builder: (dialogContext) => AlertDialog(
-          backgroundColor: const Color(0xFF262A33),
+          backgroundColor: AppColors.dialogBgColor,
           title: const Text(
             '退貨申請已確認',
             style: TextStyle(color: AppColors.primaryTextColor),
@@ -339,11 +394,7 @@ class _SingleOrderDetailsState extends ConsumerState<SingleOrderDetails>
   @override
   Widget build(BuildContext context) {
     if (_error != null) {
-      return _buildLayout(
-        child: Center(
-          child: Text("$_error", style: TextStyle(color: Colors.white)),
-        ),
-      );
+      return _buildLayout(child: PageError(_error, onRetry: _retryOrder));
     } else if (_isLoading || _order == null) {
       return _buildLayout(
         child: Center(
@@ -542,11 +593,10 @@ class _SingleOrderDetailsState extends ConsumerState<SingleOrderDetails>
         .toList();
 
     if (unassignedItems.isNotEmpty) {
-      if (_order!.orderPayment != OrderPayment.Credit &&
-          _order!.orderStatus == OrderStatus.paymentProcessing) {
+      if (_order!.orderStatus == OrderStatus.paymentProcessing) {
         itemSections.add(
           SectionPanel(
-            title: "待付款商品",
+            title: "付款確認中",
             child: _buildProductList(unassignedItems),
           ),
         );

@@ -19,7 +19,7 @@ class HelpPage extends ConsumerStatefulWidget {
 
 class _HelpPageState extends ConsumerState<HelpPage> {
   bool _isLoading = false;
-  String? _errorMessage;
+  Object? _errorMessage;
 
   @override
   void initState() {
@@ -48,7 +48,7 @@ class _HelpPageState extends ConsumerState<HelpPage> {
 
     setState(() {
       _isLoading = false;
-      _errorMessage = result.error;
+      _errorMessage = result.failureInfo ?? result.error;
     });
   }
 
@@ -159,7 +159,7 @@ class _HelpPageState extends ConsumerState<HelpPage> {
   Widget _buildHelpContent(Map<String, dynamic> content) {
     final sections = _readSections(content);
     if (sections.isEmpty) {
-      return const PageError('目前沒有客服幫助內容');
+      return const Center(child: EmptyState('目前沒有客服幫助內容'));
     }
 
     return SingleChildScrollView(
@@ -223,7 +223,7 @@ class _HelpPageState extends ConsumerState<HelpPage> {
             ? _buildHelpContent(content!)
             : _isLoading
             ? const PageLoading('載入客服幫助內容中......')
-            : PageError(_errorMessage ?? '目前沒有客服幫助內容'),
+            : PageError(_errorMessage, onRetry: _loadContentIfNeeded),
       ),
     );
   }

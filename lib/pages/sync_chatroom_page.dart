@@ -1,3 +1,5 @@
+import 'package:flutter_ad_ecommerce/shared/widgets/page_status.dart';
+import 'package:flutter_ad_ecommerce/utils/app_failure.dart';
 import 'package:flutter_ad_ecommerce/shared/widgets/pagination_footer.dart';
 import 'dart:async';
 
@@ -238,26 +240,31 @@ class _SyncChatroomPageState extends ConsumerState<SyncChatroomPage>
     final extra = widget.extra is Map ? widget.extra as Map : {};
     Widget content;
     if (_error != null || history?.removed == true) {
-      content = Center(child: Text(_error ?? '此聊天室已無法存取'));
+      content = const PageError(
+        AppFailure(kind: FailureKind.notFound),
+        message: '此聊天室已無法存取',
+      );
     } else if (room == null || history == null || !history.loaded) {
       final error = history?.error;
-      content = Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (error == null) const CircularProgressIndicator(),
-            Text(error ?? (sync.connected ? '載入訊息中……' : '正在連線……')),
-            if (error != null)
-              TextButton(
-                onPressed: () => sync.loadHistory(room!.id),
-                child: const Text('重試'),
+      content = error != null
+          ? PageError(error, onRetry: () => sync.loadHistory(room!.id))
+          : Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (error == null) const CircularProgressIndicator(),
+                  Text(error ?? (sync.connected ? '載入訊息中……' : '正在連線……')),
+                  if (error != null)
+                    TextButton(
+                      onPressed: () => sync.loadHistory(room!.id),
+                      child: const Text('重試'),
+                    ),
+                  if (sync.connectionStatus == 'unauthorized' ||
+                      sync.connectionStatus == 'unavailable')
+                    const Text('聊天室連線不可用，請重新登入或稍後再試'),
+                ],
               ),
-            if (sync.connectionStatus == 'unauthorized' ||
-                sync.connectionStatus == 'unavailable')
-              const Text('聊天室連線不可用，請重新登入或稍後再試'),
-          ],
-        ),
-      );
+            );
     } else {
       final messages = history.sorted;
       final pending = (sync.drafts[room.id] ?? []).reversed.toList();

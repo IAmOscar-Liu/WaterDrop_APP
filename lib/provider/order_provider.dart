@@ -68,12 +68,20 @@ class OrderNotifier extends _$OrderNotifier {
     DateTime? startDate,
     DateTime? endDate,
   }) async {
+    final previousData =
+        (order == 'asc' ? 'asc' : 'desc') == _order &&
+            startDate?.toUtc() == _startDate &&
+            endDate?.toUtc() == _endDate
+        ? state.data
+        : null;
     final generation = ++_queryGeneration;
     _page = 1;
     _order = order == 'asc' ? 'asc' : 'desc';
     _startDate = startDate?.toUtc();
     _endDate = endDate?.toUtc();
-    state = CustomAsyncValue.loading();
+    state = previousData == null
+        ? CustomAsyncValue.loading()
+        : CustomAsyncValue.fetching(previousData);
     try {
       final response = await ref
           .read(dioProvider)
@@ -83,9 +91,9 @@ class OrderNotifier extends _$OrderNotifier {
     } catch (e) {
       if (generation != _queryGeneration) return;
       log('Error loading orders: $e');
-      state = CustomAsyncValue.error(
-        e is DioException ? getDioExceptionMessage(e) : '無法載入訂單，請稍後再試',
-      );
+      state = previousData == null
+          ? CustomAsyncValue.error(AppFailure.from(e))
+          : CustomAsyncValue.retained(previousData, e);
     }
   }
 
@@ -112,7 +120,7 @@ class OrderNotifier extends _$OrderNotifier {
     } catch (e) {
       if (generation != _queryGeneration) return null;
       log('Error loading orders: $e');
-      state = CustomAsyncValue.done(previousData);
+      state = CustomAsyncValue.retained(previousData, e, pagination: true);
       return e is DioException ? getDioExceptionMessage(e) : '無法載入更多訂單，請稍後再試';
     }
   }
@@ -184,21 +192,12 @@ class OrderNotifier extends _$OrderNotifier {
         if (data is Map && data['error'] is List) {
           return Result.failure(jsonEncode(data));
         }
-        final message = data is Map
-            ? ParseUtils.parseString(data['message'])
-            : data is String
-            ? data
-            : null;
-        return Result.failure(
-          message?.trim().isNotEmpty == true
-              ? message!.trim()
-              : '無法建立訂單，請確認商品、規格及結帳資料後再試。',
-        );
+        return Result.failure(AppFailure.from(e));
       }
-      return Result.failure(getDioExceptionMessage(e));
+      return Result.failure(AppFailure.from(e));
     } catch (e) {
       log('[Exception] Failed to create order: $e');
-      return Result.failure('Error: $e');
+      return Result.failure(AppFailure.from(e));
     }
   }
 
@@ -225,30 +224,33 @@ class OrderNotifier extends _$OrderNotifier {
       return Result.success(Order.fromApiResponseMap(response.data['data']));
     } catch (e) {
       log('Failed to get order: $e');
-      return Result.failure('Error: $e');
+      return Result.failure(AppFailure.from(e));
     }
   }
 
   Future<Result<Order>> updateOrder({
     required String orderId,
     required OrderStatus status,
-    dynamic metadata,
   }) async {
+    if (status != OrderStatus.canceled) {
+      return Result.failure('付款狀態由系統確認，無法手動變更。');
+    }
     try {
       final response = await ref
           .read(dioProvider)
-          .put(
-            "/api/order/$orderId",
-            data: {"status": status.wireValue, "metadata": metadata},
-          );
+          .put("/api/order/$orderId", data: {"status": status.wireValue});
 
       if (response.data['success'] != true) {
         throw Exception('Failed to get updated data');
       }
       return Result.success(Order.fromApiResponseMap(response.data['data']));
+    } on DioException catch (e) {
+      // Preparation can race with cancellation. Keep the authoritative order.
+      if (e.response?.statusCode == 409) return getOrder(orderId: orderId);
+      return Result.failure(AppFailure.from(e));
     } catch (e) {
       log('Failed to update order: $e');
-      return Result.failure('Error: $e');
+      return Result.failure(AppFailure.from(e));
     }
   }
 }

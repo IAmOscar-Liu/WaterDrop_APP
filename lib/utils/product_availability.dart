@@ -8,13 +8,23 @@ bool isProductAvailabilityError(DioException error) {
   if (error.response?.statusCode != 400 && error.response?.statusCode != 404) {
     return false;
   }
+  final data = error.response?.data;
+  if (data is Map &&
+      const {
+        'PRODUCT_NOT_FOUND',
+        'CART_ITEM_NOT_FOUND',
+        'PRODUCT_UNAVAILABLE',
+        'VARIANT_UNAVAILABLE',
+      }.contains(data['code'])) {
+    return true;
+  }
   return const {
     'Product is unavailable',
     'Product variant is inactive',
     'Product not found',
     'Product variant not found',
     'Cart item not found',
-  }.contains(getDioExceptionMessage(error));
+  }.contains(data is Map ? data['message'] : null);
 }
 
 String productMutationErrorMessage(DioException error) =>
@@ -29,5 +39,5 @@ String orderItemReasonText(String reason) => switch (reason) {
   'Variant not found' => '所選規格已下架或不存在',
   'Variant inactive' => '所選規格已下架',
   'Insufficient stock' => '庫存不足',
-  _ => reason,
+  _ => '商品資料已變更，請重新確認',
 };

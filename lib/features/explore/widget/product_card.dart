@@ -1,3 +1,4 @@
+import 'package:flutter_ad_ecommerce/shared/widgets/app_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_ad_ecommerce/models/product.dart';
 import 'package:flutter_ad_ecommerce/router/routes.dart';
@@ -17,7 +18,7 @@ class ProductCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // A little variety in heights so the masonry layout looks natural.
+    // Reserve the image height before decoding to keep masonry cards stable.
     final int hash = product.name.hashCode;
     final double dynamicHeight = 140 + (hash % 120); // 140–259
 
@@ -47,20 +48,10 @@ class ProductCard extends StatelessWidget {
                   });
             },
             child: (product.images != null && product.images!.isNotEmpty)
-                ? FadeInImage.assetNetwork(
-                    // placeholder: "assets/images/photo_not_found.jpg",
-                    placeholder: "assets/images/photo_loading.gif",
-                    image: product.images![0],
+                ? AppNetworkImage(
+                    imageUrl: product.images![0],
                     width: double.infinity,
-                    fit: BoxFit.cover,
-                    imageErrorBuilder: (context, error, stackTrace) {
-                      // This builder is used if the network image fails to load.
-                      return Image.asset(
-                        "assets/images/photo_not_found.jpg",
-                        width: double.infinity,
-                        fit: BoxFit.cover,
-                      );
-                    },
+                    height: dynamicHeight,
                   )
                 : SizedBox(
                     width: double.infinity,
@@ -91,7 +82,7 @@ class ProductCard extends StatelessWidget {
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: Theme.of(
                       context,
-                    ).colorScheme.onSurface.withOpacity(0.75),
+                    ).colorScheme.onSurface.withValues(alpha: 0.75),
                   ),
                 ),
                 const SizedBox(height: 10),

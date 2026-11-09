@@ -1,3 +1,4 @@
+import 'package:flutter_ad_ecommerce/shared/widgets/app_snackbar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_ad_ecommerce/constants/colors.dart';
@@ -44,9 +45,9 @@ class _ChatInputWidgetState extends State<ChatInputWidget> {
 
     final mb = (size / (1024 * 1024)).toStringAsFixed(1);
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
+      AppSnackBar(
         content: Text('$label 檔案過大（$mb MB），上限為 50 MB'),
-        backgroundColor: Colors.redAccent,
+        kind: AppSnackBarKind.error,
       ),
     );
     return false;

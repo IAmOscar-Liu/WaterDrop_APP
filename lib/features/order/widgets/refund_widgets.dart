@@ -1,3 +1,4 @@
+import 'package:flutter_ad_ecommerce/shared/widgets/app_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_ad_ecommerce/constants/colors.dart';
@@ -19,7 +20,7 @@ Future<bool> showCreateRefundDialog(
   BuildContext context, {
   required OrderItem item,
 }) async {
-  return await showDialog<bool>(
+  return await showAppDialog<bool>(
         context: context,
         barrierDismissible: false,
         builder: (context) => _CreateRefundDialog(item: item),
@@ -510,6 +511,7 @@ class _CreateRefundDialogState extends ConsumerState<_CreateRefundDialog> {
     return _item.canRefund &&
         quantity >= 1 &&
         quantity <= _item.remainingRefundQuantity &&
+        _reasonController.text.trim().isNotEmpty &&
         _reasonController.text.trim().length <= 2000 &&
         _noteController.text.trim().length <= 5000;
   }
@@ -590,7 +592,7 @@ class _CreateRefundDialogState extends ConsumerState<_CreateRefundDialog> {
         behavior: HitTestBehavior.translucent,
         onTap: () => FocusScope.of(context).unfocus(),
         child: AlertDialog(
-          backgroundColor: const Color(0xFF262A33),
+          backgroundColor: AppColors.dialogBgColor,
           title: const Text(
             '申請退貨',
             style: TextStyle(color: AppColors.primaryTextColor),
@@ -645,7 +647,7 @@ class _CreateRefundDialogState extends ConsumerState<_CreateRefundDialog> {
                   enabled: !_isSubmitting && !_isLoading && !_retryOriginal,
                   onTapOutside: (_) => FocusScope.of(context).unfocus(),
                   style: const TextStyle(color: AppColors.primaryTextColor),
-                  decoration: _inputDecoration(labelText: '退貨原因（選填）'),
+                  decoration: _inputDecoration(labelText: '退貨原因（必填）'),
                 ),
                 const SizedBox(height: 12),
                 TextField(

@@ -1,3 +1,5 @@
+import 'package:flutter_ad_ecommerce/shared/widgets/app_snackbar.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'dart:async';
 import 'dart:developer';
 
@@ -153,9 +155,9 @@ class _AdvertisementPlayerPageState
   void _showSnackBar(String message, {bool isError = false}) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
+      AppSnackBar(
         content: Text(message),
-        backgroundColor: isError ? Colors.red : Colors.green,
+        kind: isError ? AppSnackBarKind.error : AppSnackBarKind.success,
         duration: const Duration(seconds: 2),
       ),
     );
@@ -287,9 +289,10 @@ class _AdvertisementPlayerPageState
                                     if (_advertisement!.avatarUrl != null)
                                       CircleAvatar(
                                         radius: 14,
-                                        backgroundImage: NetworkImage(
-                                          _advertisement!.avatarUrl!,
-                                        ),
+                                        backgroundImage:
+                                            CachedNetworkImageProvider(
+                                              _advertisement!.avatarUrl!,
+                                            ),
                                       ),
                                     const SizedBox(width: 8),
                                     Expanded(
@@ -374,9 +377,11 @@ class _AdvertisementPlayerPageState
                                     if (message == null) return;
                                     // ignore: use_build_context_synchronously
                                     ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
+                                      AppSnackBar(
                                         content: Text(message),
-                                        backgroundColor: Colors.green,
+                                        kind: result.isFailure
+                                            ? AppSnackBarKind.error
+                                            : AppSnackBarKind.success,
                                         duration: const Duration(seconds: 2),
                                       ),
                                     );

@@ -1,3 +1,4 @@
+import 'package:flutter_ad_ecommerce/shared/widgets/app_snackbar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_ad_ecommerce/constants/colors.dart';
 import 'package:flutter_ad_ecommerce/models/api_enums.dart';
@@ -403,9 +404,9 @@ class CheckoutDeliverySection extends StatelessWidget {
             onNormalMethodChanged(sellerId, val);
             if (val == DeliveryMethod.home && hasNonHome) {
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
+                AppSnackBar(
                   content: Text("部分商品不支援宅配，已自動分為店取"),
-                  backgroundColor: Colors.redAccent,
+                  kind: AppSnackBarKind.info,
                   duration: Duration(seconds: 2),
                 ),
               );

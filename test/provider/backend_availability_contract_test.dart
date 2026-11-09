@@ -105,7 +105,9 @@ void main() {
           expect(requests.map((r) => r.method), ['GET', 'DELETE', 'GET']);
           expect(requests.last.queryParameters['search'], 'query');
           if (scenario == 'refresh failed') {
-            expect(state.hasError, isTrue);
+            expect(state.hasData, isTrue);
+            expect(state.failure, isNotNull);
+            expect(state.data!.collections, isEmpty);
           } else {
             expect(state.data!.collections, isEmpty);
             expect(state.data!.total, 0);

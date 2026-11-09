@@ -109,20 +109,18 @@ class _OrderPageState extends ConsumerState<OrderPage> {
                 ],
               ),
             ),
+            if (orderProvider.hasData &&
+                orderProvider.failure != null &&
+                !orderProvider.paginationFailed)
+              DataRefreshNotice(
+                error: orderProvider.failure,
+                onRetry: _loadOrders,
+              ),
             Expanded(
               child: orderProvider.isInitial || orderProvider.isLoading
                   ? PageLoading('載入訂單中......')
                   : orderProvider.hasError
-                  ? Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        PageError('無法載入訂單：${orderProvider.error}'),
-                        TextButton(
-                          onPressed: _loadOrders,
-                          child: const Text('重試'),
-                        ),
-                      ],
-                    )
+                  ? PageError(orderProvider.error, onRetry: _loadOrders)
                   : orders.isEmpty
                   ? Center(
                       child: Column(
@@ -162,6 +160,7 @@ class _OrderPageState extends ConsumerState<OrderPage> {
                         if (index == orders.length) {
                           return PaginationFooter(
                             loading: orderProvider.isFetching,
+                            error: orderProvider.failure,
                             hasError: _paginationError != null,
                             onLoadMore:
                                 orderProvider.data!.page <

@@ -57,10 +57,10 @@ class AdvertisementNotifier extends _$AdvertisementNotifier {
       state = CustomAsyncValue.done(advertisements);
     } on DioException catch (e) {
       log('Error loading advertisements: $e');
-      state = CustomAsyncValue.error(getDioExceptionMessage(e));
+      state = CustomAsyncValue.error(AppFailure.from(e));
     } catch (e) {
       log('Error loading advertisements: $e');
-      state = CustomAsyncValue.error('Error loading advertisements: $e');
+      state = CustomAsyncValue.error(AppFailure.from(e));
     }
   }
 
@@ -152,7 +152,7 @@ class AdvertisementNotifier extends _$AdvertisementNotifier {
         ),
       );
       return Result.failure(
-        e is DioException ? getDioExceptionMessage(e) : '$e',
+        e is DioException ? getDioExceptionMessage(e) : AppFailure.from(e),
       );
     }
   }

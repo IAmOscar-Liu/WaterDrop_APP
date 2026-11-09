@@ -1,3 +1,5 @@
+import 'package:flutter_ad_ecommerce/shared/widgets/app_snackbar.dart';
+import 'package:flutter_ad_ecommerce/shared/widgets/app_dialog.dart';
 import 'package:flutter_ad_ecommerce/features/message/widgets/notification_sync_host.dart';
 import 'dart:async';
 import 'package:flutter_ad_ecommerce/features/app_badge/app_badge_host.dart';
@@ -256,11 +258,15 @@ class _MyAppState extends ConsumerState<MyApp> {
         error: error,
       ),
       debugShowCheckedModeBanner: false,
-      theme: ThemeData.from(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: AppColors.navbarIndicatorColor,
-        ),
-      ),
+      theme:
+          ThemeData.from(
+            colorScheme: ColorScheme.fromSeed(
+              seedColor: AppColors.navbarIndicatorColor,
+            ),
+          ).copyWith(
+            dialogTheme: AppDialogs.theme,
+            snackBarTheme: AppSnackBar.theme,
+          ),
     );
   }
 }

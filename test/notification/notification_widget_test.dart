@@ -100,6 +100,20 @@ void main() {
       await tester.pumpAndSettle();
       expect(sync.messageCenterVisible, isFalse);
       expect(find.text('測試內容'), findsOneWidget);
+      expect(find.widgetWithText(ElevatedButton, '刪除訊息'), findsNothing);
+      final deleteAction = find.byTooltip('刪除訊息');
+      expect(
+        find.ancestor(of: deleteAction, matching: find.byType(AppBar)),
+        findsOneWidget,
+      );
+      await tester.tap(deleteAction);
+      await tester.pumpAndSettle();
+      expect(find.text('確定要刪除此訊息嗎？'), findsOneWidget);
+      expect(api.requests.where((r) => r.method == 'DELETE'), isEmpty);
+      await tester.tap(find.text('取消'));
+      await tester.pumpAndSettle();
+      expect(find.text('測試內容'), findsOneWidget);
+      expect(api.requests.where((r) => r.method == 'DELETE'), isEmpty);
       expect(api.requests.where((r) => r.method == 'POST'), hasLength(1));
       expect(sync.stats!.total, 0);
       api.event('notification.deleted', {
@@ -110,6 +124,7 @@ void main() {
       }, id: 'gone');
       await tester.pumpAndSettle();
       expect(find.text('此訊息已刪除或無法存取'), findsOneWidget);
+      expect(find.byTooltip('刪除訊息'), findsNothing);
       router.pop();
       await tester.pumpAndSettle();
       expect(sync.messageCenterVisible, isTrue);

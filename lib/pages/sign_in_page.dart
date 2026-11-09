@@ -1,3 +1,5 @@
+import 'package:flutter_ad_ecommerce/shared/widgets/app_snackbar.dart';
+import 'package:flutter_ad_ecommerce/shared/widgets/app_dialog.dart';
 // ignore_for_file: use_build_context_synchronously
 
 import 'package:flutter_ad_ecommerce/shared/layouts/app_scaffold.dart';
@@ -32,9 +34,9 @@ class _SignInPageState extends State<SignInPage> {
       // User cancelled the sign-in
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
+          AppSnackBar(
             content: Text('Sign-in was cancelled'),
-            backgroundColor: AppColors.warningColor,
+            kind: AppSnackBarKind.info,
           ),
         );
         setState(() {
@@ -43,11 +45,11 @@ class _SignInPageState extends State<SignInPage> {
       }
     } catch (e) {
       if (mounted) {
-        showDialog(
+        showAppDialog(
           context: context,
           builder: (BuildContext context) {
             return AlertDialog(
-              backgroundColor: AppColors.containerBgColor,
+              backgroundColor: AppColors.dialogBgColor,
               title: const Text(
                 'Sign-in Error',
                 style: TextStyle(
@@ -56,7 +58,7 @@ class _SignInPageState extends State<SignInPage> {
                 ),
               ),
               content: Text(
-                'Failed to sign in with Google: ${e.toString()}',
+                '暫時無法登入，請稍後再試。',
                 style: const TextStyle(color: AppColors.secondaryTextColor),
               ),
               actions: [

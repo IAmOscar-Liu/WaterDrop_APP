@@ -71,7 +71,7 @@ class Cart extends _$Cart {
       }
       state = CustomAsyncValue.processing(items!);
     } else if (_loadError != null) {
-      state = CustomAsyncValue.error('無法更新購物車，請稍後再試');
+      state = CustomAsyncValue.error(_loadError, previousData: items);
     } else {
       state = CustomAsyncValue.done(items ?? []);
     }

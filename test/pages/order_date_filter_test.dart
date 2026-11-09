@@ -151,7 +151,7 @@ void main() {
     final beforeMonth = DateTime.now().toUtc();
     await selectRange(tester, '最近一個月');
     await tester.pumpAndSettle();
-    expect(find.text('無法載入訂單：日期範圍無效'), findsOneWidget);
+    expect(find.text('資料不完整或格式不正確，請確認後再試。'), findsOneWidget);
     expect(find.text('日期區間:最近一個月'), findsOneWidget);
     final monthStart = DateTime.parse(
       requests.last.queryParameters['startDate'],

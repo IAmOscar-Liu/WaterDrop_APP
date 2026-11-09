@@ -5,8 +5,14 @@ import 'package:flutter_ad_ecommerce/utils/formatter.dart';
 class MessageCard extends StatelessWidget {
   final Message message;
   final void Function()? onTap;
+  final VoidCallback? onLongPress;
 
-  const MessageCard({super.key, required this.message, required this.onTap});
+  const MessageCard({
+    super.key,
+    required this.message,
+    required this.onTap,
+    this.onLongPress,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -22,6 +28,7 @@ class MessageCard extends StatelessWidget {
       child: Material(
         color: Colors.transparent,
         child: InkWell(
+          onLongPress: onLongPress,
           onTap: () {
             if (onTap != null) {
               onTap!();
@@ -56,7 +63,7 @@ class MessageCard extends StatelessWidget {
                         vertical: 2,
                       ),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.1),
+                        color: Colors.white.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text(

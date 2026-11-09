@@ -1,3 +1,4 @@
+import 'package:flutter_ad_ecommerce/shared/widgets/app_snackbar.dart';
 import 'dart:async';
 import 'dart:developer';
 import 'dart:math' show min;
@@ -120,9 +121,9 @@ class _ExplorePageState extends ConsumerState<ExplorePage>
       return;
     }
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
+      AppSnackBar(
         content: Text('廣告回報失敗，正在重新整理廣告列表，請稍後再試。'),
-        backgroundColor: Colors.red,
+        kind: AppSnackBarKind.error,
         duration: Duration(seconds: 3),
       ),
     );

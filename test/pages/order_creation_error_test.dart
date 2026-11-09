@@ -110,7 +110,14 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.text('訂單建立失敗'), findsOneWidget);
-      expect(find.text(failure.message), findsOneWidget);
+      expect(
+        find.text(
+          failure.body['error'] is List
+              ? '商品資料已變更，請重新確認'
+              : '資料不完整或格式不正確，請確認後再試。',
+        ),
+        findsOneWidget,
+      );
       expect(find.text('返回'), findsOneWidget);
       expect(find.byType(InAppWebView), findsNothing);
       expect(requests.first, '/api/order');

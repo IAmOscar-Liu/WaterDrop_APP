@@ -50,11 +50,12 @@ Map<String, dynamic> page(
 
 Future<(NotificationSyncController, ChatAdapter)> setup({
   Future<ResponseBody> Function(RequestOptions)? handler,
+  DateTime Function()? now,
 }) async {
   final api = ChatAdapter(eventPath: '/api/notification/events');
   final dio = Dio(BaseOptions(baseUrl: 'https://example.test'))
     ..httpClientAdapter = api;
-  final sync = NotificationSyncController(dio, () async => false);
+  final sync = NotificationSyncController(dio, () async => false, now: now);
   api.handler =
       handler ??
       (r) async =>

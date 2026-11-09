@@ -1,3 +1,4 @@
+import 'package:flutter_ad_ecommerce/shared/widgets/page_status.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_ad_ecommerce/constants/colors.dart';
 import 'package:flutter_ad_ecommerce/provider/system_provider.dart';
@@ -17,7 +18,7 @@ class BankSearchPage extends ConsumerStatefulWidget {
 class _BankSearchPageState extends ConsumerState<BankSearchPage> {
   final _search = TextEditingController();
   bool _loading = false;
-  String? _error;
+  Object? _error;
 
   @override
   void initState() {
@@ -39,7 +40,7 @@ class _BankSearchPageState extends ConsumerState<BankSearchPage> {
     if (!mounted) return;
     setState(() {
       _loading = false;
-      if (result.isFailure) _error = '銀行資料載入失敗';
+      if (result.isFailure) _error = result.failureInfo ?? result.error;
     });
   }
 
@@ -105,12 +106,7 @@ class _BankSearchPageState extends ConsumerState<BankSearchPage> {
             child: _loading
                 ? const Center(child: CircularProgressIndicator())
                 : _error != null
-                ? Center(
-                    child: TextButton(
-                      onPressed: _load,
-                      child: Text('$_error，點擊重試'),
-                    ),
-                  )
+                ? PageError(_error, onRetry: _load)
                 : entries.isEmpty
                 ? const Center(
                     child: Text(

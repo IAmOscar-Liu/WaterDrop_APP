@@ -1,3 +1,4 @@
+import 'package:flutter_ad_ecommerce/shared/widgets/app_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_ad_ecommerce/shared/widgets/initial_image.dart';
 
@@ -23,15 +24,7 @@ class ProductThumbnail extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(borderRadius: BorderRadius.circular(4)),
       child: imageUrl != null
-          ? FadeInImage.assetNetwork(
-              placeholder: 'assets/images/photo_loading.gif',
-              image: imageUrl!,
-              fit: BoxFit.cover,
-              imageErrorBuilder: (context, error, stackTrace) => Image.asset(
-                'assets/images/photo_not_found.jpg',
-                fit: BoxFit.cover,
-              ),
-            )
+          ? AppNetworkImage(imageUrl: imageUrl!)
           : InitialImage(name: name),
     );
   }

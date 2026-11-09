@@ -1,3 +1,7 @@
+import 'package:flutter_ad_ecommerce/shared/widgets/app_snackbar.dart';
+import 'package:flutter_ad_ecommerce/shared/widgets/app_network_image.dart';
+import 'package:flutter_ad_ecommerce/shared/widgets/page_status.dart';
+import 'package:flutter_ad_ecommerce/utils/app_failure.dart';
 import 'dart:convert';
 import 'dart:developer';
 
@@ -39,6 +43,25 @@ class _SingleProductDetailsState extends ConsumerState<SingleProductDetails> {
   bool _isUpdatingCollection = false;
   String? _collectionStatusError;
 
+  Future<void> _retryProduct() async {
+    final id =
+        _product?.id ??
+        (widget.extra is Map ? widget.extra['productId'] : null);
+    if (id is! String || _isLoading) return;
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+    final result = await _loadSingleProduct(id);
+    if (!mounted) return;
+    setState(() {
+      _isLoading = false;
+      _error = result.failureInfo ?? result.error;
+      if (result.isSuccess) _setProduct(result.data!);
+    });
+    if (result.isSuccess) _loadCollectionStatus();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -61,9 +84,7 @@ class _SingleProductDetailsState extends ConsumerState<SingleProductDetails> {
           } else {
             setState(() {
               _isLoading = false;
-              _error =
-                  value.error ??
-                  "Failed to load product ${widget.extra['productId']}";
+              _error = value.failureInfo ?? value.error;
             });
           }
         });
@@ -125,7 +146,7 @@ class _SingleProductDetailsState extends ConsumerState<SingleProductDetails> {
       return Result.success(product);
     } catch (e) {
       log("Error loading product $productId: $e");
-      return Result.failure("Error loading product $productId: $e");
+      return Result.failure(AppFailure.from(e));
     }
   }
 
@@ -310,9 +331,9 @@ class _SingleProductDetailsState extends ConsumerState<SingleProductDetails> {
   void _showSnackBar(String message, {bool isError = false}) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
+      AppSnackBar(
         content: Text(message),
-        backgroundColor: isError ? Colors.red : Colors.green,
+        kind: isError ? AppSnackBarKind.error : AppSnackBarKind.success,
         duration: const Duration(seconds: 2),
       ),
     );
@@ -634,6 +655,7 @@ class _SingleProductDetailsState extends ConsumerState<SingleProductDetails> {
   }
 
   Widget _buildStatusStockChips() {
+    final refundWindowDays = _product!.refundWindowDays;
     return Wrap(
       alignment: WrapAlignment.end,
       spacing: 8,
@@ -648,6 +670,11 @@ class _SingleProductDetailsState extends ConsumerState<SingleProductDetails> {
           backgroundColor: AppColors.goldColor,
           textColor: Colors.black,
         ),
+        if (refundWindowDays != null && refundWindowDays >= 0)
+          _buildMetaLabel(
+            refundWindowDays == 0 ? '無鑑賞期' : '$refundWindowDays日鑑賞期',
+            backgroundColor: const Color(0xFF655580),
+          ),
       ],
     );
   }
@@ -715,11 +742,7 @@ class _SingleProductDetailsState extends ConsumerState<SingleProductDetails> {
         ),
       );
     } else if (_error != null) {
-      return _buildLayout(
-        child: Center(
-          child: Text("$_error", style: TextStyle(color: Colors.white)),
-        ),
-      );
+      return _buildLayout(child: PageError(_error, onRetry: _retryProduct));
     }
 
     final safeAreaPadding = MediaQuery.of(context).padding;
@@ -739,18 +762,9 @@ class _SingleProductDetailsState extends ConsumerState<SingleProductDetails> {
                           Routes.photoView,
                           extra: {"urlImages": _product!.images},
                         ),
-                        child: FadeInImage.assetNetwork(
-                          placeholder: "assets/images/photo_loading.gif",
-                          image: _product!.images![0],
+                        child: AppNetworkImage(
+                          imageUrl: _product!.images![0],
                           width: double.infinity,
-                          fit: BoxFit.cover,
-                          imageErrorBuilder: (context, error, stackTrace) {
-                            return Image.asset(
-                              "assets/images/photo_not_found.jpg",
-                              width: double.infinity,
-                              fit: BoxFit.cover,
-                            );
-                          },
                         ),
                       ),
                       Positioned(
@@ -834,16 +848,13 @@ class _SingleProductDetailsState extends ConsumerState<SingleProductDetails> {
                               child:
                                   (_product!.seller!.avatarUrl != null &&
                                       _product!.seller!.avatarUrl!.isNotEmpty)
-                                  ? Image.network(
-                                      _product!.seller!.avatarUrl!,
-                                      fit: BoxFit.cover,
-                                      errorBuilder:
-                                          (context, error, stackTrace) =>
-                                              const Icon(
-                                                Icons.person,
-                                                size: 16,
-                                                color: Colors.grey,
-                                              ),
+                                  ? AppNetworkImage(
+                                      imageUrl: _product!.seller!.avatarUrl!,
+                                      errorWidget: const Icon(
+                                        Icons.person,
+                                        size: 16,
+                                        color: Colors.grey,
+                                      ),
                                     )
                                   : const Icon(
                                       Icons.person,

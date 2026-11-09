@@ -1,3 +1,4 @@
+import 'package:flutter_ad_ecommerce/shared/widgets/app_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_ad_ecommerce/features/order/order_date_range.dart';
 import 'package:flutter_ad_ecommerce/features/order/widgets/order_date_range_dialog.dart';
@@ -37,7 +38,7 @@ class _OrderDateFilterState extends State<OrderDateFilter> {
   }
 
   Future<void> _pickRange(BuildContext context) async {
-    final selected = await showDialog<OrderDateRange>(
+    final selected = await showAppDialog<OrderDateRange>(
       context: context,
       builder: (_) => OrderDateRangeDialog(initialRange: widget.range),
     );

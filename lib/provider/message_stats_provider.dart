@@ -47,9 +47,9 @@ class MessageStatsNotifier extends _$MessageStatsNotifier {
       state = CustomAsyncValue.done(stats);
     } on DioException catch (e) {
       log('Error loading messages: $e');
-      state = CustomAsyncValue.error(getDioExceptionMessage(e));
+      state = CustomAsyncValue.error(AppFailure.from(e));
     } catch (e) {
-      state = CustomAsyncValue.error('Error loading message stats: $e');
+      state = CustomAsyncValue.error(AppFailure.from(e));
     }
   }
 }

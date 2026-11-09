@@ -11,6 +11,7 @@ class AppColors {
   static const Color scaffoldBgColor = Color(0xFF1E2129);
   static const Color cardBgColor = Color(0xFF2C2C2C);
   static const Color containerBgColor = Color(0xFF393E46);
+  static const Color dialogBgColor = Color(0xFF262A33);
   static const Color tileColor = Color(0xFF2C323B);
   static const Color fieldInputColor = Color(
     0xFF2C323B,
@@ -34,6 +35,10 @@ class AppColors {
   static const Color successColor = Color(0xFF4CAF50);
   static const Color warningColor = Color(0xFFFFB74D);
   static const Color infoColor = Color(0xFF64B5F6);
+  // Darker surfaces keep snackbar text readable in every semantic state.
+  static const Color snackbarSuccessColor = Color(0xFF2E7D32);
+  static const Color snackbarErrorColor = Color(0xFFB3261E);
+  static const Color snackbarInfoColor = Color(0xFF1565C0);
   static const Color goldColor = Color(0xFFFFB74D);
   static const Color greenColor = Color(0xFF81C784);
 

@@ -1,3 +1,5 @@
+import 'package:flutter_ad_ecommerce/shared/widgets/app_snackbar.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'dart:async';
 import 'dart:developer';
 
@@ -328,11 +330,11 @@ class _AdvertisementPageViewState extends ConsumerState<AdvertisementPageView> {
         mounted &&
         !advertisement.isCompleted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
+        AppSnackBar(
           content: Text(
             '您已看完${AppConstants.videoCountForClaimingTreasureBox}則廣告，可獲得1個寶箱',
           ),
-          backgroundColor: Colors.green,
+          kind: AppSnackBarKind.success,
           duration: const Duration(seconds: 2),
         ),
       );
@@ -408,9 +410,9 @@ class _AdvertisementPageViewState extends ConsumerState<AdvertisementPageView> {
   void _showSnackBar(String message, {bool isError = false}) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
+      AppSnackBar(
         content: Text(message),
-        backgroundColor: isError ? Colors.red : Colors.green,
+        kind: isError ? AppSnackBarKind.error : AppSnackBarKind.success,
         duration: const Duration(seconds: 2),
       ),
     );
@@ -422,11 +424,7 @@ class _AdvertisementPageViewState extends ConsumerState<AdvertisementPageView> {
 
     if (adProvider.hasError) {
       return _buildLayout(
-        child: PageError(
-          adProvider.hasError
-              ? "Failed to load advertisements: ${adProvider.error}"
-              : "Data not found",
-        ),
+        child: PageError(adProvider.error, onRetry: _loadAdvertisements),
       );
     }
 
@@ -594,9 +592,11 @@ class _AdvertisementPageViewState extends ConsumerState<AdvertisementPageView> {
                               if (message == null) return;
                               // ignore: use_build_context_synchronously
                               ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
+                                AppSnackBar(
                                   content: Text(message),
-                                  backgroundColor: Colors.green,
+                                  kind: result.isFailure
+                                      ? AppSnackBarKind.error
+                                      : AppSnackBarKind.success,
                                   duration: const Duration(seconds: 2),
                                 ),
                               );
@@ -713,7 +713,7 @@ class _AdvertisementPageViewState extends ConsumerState<AdvertisementPageView> {
                           if (circularVideoUrls[index].avatarUrl != null)
                             CircleAvatar(
                               radius: 14,
-                              backgroundImage: NetworkImage(
+                              backgroundImage: CachedNetworkImageProvider(
                                 circularVideoUrls[index].avatarUrl!,
                               ),
                             ),

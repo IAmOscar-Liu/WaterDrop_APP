@@ -1,3 +1,5 @@
+import 'package:flutter_ad_ecommerce/shared/widgets/app_snackbar.dart';
+import 'package:flutter_ad_ecommerce/shared/widgets/app_dialog.dart';
 import 'package:flutter_ad_ecommerce/provider/chat_sync_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -33,10 +35,10 @@ class _MinePageState extends ConsumerState<MinePage> {
   }
 
   Future<void> _confirmSignOut() async {
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        backgroundColor: AppColors.containerBgColor,
+        backgroundColor: AppColors.dialogBgColor,
         title: const Text(
           '確認登出',
           style: TextStyle(color: AppColors.primaryTextColor),
@@ -212,7 +214,8 @@ class _MinePageState extends ConsumerState<MinePage> {
                   onPressed: () {
                     Clipboard.setData(ClipboardData(text: value));
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
+                      AppSnackBar(
+                        kind: AppSnackBarKind.success,
                         content: Text('已複製推薦碼'),
                         duration: Duration(seconds: 1),
                       ),
@@ -236,7 +239,7 @@ class _MinePageState extends ConsumerState<MinePage> {
   }
 
   void _showReferralCodeDialog() {
-    showDialog(
+    showAppDialog(
       context: context,
       builder: (context) {
         return ReferralCodeDialog(
@@ -247,7 +250,7 @@ class _MinePageState extends ConsumerState<MinePage> {
             final message = (result.isSuccess)
                 ? result.data!
                 : result.error ?? "無法提交推薦碼";
-            _showSnackbar(message);
+            _showSnackbar(message, isError: result.isFailure);
           },
         );
       },
@@ -258,11 +261,11 @@ class _MinePageState extends ConsumerState<MinePage> {
     );
   }
 
-  void _showSnackbar(String message) {
+  void _showSnackbar(String message, {bool isError = false}) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
+      AppSnackBar(
         content: Text(message),
-        backgroundColor: Colors.green,
+        kind: isError ? AppSnackBarKind.error : AppSnackBarKind.success,
         duration: const Duration(seconds: 2),
       ),
     );

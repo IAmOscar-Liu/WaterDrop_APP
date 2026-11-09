@@ -1,3 +1,4 @@
+import 'package:flutter_ad_ecommerce/shared/widgets/app_snackbar.dart';
 // ignore_for_file: use_build_context_synchronously
 
 import 'package:flutter_ad_ecommerce/shared/layouts/app_scaffold.dart';
@@ -126,9 +127,8 @@ class _HomePageState extends ConsumerState<HomePage>
         (treasureBoxProvider.isDone && treasureBoxProvider.data!.isEmpty)) {
       return _buildLayout(
         child: PageError(
-          treasureBoxProvider.hasError
-              ? "Failed to load treasure boxes: ${treasureBoxProvider.error}"
-              : "Data not found",
+          treasureBoxProvider.error,
+          onRetry: () => _loadTreasureBoxes(keepPreviousData: false),
         ),
       );
     }
@@ -254,13 +254,15 @@ class _HomePageState extends ConsumerState<HomePage>
                                     ..clearSnackBars()
                                     ..removeCurrentSnackBar()
                                     ..showSnackBar(
-                                      SnackBar(
+                                      AppSnackBar(
                                         content: Text(
                                           result.data == 0
                                               ? '很抱歉，由於您昨天未觀看廣告，無法獲得金幣'
                                               : '開啟寶箱，獲得${result.data!.formatCoinValue()}金幣',
                                         ),
-                                        backgroundColor: Colors.green,
+                                        kind: result.data == 0
+                                            ? AppSnackBarKind.info
+                                            : AppSnackBarKind.success,
                                         duration: const Duration(seconds: 2),
                                       ),
                                     );
@@ -270,11 +272,11 @@ class _HomePageState extends ConsumerState<HomePage>
                                     ..clearSnackBars()
                                     ..removeCurrentSnackBar()
                                     ..showSnackBar(
-                                      const SnackBar(
+                                      AppSnackBar(
                                         content: Text(
                                           '寶箱開啟失敗，正在重新整理寶箱列表，請稍後再試。',
                                         ),
-                                        backgroundColor: Colors.red,
+                                        kind: AppSnackBarKind.error,
                                         duration: Duration(seconds: 3),
                                       ),
                                     );

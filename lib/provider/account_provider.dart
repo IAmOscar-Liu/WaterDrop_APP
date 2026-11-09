@@ -64,7 +64,7 @@ class AccountNotifier extends _$AccountNotifier {
       return Result.failure(getDioExceptionMessage(e));
     } catch (e) {
       log("Error loading account info: $e");
-      return Result.failure("Error loading account info: $e");
+      return Result.failure(AppFailure.from(e));
     }
   }
 
@@ -88,7 +88,7 @@ class AccountNotifier extends _$AccountNotifier {
       return Result.failure(getDioExceptionMessage(e));
     } catch (e) {
       log("Error loading account info: $e");
-      return Result.failure("Error loading account info: $e");
+      return Result.failure(AppFailure.from(e));
     }
   }
 
@@ -132,7 +132,7 @@ class AccountNotifier extends _$AccountNotifier {
       return Result.failure(getDioExceptionMessage(e));
     } catch (e) {
       log("Error saving delivery info: $e");
-      return Result.failure("Error saving delivery info: $e");
+      return Result.failure(AppFailure.from(e));
     }
     // state = state.copyWith(name: name, address: address, phone: phone);
   }
@@ -157,7 +157,7 @@ class AccountNotifier extends _$AccountNotifier {
       return Result.failure(getDioExceptionMessage(e));
     } catch (e) {
       log("Error updating terms accepted at: $e");
-      return Result.failure(e.toString());
+      return Result.failure(AppFailure.from(e));
     }
   }
 }

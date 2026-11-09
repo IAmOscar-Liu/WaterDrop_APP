@@ -1,3 +1,5 @@
+import 'app_failure.dart';
+
 sealed class Result<T> {
   const Result();
 
@@ -6,10 +8,12 @@ sealed class Result<T> {
 
   T? get data => this is Success<T> ? (this as Success<T>).data : null;
   String? get error => this is Failure<T> ? (this as Failure<T>).error : null;
+  AppFailure? get failureInfo =>
+      this is Failure<T> ? (this as Failure<T>).failureInfo : null;
 
   // Static factory methods
   static Result<T> success<T>([T? data]) => Success<T>(data);
-  static Result<T> failure<T>(String error) => Failure<T>(error);
+  static Result<T> failure<T>(Object error) => Failure<T>(error);
 
   R when<R>({
     required R Function(T? data) success,
@@ -31,5 +35,9 @@ final class Success<T> extends Result<T> {
 final class Failure<T> extends Result<T> {
   @override
   final String error;
-  const Failure(this.error);
+  @override
+  final AppFailure? failureInfo;
+  Failure(Object value)
+    : failureInfo = value is String ? null : AppFailure.from(value),
+      error = value is String ? value : AppFailure.from(value).message;
 }

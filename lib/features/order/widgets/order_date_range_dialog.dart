@@ -1,3 +1,4 @@
+import 'package:flutter_ad_ecommerce/shared/widgets/app_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_ad_ecommerce/constants/colors.dart';
 import 'package:flutter_ad_ecommerce/features/order/order_date_range.dart';
@@ -67,7 +68,10 @@ class _OrderDateRangeDialogState extends State<OrderDateRangeDialog> {
         context: context,
         locale: const Locale('zh', 'TW'),
         delegates: GlobalMaterialLocalizations.delegates,
-        child: child!,
+        child: Theme(
+          data: AppDialogs.themeFor(Theme.of(context)),
+          child: child!,
+        ),
       ),
     );
     if (!mounted || selected == null) return;
